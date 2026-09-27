@@ -1,5 +1,9 @@
 import type { Session } from "../../auth/session";
 import type { Page } from "../../App";
+import {
+  AUTHORITY_CATALOG,
+  getAuthoritiesFor,
+} from "../../api/authorityApi";
 import RoleDashboardShell, {
   type DashboardSection,
   type DashboardStat,
@@ -20,9 +24,12 @@ import "./StaffDashboardPage.css";
    itself is ready and identical in structure to the other
    three dashboards.
 
-   The communication section is live: it opens the shared
-   inbox, which already enforces who staff may talk to
-   (users, lawyers and the administrator — see chatApi).
+   What this account may actually do is whatever the
+   administrator delegated on the Access & Roles screen.
+   The communication section only opens if that authority
+   was granted, so a revoked grant shows up here instead of
+   merely going unenforced. See chatApi for who staff may
+   talk to once the inbox is open.
    ========================================================= */
 
 type StaffDashboardPageProps = {
@@ -39,6 +46,11 @@ function StaffDashboardPage({
   /* =====================================================
      CONFIG
      ===================================================== */
+
+  const granted = getAuthoritiesFor(session.userId);
+
+  const has = (authorityId: string) =>
+    granted.includes(authorityId);
 
   const stats: DashboardStat[] = [
     {
@@ -103,11 +115,15 @@ function StaffDashboardPage({
       id: "communication",
       icon: "💬",
       title: "Client Communication",
-      description:
-        "Handle authorized communication with users and " +
-        "lawyers on assigned matters, and with the admin.",
-      status: "ready",
-      badge: "Open",
+      description: has("messages.send")
+        ? "Handle authorized communication with users and " +
+          "lawyers on assigned matters, and with the admin."
+        : "Messaging authority has not been granted to this " +
+          "account. The administrator can restore it under " +
+          "Access & Roles.",
+      status: has("messages.send") ? "ready" : "planned",
+      badge: has("messages.send") ? "Open" : "Not granted",
+      cta: "Ask the administrator for access",
       onOpen: () => onNavigate("chat"),
     },
     {
@@ -189,6 +205,69 @@ function StaffDashboardPage({
           </p>
 
         </div>
+
+      </div>
+
+      {/* =================================================
+          AUTHORITIES THIS ACCOUNT HOLDS
+
+          Mirrors the Access & Roles screen, so the person
+          on the receiving end can see the decision rather
+          than only discovering it when a button is missing.
+          ================================================= */}
+
+      <div className="staff-dashboard-authorities">
+
+        <div className="staff-dashboard-authorities-head">
+
+          <span>🔐</span>
+
+          <div>
+
+            <strong>Your authorities</strong>
+
+            <p>
+              Delegated by the administrator. Ask the admin
+              under Access & Roles to change what you can do.
+            </p>
+
+          </div>
+
+          <em>
+            {granted.length} of {AUTHORITY_CATALOG.length} granted
+          </em>
+
+        </div>
+
+        <ul>
+
+          {AUTHORITY_CATALOG.map((authority) => {
+
+            const on = granted.includes(authority.id);
+
+            return (
+              <li
+                key={authority.id}
+                className={on ? "is-on" : "is-off"}
+              >
+
+                <span
+                  className="staff-dashboard-authority-dot"
+                  aria-hidden="true"
+                />
+
+                <div>
+                  <strong>{authority.label}</strong>
+                  <small>{authority.description}</small>
+                </div>
+
+                <em>{on ? "Granted" : "Not granted"}</em>
+
+              </li>
+            );
+          })}
+
+        </ul>
 
       </div>
 

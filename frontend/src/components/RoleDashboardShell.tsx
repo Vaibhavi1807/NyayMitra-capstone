@@ -24,6 +24,12 @@ export interface DashboardSection {
   description: string;
   status: "ready" | "planned";
   badge?: string;
+
+  /* Overrides the CTA line. Needed because a section can be not-ready for
+     two very different reasons — it is still being built, or the admin has
+     withdrawn the authority — and "Under development" reads wrong for the
+     second one. */
+  cta?: string;
   onOpen?: () => void;
 }
 
@@ -289,7 +295,7 @@ function RoleDashboardShell({
                   <div className="role-dashboard-section-cta">
                     {isReady
                       ? "Open section →"
-                      : "Under development"}
+                      : section.cta || "Under development"}
                   </div>
 
                 </div>

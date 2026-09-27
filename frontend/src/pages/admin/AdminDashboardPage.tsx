@@ -6,6 +6,13 @@ import RoleDashboardShell, {
   type DashboardStat,
 } from "../../components/RoleDashboardShell";
 import { issueStaffAccount, DEMO_ACCOUNTS } from "../../api/authApi";
+import {
+  AUTHORITY_CATALOG,
+  ADMIN_AUTHORITIES,
+  getAuthoritiesFor,
+  setAuthorityFor,
+  setAuthoritiesFor,
+} from "../../api/authorityApi";
 import "../../components/RoleDashboardShell.css";
 import "./AdminDashboardPage.css";
 
@@ -72,6 +79,49 @@ function AdminDashboardPage({
 
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
+
+  /* =====================================================
+     DELEGATED AUTHORITIES
+
+     What the admin has granted each staff member. Loaded
+     from authorityApi once, then kept in step locally so a
+     toggle repaints immediately instead of refetching.
+     ===================================================== */
+
+  const [grants, setGrants] = useState<Record<string, string[]>>(
+    () =>
+      Object.fromEntries(
+        initialStaff.map((member) => [
+          member.userId,
+          getAuthoritiesFor(member.userId),
+        ]),
+      ),
+  );
+
+  const toggleAuthority = (
+    staffUserId: string,
+    authorityId: string,
+    on: boolean,
+  ) => {
+    const next = setAuthorityFor(staffUserId, authorityId, on);
+
+    setGrants((previous) => ({
+      ...previous,
+      [staffUserId]: next,
+    }));
+  };
+
+  const bulkAuthorities = (
+    staffUserId: string,
+    authorityIds: string[],
+  ) => {
+    const next = setAuthoritiesFor(staffUserId, authorityIds);
+
+    setGrants((previous) => ({
+      ...previous,
+      [staffUserId]: next,
+    }));
+  };
 
   /* =====================================================
      ISSUE STAFF ACCOUNT
@@ -241,15 +291,251 @@ function AdminDashboardPage({
       icon: "🔐",
       title: "Access & Roles",
       description:
-        "Role assignments and permissions across USER, " +
-        "LAWYER, ADMIN and STAFF.",
-      status: "planned",
+        "Grant or revoke the authorities staff hold across " +
+        "users, lawyers, cases, documents and messages.",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => setActiveSection("access"),
     },
   ];
 
   /* =====================================================
      STAFF MANAGEMENT SCREEN
      ===================================================== */
+
+  /* =====================================================
+     ACCESS & ROLES SCREEN
+
+     The administrator's own row is fixed — admin holds
+     everything by definition — so the only thing that can
+     change is what each staff account has been handed.
+     ===================================================== */
+
+  if (activeSection === "access") {
+    return (
+      <div className="role-dashboard-page">
+
+        <section className="role-dashboard-hero">
+
+          <div className="role-dashboard-hero-glow" />
+
+          <div className="role-dashboard-hero-content">
+
+            <div className="role-dashboard-eyebrow">
+              <span>⚖</span>
+              NYAYMITRA ADMIN PORTAL
+            </div>
+
+            <h1>
+              Access
+              <br />
+              <span>&amp; roles.</span>
+            </h1>
+
+            <p>
+              You hold every authority across all four
+              dashboards. Delegate to each staff member only
+              what their work needs — changes take effect on
+              their dashboard straight away.
+            </p>
+
+          </div>
+
+        </section>
+
+        <main className="role-dashboard-main">
+
+          <section className="role-dashboard-welcome">
+
+            <div className="role-dashboard-profile">
+
+              <div className="role-dashboard-avatar">
+                {session.fullName
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part[0]?.toUpperCase() || "")
+                  .join("")}
+              </div>
+
+              <div>
+
+                <span className="role-dashboard-section-label">
+                  ADMIN WORKSPACE
+                </span>
+
+                <h2>Delegate staff authorities</h2>
+
+                <p>
+                  Signed in as {session.fullName} (
+                  {session.userId})
+                </p>
+
+              </div>
+
+            </div>
+
+            <button
+              type="button"
+              className="role-dashboard-signout"
+              onClick={() => setActiveSection(null)}
+            >
+              ← Back to dashboard
+            </button>
+
+          </section>
+
+
+          {/* =========================================
+              ADMIN — LOCKED ON
+              ========================================= */}
+
+          <div className="admin-access-banner">
+
+            <div>
+
+              <span className="role-dashboard-section-label">
+                ADMINISTRATOR
+              </span>
+
+              <h3>You hold every authority</h3>
+
+              <p>
+                Admin authority is not grantable or revocable —
+                it covers every dashboard by definition.
+              </p>
+
+            </div>
+
+            <span className="admin-access-count">
+              {ADMIN_AUTHORITIES.length} of {AUTHORITY_CATALOG.length}
+            </span>
+
+          </div>
+
+
+          {/* =========================================
+              STAFF — GRANTABLE
+              ========================================= */}
+
+          {staffList.length === 0 ? (
+            <div className="admin-staff-card">
+
+              <span className="role-dashboard-section-label">
+                NO STAFF
+              </span>
+
+              <h3>No staff accounts yet</h3>
+
+              <p>
+                Issue a staff account first, then decide here
+                what that account is allowed to do.
+              </p>
+
+            </div>
+          ) : (
+            <div className="admin-access-grid">
+
+              {staffList.map((member) => {
+
+                const held =
+                  grants[member.userId] ??
+                  getAuthoritiesFor(member.userId);
+
+                return (
+                  <div
+                    key={member.userId}
+                    className="admin-staff-card admin-access-card"
+                  >
+
+                    <header className="admin-access-card-head">
+
+                      <div>
+
+                        <span className="role-dashboard-section-label">
+                          STAFF
+                        </span>
+
+                        <h3>{member.fullName}</h3>
+
+                        <p>
+                          {member.email} · {member.userId}
+                        </p>
+
+                      </div>
+
+                      <span className="admin-access-count">
+                        {held.length} of {AUTHORITY_CATALOG.length}
+                      </span>
+
+                    </header>
+
+                    <ul className="admin-access-list">
+
+                      {AUTHORITY_CATALOG.map((authority) => (
+                        <li key={authority.id}>
+                          <label>
+
+                            <input
+                              type="checkbox"
+                              checked={held.includes(authority.id)}
+                              onChange={(event) =>
+                                toggleAuthority(
+                                  member.userId,
+                                  authority.id,
+                                  event.target.checked,
+                                )
+                              }
+                            />
+
+                            <span>
+                              <strong>{authority.label}</strong>
+                              <small>{authority.description}</small>
+                            </span>
+
+                          </label>
+                        </li>
+                      ))}
+
+                    </ul>
+
+                    <footer className="admin-access-actions">
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          bulkAuthorities(
+                            member.userId,
+                            AUTHORITY_CATALOG.map((a) => a.id),
+                          )
+                        }
+                      >
+                        Grant all
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          bulkAuthorities(member.userId, [])
+                        }
+                      >
+                        Revoke all
+                      </button>
+
+                    </footer>
+
+                  </div>
+                );
+              })}
+
+            </div>
+          )}
+
+        </main>
+
+      </div>
+    );
+  }
 
   if (activeSection === "staff") {
     return (

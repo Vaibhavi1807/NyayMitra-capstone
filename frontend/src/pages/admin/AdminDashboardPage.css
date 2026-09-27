@@ -38,6 +38,226 @@
 
 
 /* =========================================================
+   ACCESS & ROLES
+
+   The admin's own row (banner) is informational, so it is
+   presented as a statement rather than a control. The staff
+   cards are the only place a toggle can actually change
+   something.
+   ========================================================= */
+
+.admin-access-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 22px 26px;
+
+  border: 1px solid #dcdcf4;
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(135deg, #f5f6ff, #fafaff);
+
+  box-shadow:
+    0 8px 25px rgba(25, 30, 60, 0.05);
+}
+
+.admin-access-banner h3 {
+  margin: 6px 0;
+
+  color: #252a40;
+
+  font-size: 20px;
+
+  letter-spacing: -0.4px;
+}
+
+.admin-access-banner p {
+  margin: 0;
+
+  max-width: 62ch;
+
+  color: #555b6f;
+
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-access-count {
+  flex: 0 0 auto;
+
+  padding: 7px 13px;
+
+  border: 1px solid #dcdcf4;
+  border-radius: 999px;
+
+  background: white;
+
+  color: #4338ca;
+
+  font-size: 11.5px;
+  font-weight: 750;
+
+  white-space: nowrap;
+}
+
+.admin-access-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(auto-fit, minmax(330px, 1fr));
+
+  gap: 20px;
+}
+
+/* Same element gets .admin-staff-card too; declared later so it wins the
+   tie on equal specificity and pulls the heading back up under the header. */
+.admin-access-card h3 {
+  margin: 6px 0 3px;
+
+  font-size: 18px;
+}
+
+.admin-access-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin-bottom: 16px;
+
+  padding-bottom: 16px;
+
+  border-bottom: 1px solid #eef0f5;
+}
+
+.admin-access-card-head p {
+  margin: 0;
+
+  color: #777d91;
+
+  font-size: 12px;
+
+  overflow-wrap: anywhere;
+}
+
+.admin-access-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.admin-access-list label {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 11px;
+
+  padding: 11px 13px;
+
+  border: 1px solid #eef0f5;
+  border-radius: 12px;
+
+  background: #fbfbfe;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.admin-access-list label:hover {
+  border-color: #dcdcf4;
+
+  background: #f5f6ff;
+}
+
+.admin-access-list input {
+  flex: 0 0 auto;
+
+  width: 16px;
+  height: 16px;
+
+  margin-top: 2px;
+
+  accent-color: #4338ca;
+
+  cursor: pointer;
+}
+
+.admin-access-list strong {
+  display: block;
+
+  color: #252a40;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-access-list small {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #777d91;
+
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.admin-access-actions {
+  display: flex;
+  gap: 9px;
+
+  margin-top: 16px;
+
+  padding-top: 16px;
+
+  border-top: 1px solid #eef0f5;
+}
+
+.admin-access-actions button {
+  flex: 1;
+
+  padding: 9px 13px;
+
+  border: 1px solid #dcdcf4;
+  border-radius: 11px;
+
+  background: #f5f6ff;
+
+  color: #4338ca;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.admin-access-actions button:hover {
+  border-color: #4338ca;
+
+  background:
+    linear-gradient(135deg, #4338ca, #6366f1);
+
+  color: white;
+}
+
+
+/* =========================================================
    FIELDS
    ========================================================= */
 
