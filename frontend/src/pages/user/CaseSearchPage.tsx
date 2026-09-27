@@ -1,10 +1,14 @@
 import CaseSearch from "../../components/CaseSearch";
 
 type CaseSearchPageProps = {
+  /* Signed-in account — the list below is scoped to it, so one user can never
+     see another user's cases. */
+  userId: string;
   onBack?: () => void;
 };
 
 export default function CaseSearchPage({
+  userId,
   onBack,
 }: CaseSearchPageProps) {
   return (
@@ -24,24 +28,24 @@ export default function CaseSearchPage({
         <div className="hero-content">
           <div className="eyebrow">
             <span>⚖</span>
-            NYAYMITRA CASE SERVICES
+            NYAYMITRA MY CASES
           </div>
 
           <h1>
-            Find and understand
+            Track
             <br />
-            <span>your case</span>
+            <span>your cases</span>
           </h1>
 
           <p>
-            Search your case using the CNR number, petitioner name,
-            or case type. Keep track of your case stage and upcoming
-            hearings in one place.
+            Only cases filed on your account appear on this page — nobody
+            else's. Search by CNR number, petitioner name, or case type,
+            and keep track of your case stage and upcoming hearings.
           </p>
         </div>
       </section>
 
-      <CaseSearch />
+      <CaseSearch userId={userId} />
     </main>
   );
 }

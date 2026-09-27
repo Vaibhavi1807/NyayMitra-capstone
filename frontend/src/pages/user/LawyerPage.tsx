@@ -11,6 +11,8 @@ import type {
   PracticeArea,
 } from "../../api/lawyerApi";
 
+import type { ChatTarget } from "../../api/chatApi";
+
 /* =========================================================
    PROPS
    ========================================================= */
@@ -23,6 +25,13 @@ type LawyerPageProps = {
    * Wired up by App.tsx to the shared profile page.
    */
   onViewProfile?: (lawyerId: string) => void;
+
+  /**
+   * Starts a conversation with the lawyer on the card.
+   * Wired up by App.tsx to the shared inbox, which enforces
+   * that a citizen may only message lawyers and staff.
+   */
+  onChat?: (target: ChatTarget) => void;
 };
 
 /* =========================================================
@@ -126,6 +135,7 @@ function snapshotKey(
 export default function LawyerPage({
   onBack,
   onViewProfile,
+  onChat,
 }: LawyerPageProps) {
   /* ---------- FILTER STATE ---------- */
 
@@ -726,18 +736,38 @@ export default function LawyerPage({
 
                       </div>
 
-                      <button
-                        type="button"
-                        className="lawyer-profile-btn"
-                        onClick={() =>
-                          onViewProfile?.(
-                            lawyer.lawyer_id,
-                          )
-                        }
-                      >
-                        View Profile
-                        <span>→</span>
-                      </button>
+                      <div className="lawyer-card-actions">
+
+                        {onChat && (
+                          <button
+                            type="button"
+                            className="lawyer-chat-btn"
+                            onClick={() =>
+                              onChat({
+                                id: lawyer.lawyer_id,
+                                name: lawyer.full_name,
+                                role: "LAWYER",
+                              })
+                            }
+                          >
+                            💬 Chat
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          className="lawyer-profile-btn"
+                          onClick={() =>
+                            onViewProfile?.(
+                              lawyer.lawyer_id,
+                            )
+                          }
+                        >
+                          View Profile
+                          <span>→</span>
+                        </button>
+
+                      </div>
 
                     </article>
                   );

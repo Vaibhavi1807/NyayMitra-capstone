@@ -2,19 +2,30 @@ import { useMemo, useState } from "react";
 import { mockCases } from "../mocks/cases";
 import CaseCard from "./CaseCard";
 
-export default function CaseSearch() {
+type CaseSearchProps = {
+  /* Signed-in account. Everything below is scoped to it: the results, the type
+     filter and the search box only ever see this user's own cases. */
+  userId: string;
+};
+
+export default function CaseSearch({ userId }: CaseSearchProps) {
   const [search, setSearch] = useState("");
   const [caseType, setCaseType] = useState("All");
 
+  const myCases = useMemo(
+    () => mockCases.filter((item) => item.owner_user_id === userId),
+    [userId],
+  );
+
   const caseTypes = useMemo(() => {
-    const types = mockCases.map((item) => item.case_type);
+    const types = myCases.map((item) => item.case_type);
     return ["All", ...Array.from(new Set(types))];
-  }, []);
+  }, [myCases]);
 
   const filteredCases = useMemo(() => {
     const query = search.toLowerCase().trim();
 
-    return mockCases.filter((item) => {
+    return myCases.filter((item) => {
       const matchesSearch =
         !query ||
         item.cnr_number.toLowerCase().includes(query) ||
@@ -27,7 +38,7 @@ export default function CaseSearch() {
 
       return matchesSearch && matchesType;
     });
-  }, [search, caseType]);
+  }, [myCases, search, caseType]);
 
   return (
     <section className="case-search-section">
@@ -71,14 +82,17 @@ export default function CaseSearch() {
         <div className="results-header">
           <div>
             <h2>
-              {filteredCases.length}{" "}
-              {filteredCases.length === 1 ? "case" : "cases"} found
+              {myCases.length === filteredCases.length
+                ? `${myCases.length} ${
+                    myCases.length === 1 ? "case" : "cases"
+                  } on your account`
+                : `${filteredCases.length} of ${myCases.length} cases`}
             </h2>
 
             <p>
               {search
-                ? `Showing results matching "${search}"`
-                : "Showing your available case records"}
+                ? `Showing your cases matching "${search}"`
+                : "Only cases filed on your account are shown"}
             </p>
           </div>
         </div>
@@ -92,12 +106,22 @@ export default function CaseSearch() {
               />
             ))}
           </div>
+        ) : myCases.length === 0 ? (
+          /* No ownership at all — filtering isn't the problem. */
+          <div className="empty-state">
+            <div className="empty-icon">⚖</div>
+            <h3>No cases on your account</h3>
+            <p>
+              This account does not have any court cases linked to it yet.
+              Once a case is filed and linked to you, it will appear here.
+            </p>
+          </div>
         ) : (
           <div className="empty-state">
             <div className="empty-icon">⌕</div>
             <h3>No cases found</h3>
             <p>
-              We couldn't find any cases matching your search.
+              We couldn't find any of your cases matching that search.
               Try a different CNR number, petitioner name, or case type.
             </p>
 

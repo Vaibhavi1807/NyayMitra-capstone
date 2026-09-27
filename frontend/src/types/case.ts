@@ -14,6 +14,15 @@ export interface CaseHistoryEntry {
 
 export interface Case {
   cnr_number: string;
+
+  /* Account this record belongs to. The My Cases screen filters on it so a
+     signed-in user only ever sees their own cases — never the full set. */
+  owner_user_id: string;
+
+  /* Advocate handling the matter. The lawyer's Active Cases screen filters
+     on it, so one lawyer never sees another's caseload. */
+  handling_lawyer_id: string;
+
   court_state: string;
   court_district: string;
   court_name: string;

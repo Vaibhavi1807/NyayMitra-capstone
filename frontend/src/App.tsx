@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import "./App.css";
 
 // ================= AUTH =================
@@ -28,6 +28,7 @@ import NextStepsPage from "./pages/user/NextStepsPage";
 
 import LawyerDashboardPage from "./pages/lawyer/LawyerDashboardPage";
 import LawyerProfilePage from "./pages/lawyer/LawyerProfilePage";
+import LawyerCasesPage from "./pages/lawyer/LawyerCasesPage";
 
 // ================= ADMIN PAGES =================
 
@@ -36,6 +37,11 @@ import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 // ================= STAFF PAGES =================
 
 import StaffDashboardPage from "./pages/staff/StaffDashboardPage";
+
+// ================= SHARED PAGES =================
+
+import ChatPage from "./pages/shared/ChatPage";
+import type { ChatTarget } from "./api/chatApi";
 
 /* =========================================================
    PAGE TYPES
@@ -58,12 +64,16 @@ export type Page =
   // LAWYER
   | "lawyerDashboard"
   | "lawyerProfile"
+  | "lawyerCases"
 
   // ADMIN
   | "adminDashboard"
 
   // STAFF
-  | "staffDashboard";
+  | "staffDashboard"
+
+  // SHARED — every role reaches this one
+  | "chat";
 
 /* =========================================================
    DEVELOPMENT LAWYER ID
@@ -118,6 +128,7 @@ const PAGES_BY_ROLE: Record<
   USER: [
     "dashboard",
     "cases",
+    "chat",
     "lawyer",
     "viewLawyer",
     "orders",
@@ -129,11 +140,11 @@ const PAGES_BY_ROLE: Record<
     "nextSteps",
   ],
 
-  LAWYER: ["lawyerDashboard", "lawyerProfile"],
+  LAWYER: ["lawyerDashboard", "lawyerProfile", "lawyerCases", "chat"],
 
-  ADMIN: ["adminDashboard"],
+  ADMIN: ["adminDashboard", "chat"],
 
-  STAFF: ["staffDashboard"],
+  STAFF: ["staffDashboard", "chat"],
 };
 
 function pageOwnedByRole(
@@ -184,6 +195,19 @@ function App() {
   const [selectedLawyerId, setSelectedLawyerId] =
     useState<string | null>(null);
 
+  /*
+   * Thread ChatPage should open as soon as it mounts.
+   * A "Chat with Lawyer" button sets this, then navigates;
+   * ChatPage clears it via onTargetConsumed so returning to
+   * the inbox normally does not re-open it.
+   */
+  const [chatTarget, setChatTarget] =
+    useState<ChatTarget | null>(null);
+
+  const clearChatTarget = useCallback(() => {
+    setChatTarget(null);
+  }, []);
+
   /* =======================================================
      LOGIN / LOGOUT
      ======================================================= */
@@ -227,6 +251,16 @@ function App() {
      ======================================================= */
 
   const goToPage = (page: Page) => {
+    /*
+     * Arriving at the inbox by plain navigation means no
+     * particular thread was asked for, so drop any target
+     * left over from an earlier "Chat" button. Otherwise
+     * the stale one would reopen on the next visit.
+     */
+    if (page === "chat") {
+      setChatTarget(null);
+    }
+
     setActivePage(page);
 
     window.scrollTo({
@@ -253,6 +287,18 @@ function App() {
       top: 0,
       behavior: "smooth",
     });
+  };
+
+  /*
+   * Opens the inbox straight onto one thread. Used by
+   * "Chat with Lawyer" so the user never has to hunt for the
+   * conversation they just asked for.
+   */
+  const startChat = (target: ChatTarget) => {
+    setChatTarget(target);
+    setActivePage("chat");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const lawyerId =
@@ -293,6 +339,7 @@ function App() {
       {session.role === "USER" &&
         page === "cases" && (
           <CaseSearchPage
+            userId={session.userId}
             onBack={goBackToDashboard}
           />
         )}
@@ -304,6 +351,7 @@ function App() {
           <LawyerPage
             onBack={goBackToDashboard}
             onViewProfile={openLawyerProfile}
+            onChat={startChat}
           />
         )}
 
@@ -393,25 +441,60 @@ function App() {
 
 
       {/* =================================================
+          LAWYER — MY ACTIVE CASES
+          ================================================= */}
+
+      {session.role === "LAWYER" &&
+        page === "lawyerCases" && (
+          <LawyerCasesPage
+            lawyerId={lawyerId}
+            onBack={goBackToDashboard}
+            onOpenChat={startChat}
+          />
+        )}
+
+
+      {/* =================================================
           ADMIN DASHBOARD
           ================================================= */}
 
-      {session.role === "ADMIN" && (
-        <AdminDashboardPage
-          session={session}
-          onSignOut={handleSignOut}
-        />
-      )}
+      {session.role === "ADMIN" &&
+        page === "adminDashboard" && (
+          <AdminDashboardPage
+            session={session}
+            onSignOut={handleSignOut}
+            onNavigate={goToPage}
+          />
+        )}
 
 
       {/* =================================================
           STAFF DASHBOARD
           ================================================= */}
 
-      {session.role === "STAFF" && (
-        <StaffDashboardPage
+      {session.role === "STAFF" &&
+        page === "staffDashboard" && (
+          <StaffDashboardPage
+            session={session}
+            onSignOut={handleSignOut}
+            onNavigate={goToPage}
+          />
+        )}
+
+
+      {/* =================================================
+          SHARED CHAT INBOX (every role)
+
+          pageOwnedByRole() has already proved this role may
+          be on "chat" before we render it.
+          ================================================= */}
+
+      {page === "chat" && (
+        <ChatPage
           session={session}
-          onSignOut={handleSignOut}
+          onBack={goBackToDashboard}
+          target={chatTarget}
+          onTargetConsumed={clearChatTarget}
         />
       )}
 

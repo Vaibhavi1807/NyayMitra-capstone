@@ -658,6 +658,82 @@ function LawyerDashboardPage({
 
 
         {/* =================================================
+            WORK — ACTIVE CASES + MESSAGES
+
+            The two things an advocate does between hearings:
+            check the matters on their list, and reply to the
+            people on them.
+            ================================================= */}
+
+        <section className="lawyer-dashboard-specialization-grid">
+
+          <button
+            type="button"
+            className="lawyer-dashboard-wide-card
+                       lawyer-dashboard-action-card"
+            onClick={() => onNavigate("lawyerCases")}
+          >
+
+            <div className="lawyer-dashboard-card-heading">
+
+              <div className="lawyer-dashboard-stat-icon purple">
+                ⚖
+              </div>
+
+              <h3>
+                Active Cases
+              </h3>
+
+            </div>
+
+            <p className="lawyer-dashboard-muted">
+              Every matter assigned to you — parties,
+              current stage, judge and the next hearing
+              date, with a shortcut to message the client.
+            </p>
+
+            <span className="lawyer-dashboard-action-cta">
+              Open my caseload →
+            </span>
+
+          </button>
+
+
+          <button
+            type="button"
+            className="lawyer-dashboard-wide-card
+                       lawyer-dashboard-action-card"
+            onClick={() => onNavigate("chat")}
+          >
+
+            <div className="lawyer-dashboard-card-heading">
+
+              <div className="lawyer-dashboard-stat-icon blue">
+                💬
+              </div>
+
+              <h3>
+                Messages
+              </h3>
+
+            </div>
+
+            <p className="lawyer-dashboard-muted">
+              See which users contacted you and carry on the
+              conversation, plus the staff and admin channels
+              you are allowed to use.
+            </p>
+
+            <span className="lawyer-dashboard-action-cta">
+              Open inbox →
+            </span>
+
+          </button>
+
+        </section>
+
+
+        {/* =================================================
             CTA
             ================================================= */}
 

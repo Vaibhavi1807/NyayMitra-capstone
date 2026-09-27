@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Session } from "../../auth/session";
+import type { Page } from "../../App";
 import RoleDashboardShell, {
   type DashboardSection,
   type DashboardStat,
@@ -25,6 +26,7 @@ import "./AdminDashboardPage.css";
 type AdminDashboardPageProps = {
   session: Session;
   onSignOut: () => void;
+  onNavigate: (page: Page) => void;
 };
 
 /* =========================================================
@@ -40,6 +42,7 @@ interface StaffRecord {
 function AdminDashboardPage({
   session,
   onSignOut,
+  onNavigate,
 }: AdminDashboardPageProps) {
   /* =====================================================
      SECTION NAVIGATION
@@ -185,6 +188,17 @@ function AdminDashboardPage({
       status: "ready",
       badge: "Open",
       onOpen: () => setActiveSection("staff"),
+    },
+    {
+      id: "messages",
+      icon: "💬",
+      title: "Messages",
+      description:
+        "Reach the lawyers and staff directly. The admin " +
+        "holds authority across every dashboard.",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => onNavigate("chat"),
     },
     {
       id: "users",

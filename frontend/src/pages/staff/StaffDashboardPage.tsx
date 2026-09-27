@@ -1,4 +1,5 @@
 import type { Session } from "../../auth/session";
+import type { Page } from "../../App";
 import RoleDashboardShell, {
   type DashboardSection,
   type DashboardStat,
@@ -18,16 +19,22 @@ import "./StaffDashboardPage.css";
    Every section below is a planned screen; the shell
    itself is ready and identical in structure to the other
    three dashboards.
+
+   The communication section is live: it opens the shared
+   inbox, which already enforces who staff may talk to
+   (users, lawyers and the administrator — see chatApi).
    ========================================================= */
 
 type StaffDashboardPageProps = {
   session: Session;
   onSignOut: () => void;
+  onNavigate: (page: Page) => void;
 };
 
 function StaffDashboardPage({
   session,
   onSignOut,
+  onNavigate,
 }: StaffDashboardPageProps) {
   /* =====================================================
      CONFIG
@@ -98,8 +105,10 @@ function StaffDashboardPage({
       title: "Client Communication",
       description:
         "Handle authorized communication with users and " +
-        "lawyers on assigned matters.",
-      status: "planned",
+        "lawyers on assigned matters, and with the admin.",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => onNavigate("chat"),
     },
     {
       id: "tasks",

@@ -3,6 +3,8 @@ import type { Case } from "../types/case";
 export const mockCases: Case[] = [
   {
     cnr_number: "PBASB00008022024",
+    owner_user_id: "USER_0001",
+    handling_lawyer_id: "LAWYER_0003",
     court_state: "Punjab",
     court_district: "Amritsar",
     court_name: "Civil Judge Senior Division, Baba Bakala",
@@ -12,10 +14,10 @@ export const mockCases: Case[] = [
     registration_number: "476/2024",
     registration_date: "2024-12-31",
     first_hearing_date: "2024-12-31",
-    next_hearing_date: "2026-09-08",
+    next_hearing_date: "2026-10-06",
     current_case_stage: "Arguments",
     presiding_judge: "5-Civil Judge (Junior Division)",
-    petitioner_name: "Nishan Singh",
+    petitioner_name: "Asha Verma",
     petitioner_advocate: "Vijay Kumar",
     respondents_list: [
       "Prabhjot Kaur",
@@ -34,7 +36,7 @@ export const mockCases: Case[] = [
       {
         judge_title: "Civil Judge (Junior Division)",
         business_on_date: "2026-08-19",
-        hearing_date: "2026-09-08",
+        hearing_date: "2026-10-06",
         purpose_of_hearing: "Arguments",
       },
       {
@@ -48,6 +50,8 @@ export const mockCases: Case[] = [
 
   {
     cnr_number: "PBASA00010662024",
+    owner_user_id: "USER_0001",
+    handling_lawyer_id: "LAWYER_0003",
     court_state: "Punjab",
     court_district: "Amritsar",
     court_name: "Civil Judge Senior Division, Ajnala",
@@ -57,10 +61,10 @@ export const mockCases: Case[] = [
     registration_number: "767/2024",
     registration_date: "2024-12-26",
     first_hearing_date: "2024-12-26",
-    next_hearing_date: "2026-09-11",
+    next_hearing_date: "2026-10-13",
     current_case_stage: "Evidence",
     presiding_judge: "2-Civil Judge Junior Division",
-    petitioner_name: "Simarjit Singh",
+    petitioner_name: "Asha Verma",
     petitioner_advocate: "Rishi Arora",
     respondents_list: ["Chander Mohan"],
     applied_act: "Code of Civil Procedure",
@@ -75,7 +79,7 @@ export const mockCases: Case[] = [
       {
         judge_title: "Civil Judge Junior Division",
         business_on_date: "2026-07-07",
-        hearing_date: "2026-09-11",
+        hearing_date: "2026-10-13",
         purpose_of_hearing: "Evidence",
       },
       {
@@ -89,6 +93,8 @@ export const mockCases: Case[] = [
 
   {
     cnr_number: "PBAS010001412024",
+    owner_user_id: "USER_0002",
+    handling_lawyer_id: "LAWYER_0004",
     court_state: "Punjab",
     court_district: "Amritsar",
     court_name: "District and Sessions Court, Amritsar",
@@ -127,6 +133,8 @@ export const mockCases: Case[] = [
 
   {
     cnr_number: "PBASB00009992025",
+    owner_user_id: "USER_0001",
+    handling_lawyer_id: "LAWYER_0003",
     court_state: "Punjab",
     court_district: "Amritsar",
     court_name: "Civil Judge Senior Division, Baba Bakala",
@@ -136,10 +144,10 @@ export const mockCases: Case[] = [
     registration_number: "88/2025",
     registration_date: "2025-03-20",
     first_hearing_date: "2025-03-20",
-    next_hearing_date: "2026-09-18",
+    next_hearing_date: "2026-10-20",
     current_case_stage: "Rent Assessment",
     presiding_judge: "3-Rent Controller, Baba Bakala",
-    petitioner_name: "Gurbaksh Singh",
+    petitioner_name: "Asha Verma",
     petitioner_advocate: "K.S. Baath",
     respondents_list: ["Sukhdev Verma", "Mohinder Pal"],
     applied_act: "East Punjab Rent Restriction Act",
@@ -154,7 +162,7 @@ export const mockCases: Case[] = [
       {
         judge_title: "Rent Controller",
         business_on_date: "2026-07-31",
-        hearing_date: "2026-09-18",
+        hearing_date: "2026-10-20",
         purpose_of_hearing: "Rent Assessment",
       },
     ],
@@ -162,6 +170,8 @@ export const mockCases: Case[] = [
 
   {
     cnr_number: "PBASB00001112025",
+    owner_user_id: "USER_0002",
+    handling_lawyer_id: "LAWYER_0004",
     court_state: "Punjab",
     court_district: "Amritsar",
     court_name: "Civil Judge Senior Division, Baba Bakala",
@@ -171,7 +181,7 @@ export const mockCases: Case[] = [
     registration_number: "33/2025",
     registration_date: "2025-02-15",
     first_hearing_date: "2025-02-15",
-    next_hearing_date: "2026-09-09",
+    next_hearing_date: "2026-10-27",
     current_case_stage: "Appearance",
     presiding_judge: "Jaspreet Singh (Additional Civil Judge)",
     petitioner_name: "Baba Bakala Primary Agriculture Bank",
@@ -189,7 +199,7 @@ export const mockCases: Case[] = [
       {
         judge_title: "Additional Civil Judge",
         business_on_date: "2026-08-28",
-        hearing_date: "2026-09-09",
+        hearing_date: "2026-10-27",
         purpose_of_hearing: "Appearance",
       },
     ],

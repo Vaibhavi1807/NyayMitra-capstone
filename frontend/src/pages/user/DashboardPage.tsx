@@ -182,6 +182,47 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
 
 
             {/* =================================================
+                2B. CHAT WITH YOUR LAWYER / STAFF
+
+                Opens the shared inbox. Which conversations you
+                can actually start is decided in chatApi — for a
+                citizen that is lawyers and account staff only.
+                ================================================= */}
+
+            <button
+              type="button"
+              className="dashboard-action-card"
+              onClick={() => onNavigate("chat")}
+            >
+
+              <div className="dashboard-action-icon indigo">
+                ✉
+              </div>
+
+              <div className="dashboard-action-content">
+
+                <span>MESSAGES</span>
+
+                <h3>
+                  Chat
+                </h3>
+
+                <p>
+                  Continue a conversation with a lawyer you
+                  contacted, or with the staff handling your
+                  account.
+                </p>
+
+              </div>
+
+              <div className="dashboard-action-arrow">
+                →
+              </div>
+
+            </button>
+
+
+            {/* =================================================
                 3. COURT ORDERS
                 ================================================= */}
 
