@@ -65,8 +65,9 @@ export default function ChatPage({
   onTargetConsumed,
 }: ChatPageProps) {
   /* Memoized so every downstream callback and effect sees a stable party
-     object — an inline `partyFromSession(session)` would be a fresh literal
-     each render and React Compiler refuses to memoize over it. */
+     object. An inline `partyFromSession(session)` would give `refresh` a
+     fresh dep on every render, which re-runs the initial-load effect —
+     and its fetch — on every render. */
   const me: ChatParty = useMemo(
     () => partyFromSession(session),
     [session],
@@ -158,9 +159,11 @@ export default function ChatPage({
     : null;
 
   /*
-   * Deliberately not wrapped in useCallback: React Compiler memoizes this
-   * itself, and manual memoization here was rejected because the draft/sending
-   * reads sit inside an async closure the compiler will not preserve.
+   * Deliberately not wrapped in useCallback. The eslint react-hooks config
+   * rejects a manual one here, because the draft and sending reads sit in
+   * an async closure it cannot prove stable — and none is needed: `send` is
+   * only ever bound to onSubmit, never listed in an effect's deps, so no
+   * effect re-runs when its identity changes.
    */
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
