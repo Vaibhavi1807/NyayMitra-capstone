@@ -1,5 +1,4 @@
 import sys
-import tempfile
 import torch
 import torchaudio
 from transformers import AutoModel
@@ -13,8 +12,10 @@ model.eval()
 print("Model loaded.\n")
 
 
-def run_asr(audio_path: str, lang: str, decoding: str = "ctc") -> str:
-    wav, sr = torchaudio.load(audio_path)
+def run_asr(audio: "str | bytes", lang: str, decoding: str = "ctc") -> str:
+    # `audio` may be a path or raw bytes: torchcodec accepts both, and passing
+    # bytes avoids re-opening a file from disk.
+    wav, sr = torchaudio.load(audio)
     wav = torch.mean(wav, dim=0, keepdim=True)
 
     if sr != TARGET_SR:
@@ -28,11 +29,11 @@ def run_asr(audio_path: str, lang: str, decoding: str = "ctc") -> str:
 
 
 def transcribe_and_discard(audio_bytes: bytes, lang: str, decoding: str = "ctc") -> str:
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
-        tmp.write(audio_bytes)
-        tmp.flush()
-        text = run_asr(tmp.name, lang, decoding)
-    return text
+    # Decode straight from memory. The earlier temp-file version held the file
+    # open with NamedTemporaryFile (exclusive lock on Windows), so torchaudio
+    # reopening the same path failed with "Permission denied" and every voice
+    # request 500'd. torchcodec takes bytes directly, so no temp file is needed.
+    return run_asr(audio_bytes, lang, decoding)
 
 
 if __name__ == "__main__":

@@ -58,23 +58,42 @@ def verify_api_key(authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
+def _use_legacy_cache(model):
+    """Keep IndicTrans2 on its own tuple cache instead of transformers' Cache.
+
+    transformers >= 4.36 pre-creates an *empty* EncoderDecoderCache before the
+    first decode step. IndicTrans2's remote modelling code predates that and does
+    `past_key_values[0][0].shape[2]`, which raises AttributeError while the cache
+    layers are still None. Reporting that the model does not support the default
+    dynamic cache makes transformers leave `past_key_values=None` on the first
+    step, so the model manages the legacy tuple cache itself -- the format its own
+    `_reorder_cache` expects. Without this every generate() call returns 500.
+    """
+    model.__class__._supports_default_dynamic_cache = classmethod(lambda cls: False)
+    return model
+
+
 def load_model():
     global tokenizer, model, indic_indic_tokenizer, indic_indic_model
 
     tokenizer = AutoTokenizer.from_pretrained(
         EN_INDIC_MODEL, trust_remote_code=True
     )
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        EN_INDIC_MODEL, trust_remote_code=True
-    ).to(DEVICE)
+    model = _use_legacy_cache(
+        AutoModelForSeq2SeqLM.from_pretrained(
+            EN_INDIC_MODEL, trust_remote_code=True
+        ).to(DEVICE)
+    )
     model.eval()
 
     indic_indic_tokenizer = AutoTokenizer.from_pretrained(
         INDIC_INDIC_MODEL, trust_remote_code=True
     )
-    indic_indic_model = AutoModelForSeq2SeqLM.from_pretrained(
-        INDIC_INDIC_MODEL, trust_remote_code=True
-    ).to(DEVICE)
+    indic_indic_model = _use_legacy_cache(
+        AutoModelForSeq2SeqLM.from_pretrained(
+            INDIC_INDIC_MODEL, trust_remote_code=True
+        ).to(DEVICE)
+    )
     indic_indic_model.eval()
 
 app = FastAPI(title="NyayMitra Translation Service")
@@ -291,7 +310,12 @@ async def voice_endpoint(
     except HTTPException:
         raise
 
-    except Exception:
+    except Exception as exc:
+        # Never swallow the reason: a bare 500 with no log line makes this
+        # service undebuggable (it hid the transformers cache bug above).
+        logging.getLogger("nyaymitra.voice").exception(
+            "voice transcription failed: %r", exc
+        )
         raise HTTPException(
             status_code=500,
             detail="Voice transcription failed. Please try again."
