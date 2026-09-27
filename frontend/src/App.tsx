@@ -340,7 +340,9 @@ function App() {
         page === "cases" && (
           <CaseSearchPage
             userId={session.userId}
+            userName={session.fullName}
             onBack={goBackToDashboard}
+            onChat={startChat}
           />
         )}
 

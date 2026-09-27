@@ -1,0 +1,615 @@
+/* =========================================================
+   MY CASES — ONE MATTER, IN FULL (CaseDetail)
+
+   Sits on the same page canvas as the list it came from, so
+   the transition from list to matter reads as a change of
+   depth rather than a change of application.
+   ========================================================= */
+
+.matter-detail {
+  position: relative;
+  z-index: 5;
+
+  max-width: 1120px;
+  margin: 40px auto 0;
+  padding-bottom: 80px;
+}
+
+/* ---------- back ---------- */
+
+.matter-back {
+  display: inline-flex;
+  align-items: center;
+
+  margin-bottom: 18px;
+  padding: 10px 18px;
+
+  background: #fff;
+  border: 1px solid #e5e7ef;
+  border-radius: 999px;
+
+  color: #4f46c5;
+  font-size: 13.5px;
+  font-weight: 650;
+  font-family: inherit;
+
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(25, 30, 60, 0.08);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.matter-back:hover {
+  background: #f2f1ff;
+  transform: translateX(-2px);
+}
+
+/* ---------- header ---------- */
+
+.matter-head {
+  background: #fff;
+  border: 1px solid #e5e7ef;
+  border-radius: 22px;
+  padding: 26px 28px;
+
+  box-shadow: 0 18px 44px rgba(25, 30, 60, 0.09);
+}
+
+.matter-head-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.matter-eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #777d91;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+}
+
+.matter-head h2 {
+  margin: 0;
+  color: #20253a;
+  font-size: 27px;
+  letter-spacing: 0.01em;
+}
+
+.matter-type {
+  margin: 7px 0 0;
+  color: #777d91;
+  font-size: 13.5px;
+}
+
+.matter-head-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.matter-stage {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 15px;
+
+  background: #eef0ff;
+  border: 1px solid #d9dcff;
+  border-radius: 999px;
+
+  color: #4338ca;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.matter-chat-btn {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 12px 20px;
+
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  border: 0;
+  border-radius: 999px;
+
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 650;
+  font-family: inherit;
+
+  cursor: pointer;
+  box-shadow: 0 12px 26px rgba(67, 56, 202, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.matter-chat-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(67, 56, 202, 0.36);
+}
+
+/* ---------- three-column summary ---------- */
+
+.matter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.matter-card {
+  background: #fff;
+  border: 1px solid #e5e7ef;
+  border-radius: 20px;
+  padding: 22px 24px;
+}
+
+.matter-card h3 {
+  margin: 0 0 16px;
+  color: #20253a;
+  font-size: 15.5px;
+}
+
+.matter-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.matter-card-head h3 {
+  margin-bottom: 5px;
+}
+
+.matter-card-head p {
+  margin: 0;
+  color: #777d91;
+  font-size: 13px;
+}
+
+/* ---------- parties ---------- */
+
+.matter-parties {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.matter-party {
+  flex: 1;
+  min-width: 0;
+}
+
+.matter-party strong {
+  display: block;
+  margin-top: 5px;
+  color: #20253a;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.matter-party-arrow {
+  color: #c3c7d6;
+  font-size: 18px;
+}
+
+/* ---------- field pairs ---------- */
+
+.matter-fields {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.matter-fields > div {
+  min-width: 0;
+}
+
+.matter-fields dt {
+  color: #777d91;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.matter-fields dd {
+  margin: 4px 0 0;
+  color: #20253a;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- schedule ---------- */
+
+.matter-hearing {
+  background: #f7f8fc;
+  border: 1px solid #e5e7ef;
+  border-radius: 14px;
+  padding: 15px 16px;
+  margin-bottom: 16px;
+}
+
+.matter-hearing strong {
+  display: block;
+  margin-top: 5px;
+  color: #4338ca;
+  font-size: 19px;
+}
+
+.matter-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.matter-stats > div {
+  background: #f7f8fc;
+  border: 1px solid #e9ebf3;
+  border-radius: 12px;
+  padding: 11px 8px;
+  text-align: center;
+}
+
+.matter-stats strong {
+  display: block;
+  color: #4338ca;
+  font-size: 18px;
+}
+
+.matter-stats span {
+  display: block;
+  margin-top: 3px;
+  color: #777d91;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.matter-card + .matter-card,
+.matter-documents {
+  margin-top: 18px;
+}
+
+.matter-grid + .matter-card {
+  margin-top: 18px;
+}
+
+/* =========================================================
+   DOCUMENTS
+   ========================================================= */
+
+.matter-upload {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.matter-upload select {
+  min-width: 170px;
+  height: 44px;
+  padding: 0 12px;
+
+  background: #f7f8fc;
+  border: 1px solid #e3e5ed;
+  border-radius: 12px;
+
+  color: #20253a;
+  font-size: 13.5px;
+  font-family: inherit;
+}
+
+.matter-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 20px;
+
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  border-radius: 12px;
+
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 650;
+
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.matter-upload-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* The real input stays mounted — it is what the click opens —
+   but it is not part of the layout. */
+.matter-upload-btn input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.matter-upload-btn:has(input:disabled) {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.matter-doc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.matter-doc {
+  background: #f7f8fc;
+  border: 1px solid #e9ebf3;
+  border-radius: 14px;
+  padding: 13px 15px;
+}
+
+.matter-doc-line {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.matter-doc-icon {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.matter-doc-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.matter-doc-meta strong {
+  display: block;
+  color: #20253a;
+  font-size: 13.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matter-doc-meta span {
+  display: block;
+  margin-top: 3px;
+  color: #777d91;
+  font-size: 12px;
+}
+
+.matter-doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.doc-ghost {
+  padding: 7px 13px;
+
+  background: #fff;
+  border: 1px solid #e0e2ec;
+  border-radius: 999px;
+
+  color: #4f46c5;
+  font-size: 12px;
+  font-weight: 650;
+  font-family: inherit;
+
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.doc-ghost:hover {
+  background: #f2f1ff;
+}
+
+.doc-ghost-danger {
+  color: #b4243a;
+}
+
+.doc-ghost-danger:hover {
+  background: #fdf0f2;
+  border-color: #f2ccd3;
+}
+
+.doc-muted {
+  color: #9aa0b3;
+  font-size: 12px;
+}
+
+.matter-doc-note {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed #e3e5ed;
+
+  color: #8b8fa0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.matter-doc-preview {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px dashed #e3e5ed;
+}
+
+.matter-doc-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+
+  margin: 0 auto;
+  border-radius: 10px;
+  border: 1px solid #e5e7ef;
+  background: #fff;
+}
+
+.matter-doc-preview object {
+  display: block;
+  width: 100%;
+  height: 440px;
+
+  border-radius: 10px;
+  border: 1px solid #e5e7ef;
+  background: #fff;
+}
+
+/* ---------- empty ---------- */
+
+.matter-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 30px 16px;
+
+  background: #fafbfe;
+  border: 1px dashed #dfe2ed;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.matter-empty span {
+  font-size: 22px;
+  opacity: 0.7;
+}
+
+.matter-empty p {
+  margin: 0;
+  color: #777d91;
+  font-size: 13.5px;
+}
+
+/* =========================================================
+   HEARING HISTORY
+   ========================================================= */
+
+.matter-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 6px;
+  display: grid;
+  gap: 0;
+  border-left: 2px solid #e9ebf3;
+}
+
+.matter-timeline li {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 0 0 20px 22px;
+}
+
+.matter-timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.matter-timeline li::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 5px;
+
+  width: 12px;
+  height: 12px;
+  background: #6366f1;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #dfe1f3;
+}
+
+.matter-timeline-date {
+  flex-shrink: 0;
+  min-width: 106px;
+  color: #777d91;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.matter-timeline strong {
+  display: block;
+  color: #20253a;
+  font-size: 14px;
+}
+
+.matter-timeline div span {
+  display: block;
+  margin-top: 3px;
+  color: #777d91;
+  font-size: 12.5px;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 940px) {
+  .matter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .matter-detail {
+    margin-top: 26px;
+  }
+
+  .matter-head {
+    padding: 20px 18px;
+  }
+
+  .matter-head-main {
+    flex-direction: column;
+  }
+
+  .matter-head-side {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .matter-parties {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .matter-party-arrow {
+    transform: rotate(90deg);
+  }
+
+  .matter-doc-line {
+    flex-wrap: wrap;
+  }
+
+  .matter-doc-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .matter-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .matter-timeline li {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

@@ -2,6 +2,11 @@ import type { Case } from "../types/case";
 
 interface CaseCardProps {
   caseData: Case;
+
+  /* Opens the matter's detail screen. When omitted the card is
+     inert, which keeps the component usable on screens where a
+     case is only ever display — the staff and admin lists. */
+  onOpen?: () => void;
 }
 
 function getStatusClass(stage: string) {
@@ -15,9 +20,29 @@ function getStatusClass(stage: string) {
   return "status-gray";
 }
 
-export default function CaseCard({ caseData }: CaseCardProps) {
+export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
+  /* The whole card is the target, not just the footer link: a
+     reader scanning their own list clicks the matter they are
+     already looking at. The keyboard path is the same one. */
+  const open = () => onOpen?.();
+
   return (
-    <article className="case-card">
+    <article
+      className={onOpen ? "case-card case-card-clickable" : "case-card"}
+      onClick={onOpen ? open : undefined}
+      onKeyDown={
+        onOpen
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                open();
+              }
+            }
+          : undefined
+      }
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+    >
       <div className="case-card-top">
         <div>
           <span className="case-label">CNR NUMBER</span>
@@ -86,7 +111,16 @@ export default function CaseCard({ caseData }: CaseCardProps) {
           Advocate: <strong>{caseData.petitioner_advocate}</strong>
         </span>
 
-        <button className="view-case-btn">
+        <button
+          className="view-case-btn"
+          type="button"
+          onClick={(event) => {
+            /* Same destination as the card around it — without
+               stopping here the click would land twice. */
+            event.stopPropagation();
+            open();
+          }}
+        >
           View case
           <span>→</span>
         </button>

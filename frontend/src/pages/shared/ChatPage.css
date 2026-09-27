@@ -10,8 +10,14 @@
 }
 
 .chat-hero {
-  max-width: 620px;
-  margin-bottom: 26px;
+  max-width: 760px;
+  margin: 0 auto 8px;
+  padding: 92px 20px 18px;
+
+  /* Headings sit centred rather than hanging off the left edge. The block
+     also carries the top gutter the absolute back button needs, so the
+     eyebrow no longer starts underneath it. */
+  text-align: center;
 }
 
 .chat-hero h1 {
@@ -39,6 +45,10 @@
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 18px;
 
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+
   min-height: 520px;
   align-items: start;
 }
@@ -62,10 +72,12 @@
 
 .chat-sidebar-head {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
 
   gap: 10px;
+
+  text-align: center;
 }
 
 .chat-sidebar-head h2 {
@@ -74,7 +86,8 @@
 }
 
 .chat-new-btn {
-  padding: 7px 12px;
+  width: 100%;
+  padding: 9px 12px;
 
   border: 1px solid #dcdcf4;
   border-radius: 999px;
@@ -82,8 +95,9 @@
   background: #f0edff;
   color: #4f46c5;
 
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 750;
+  text-align: center;
 
   cursor: pointer;
   transition: background 0.2s ease;
@@ -91,6 +105,72 @@
 
 .chat-new-btn:hover {
   background: #e5e1ff;
+}
+
+/* ---------- categories ---------- */
+
+.chat-cats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+
+  gap: 6px;
+}
+
+.chat-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 6px 11px;
+
+  border: 1px solid #e5e7ef;
+  border-radius: 999px;
+
+  background: #ffffff;
+  color: #5b6076;
+
+  font-size: 11px;
+  font-weight: 650;
+
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.chat-cat span {
+  display: inline-grid;
+  place-items: center;
+
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+
+  border-radius: 999px;
+
+  background: #f1f2f8;
+  color: #777d91;
+
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.chat-cat:hover {
+  background: #f7f8fc;
+}
+
+.chat-cat.is-on {
+  border-color: #c9c9ee;
+  background: #f0edff;
+  color: #4f46c5;
+}
+
+.chat-cat.is-on span {
+  background: #4f46c5;
+  color: #ffffff;
+}
+
+.chat-center {
+  text-align: center;
 }
 
 .chat-thread-list {
@@ -107,11 +187,21 @@
   overflow-y: auto;
 }
 
+/* Row = the conversation, plus the control that removes it. They sit
+   side by side rather than layering the ✕ over the timestamp, which
+   is the one piece of the row a reader is already looking at. */
+.chat-thread-row {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+}
+
 .chat-thread-item {
   display: flex;
   align-items: flex-start;
 
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   gap: 10px;
 
   padding: 10px;
@@ -124,6 +214,56 @@
   text-align: left;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.chat-thread-delete {
+  flex-shrink: 0;
+
+  align-self: flex-start;
+  margin-top: 9px;
+  width: 26px;
+  height: 26px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid transparent;
+  border-radius: 9px;
+
+  background: transparent;
+  color: #b3b7c7;
+
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.chat-thread-delete:hover {
+  background: #fdf0f2;
+  border-color: #f4ccd4;
+  color: #b4243a;
+}
+
+/* Second press. The label changes rather than opening a dialog, so
+   the confirmation is where the reader's attention already is. */
+.chat-thread-delete.is-armed {
+  width: auto;
+  padding: 0 9px;
+
+  background: #b4243a;
+  border-color: #b4243a;
+  color: #ffffff;
+  font-size: 10.5px;
+}
+
+.chat-thread-delete.is-armed:hover {
+  background: #9c1d31;
+  border-color: #9c1d31;
+  color: #ffffff;
 }
 
 .chat-thread-item:hover {
@@ -206,10 +346,12 @@
 .chat-empty {
   display: flex;
   flex-direction: column;
+  align-items: center;
 
   gap: 6px;
 
   padding: 8px 2px;
+  text-align: center;
 }
 
 .chat-empty p {
@@ -243,6 +385,7 @@
   color: #4f46c5;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  text-align: center;
 }
 
 .chat-picker ul {
@@ -347,6 +490,7 @@
 .chat-panel-head {
   display: flex;
   align-items: center;
+  justify-content: center;
 
   gap: 11px;
 
@@ -354,6 +498,11 @@
 
   border-bottom: 1px solid #e5e7ef;
   background: #ffffff;
+  text-align: center;
+}
+
+.chat-panel-head > div {
+  min-width: 0;
 }
 
 .chat-panel-head h2 {

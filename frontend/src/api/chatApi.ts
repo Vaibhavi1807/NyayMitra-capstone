@@ -31,7 +31,14 @@ import type { Session } from "../auth/session";
 
 const ALLOWED_PARTNERS: Record<Role, readonly Role[]> = {
   USER: ["LAWYER", "STAFF"],
-  LAWYER: ["USER", "STAFF", "ADMIN"],
+
+  /* Advocates brief one another — a transfer, a second opinion,
+     senior counsel coming on record — so the pairing is open in
+     both directions rather than one side only. It is what puts
+     a "Lawyers" category in the sidebar rather than leaving
+     every lawyer with only clients and staff. */
+  LAWYER: ["USER", "LAWYER", "STAFF", "ADMIN"],
+
   STAFF: ["USER", "LAWYER", "ADMIN"],
   ADMIN: ["LAWYER", "STAFF"],
 };
@@ -81,9 +88,22 @@ export interface ChatConversation {
  * not a hard-coded button set.
  */
 export const KNOWN_PARTIES: ChatParty[] = [
+  /* Citizens — the "Clients" category when a lawyer or the staff read it. */
   { id: "USER_0001", role: "USER", name: "Asha Verma" },
+  { id: "USER_0007", role: "USER", name: "Vikram Chauhan" },
+  { id: "USER_0012", role: "USER", name: "Sunita Devi" },
+
+  /* Advocates — reachable from each other, which is what the
+     "Lawyers" category exists to show. */
   { id: "LAWYER_0003", role: "LAWYER", name: "Adv. Rohan Deshmukh" },
+  { id: "LAWYER_0011", role: "LAWYER", name: "Adv. Meera Kulkarni" },
+  { id: "LAWYER_0024", role: "LAWYER", name: "Adv. Imran Sheikh" },
+  { id: "LAWYER_0047", role: "LAWYER", name: "Adv. Nandini Rao" },
+
   { id: "STAFF_0001", role: "STAFF", name: "Kavya Iyer" },
+  { id: "STAFF_0004", role: "STAFF", name: "Suresh Nair" },
+  { id: "STAFF_0007", role: "STAFF", name: "Priya Menon" },
+
   { id: "ADMIN_0001", role: "ADMIN", name: "Site Administrator" },
 ];
 
@@ -350,6 +370,22 @@ export async function sendMessage(
   write(threads);
 
   return message;
+}
+
+/**
+ * Drop a conversation and everything in it.
+ *
+ * No soft delete: this is a local store, the action is taken
+ * deliberately behind a second confirmation, and keeping a
+ * thread that neither party can reach would leave it in the
+ * store while the list no longer shows it.
+ */
+export async function deleteConversation(
+  id: string,
+): Promise<void> {
+  await latency();
+
+  write(read().filter((thread) => thread.id !== id));
 }
 
 /** Test/demo helper — wipes stored threads so the seeds come back. */

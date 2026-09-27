@@ -1,0 +1,223 @@
+/* =========================================================
+   NYAYMITRA — CASE STORE
+
+   `mockCases` stays exactly as it is: the fixture, immutable
+   and shared. This module adds the one thing a static array
+   cannot do — let a citizen file a new matter — without
+   forcing every existing reader to change how it reads.
+
+   Only user-added cases are persisted. The seeds come from
+   `mockCases` on every read, so fixing a fixture value (a
+   stale hearing date, a renamed party) takes effect
+   immediately instead of being trapped behind whatever was
+   copied into localStorage the first time the app ran.
+
+   Synchronous, like the auth and authority stores: the
+   screens that read cases render on the first pass and
+   there is no request to wait for.
+   ========================================================= */
+
+import { mockCases } from "../mocks/cases";
+import type { Case } from "../types/case";
+
+const STORAGE_KEY = "nyaymitra.cases.added.v1";
+
+let memory: Case[] | null = null;
+let storageUsable = true;
+
+function read(): Case[] {
+  if (storageUsable) {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+
+        if (Array.isArray(parsed)) return parsed as Case[];
+      }
+    } catch {
+      storageUsable = false;
+    }
+  }
+
+  memory ??= [];
+  return memory;
+}
+
+function write(next: Case[]): void {
+  memory = next;
+
+  if (!storageUsable) return;
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    storageUsable = false;
+  }
+}
+
+/* =========================================================
+   QUERIES
+   ========================================================= */
+
+/** Every case on the platform: the ones this browser filed,
+ *  then the seeded fixture. */
+export function getCases(): Case[] {
+  return [...read(), ...mockCases];
+}
+
+export function getCase(cnr: string): Case | null {
+  return (
+    getCases().find((item) => item.cnr_number === cnr) ?? null
+  );
+}
+
+/** Cases owned by one account — the My Cases filter. */
+export function getCasesForUser(userId: string): Case[] {
+  return getCases().filter(
+    (item) => item.owner_user_id === userId,
+  );
+}
+
+/** Cases handled by one advocate — the Active Cases filter. */
+export function getCasesForLawyer(lawyerId: string): Case[] {
+  return getCases().filter(
+    (item) => item.handling_lawyer_id === lawyerId,
+  );
+}
+
+/* =========================================================
+   ADDING A CASE
+   ========================================================= */
+
+export type NewCaseInput = {
+  /* Who filed it and who is handling it. Both are set by the
+     caller from the session and the lawyer picker, never by
+     the form itself. */
+  owner_user_id: string;
+  handling_lawyer_id: string;
+
+  petitioner_name: string;
+  respondents_list: string[];
+  petitioner_advocate: string;
+
+  case_type: string;
+  court_name: string;
+  court_state: string;
+  court_district: string;
+  presiding_judge: string;
+
+  applied_act: string;
+  applied_section: string;
+
+  filing_date: string;
+  next_hearing_date: string;
+};
+
+/**
+ * CNR in the same shape as the seeded records — four letters,
+ * a court-code letter, a seven digit serial and the year —
+ * so a newly filed matter is indistinguishable in layout from
+ * an imported one.
+ */
+function generateCnr(): string {
+  const serial = String(
+    Math.floor(Math.random() * 9_999_999),
+  ).padStart(7, "0");
+
+  const year = new Date().getFullYear();
+
+  return `PBASB${serial}${year}`;
+}
+
+function uniqueCnr(): string {
+  let candidate = generateCnr();
+
+  while (getCase(candidate) !== null) {
+    candidate = generateCnr();
+  }
+
+  return candidate;
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00`).getTime();
+  const b = new Date(`${to}T00:00:00`).getTime();
+
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+export function addCase(input: NewCaseInput): Case {
+  const cnr = uniqueCnr();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const filed = input.filing_date || today;
+
+  const created: Case = {
+    cnr_number: cnr,
+    owner_user_id: input.owner_user_id,
+    handling_lawyer_id: input.handling_lawyer_id,
+
+    court_state: input.court_state,
+    court_district: input.court_district,
+    court_name: input.court_name,
+
+    case_type: input.case_type,
+    filing_number: `FILING/${new Date(filed).getFullYear()}/${cnr.slice(-7)}`,
+    filing_date: filed,
+    registration_number: `REG/${cnr.slice(-7)}`,
+    registration_date: filed,
+    first_hearing_date: input.next_hearing_date || filed,
+    next_hearing_date: input.next_hearing_date || filed,
+    current_case_stage: "Filed — awaiting first hearing",
+
+    presiding_judge: input.presiding_judge || "Not yet listed",
+    petitioner_name: input.petitioner_name,
+    petitioner_advocate: input.petitioner_advocate,
+    respondents_list: input.respondents_list,
+
+    applied_act: input.applied_act,
+    applied_section: input.applied_section,
+
+    calculated_metrics: {
+      respondent_count: input.respondents_list.length,
+      total_case_age_days: daysBetween(filed, today),
+      total_hearings_scheduled: 0,
+      current_stage_duration_days: daysBetween(filed, today),
+    },
+
+    /* One entry so the timeline is not empty on a case the
+       user just filed — there is no hearing to record yet,
+       only the act of filing itself. */
+    case_history_timeline: [
+      {
+        judge_title: "Pending",
+        business_on_date: filed,
+        hearing_date: filed,
+        purpose_of_hearing: "Case filed and registered",
+      },
+    ],
+  };
+
+  write([created, ...read()]);
+
+  return created;
+}
+
+/**
+ * Re-read after a fixture or store change. Exported so a screen
+ * that has just added a case can rebuild its list without
+ * re-running the whole component tree.
+ */
+export function resetCases(): void {
+  memory = null;
+  storageUsable = true;
+
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    storageUsable = false;
+  }
+}

@@ -1,21 +1,34 @@
 import { useMemo, useState } from "react";
-import { mockCases } from "../mocks/cases";
+import { getCasesForUser } from "../api/caseApi";
 import CaseCard from "./CaseCard";
 
 type CaseSearchProps = {
   /* Signed-in account. Everything below is scoped to it: the results, the type
      filter and the search box only ever see this user's own cases. */
   userId: string;
+
+  /* Opens the filing form. Offered from the empty state as well as the
+     header, because an account with no cases is exactly the account that
+     needs it. */
+  onAdd?: () => void;
+
+  /* Opens one matter's detail screen. */
+  onOpen?: (cnr: string) => void;
 };
 
-export default function CaseSearch({ userId }: CaseSearchProps) {
+export default function CaseSearch({
+  userId,
+  onAdd,
+  onOpen,
+}: CaseSearchProps) {
   const [search, setSearch] = useState("");
   const [caseType, setCaseType] = useState("All");
 
-  const myCases = useMemo(
-    () => mockCases.filter((item) => item.owner_user_id === userId),
-    [userId],
-  );
+  /* Read on every render, not memoised: filing a matter and
+     returning to this list must show it without waiting for a
+     reload, and the list only rebuilds when something above
+     re-renders anyway. */
+  const myCases = getCasesForUser(userId);
 
   const caseTypes = useMemo(() => {
     const types = myCases.map((item) => item.case_type);
@@ -95,6 +108,12 @@ export default function CaseSearch({ userId }: CaseSearchProps) {
                 : "Only cases filed on your account are shown"}
             </p>
           </div>
+
+          {onAdd && (
+            <button className="new-case-btn" onClick={onAdd}>
+              <span aria-hidden="true">＋</span> File a new case
+            </button>
+          )}
         </div>
 
         {filteredCases.length > 0 ? (
@@ -103,6 +122,7 @@ export default function CaseSearch({ userId }: CaseSearchProps) {
               <CaseCard
                 key={caseData.cnr_number}
                 caseData={caseData}
+                onOpen={onOpen ? () => onOpen(caseData.cnr_number) : undefined}
               />
             ))}
           </div>
@@ -113,8 +133,15 @@ export default function CaseSearch({ userId }: CaseSearchProps) {
             <h3>No cases on your account</h3>
             <p>
               This account does not have any court cases linked to it yet.
-              Once a case is filed and linked to you, it will appear here.
+              File a new case and it will appear here, ready for documents
+              and updates.
             </p>
+
+            {onAdd && (
+              <button className="reset-search-btn" onClick={onAdd}>
+                File a new case
+              </button>
+            )}
           </div>
         ) : (
           <div className="empty-state">

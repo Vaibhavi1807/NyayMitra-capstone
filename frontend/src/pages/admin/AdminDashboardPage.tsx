@@ -17,7 +17,7 @@ import {
 } from "../../api/authorityApi";
 import { getLawyers, getLawyerById } from "../../api/lawyerApi";
 import type { Lawyer } from "../../api/lawyerApi";
-import { mockCases } from "../../mocks/cases";
+import { getCases } from "../../api/caseApi";
 import "../../components/RoleDashboardShell.css";
 import "../../components/RoleSectionView.css";
 import "./AdminDashboardPage.css";
@@ -303,6 +303,12 @@ function AdminDashboardPage({
       </div>
     ) : null;
 
+  /* Every matter on the platform, seeded and newly filed.
+     Read once per render rather than at each use site: the
+     store touches localStorage, and the stats below are all
+     derived from the same snapshot. */
+  const allCases = getCases();
+
   /* =====================================================
      ISSUE STAFF ACCOUNT
 
@@ -525,7 +531,7 @@ function AdminDashboardPage({
       });
     }
 
-    for (const item of mockCases) {
+    for (const item of allCases) {
       const existing = rows.get(item.owner_user_id);
 
       if (existing) {
@@ -571,7 +577,7 @@ function AdminDashboardPage({
 
           <div className="section-stat">
             <span>CASES ON FILE</span>
-            <strong>{mockCases.length}</strong>
+            <strong>{allCases.length}</strong>
             <small>Linked to citizens</small>
           </div>
 
@@ -905,7 +911,7 @@ function AdminDashboardPage({
     const byCourt = new Map<string, number>();
     const byStage = new Map<string, number>();
 
-    for (const item of mockCases) {
+    for (const item of allCases) {
       byCourt.set(
         item.court_name,
         (byCourt.get(item.court_name) ?? 0) + 1,
@@ -916,7 +922,7 @@ function AdminDashboardPage({
       );
     }
 
-    const ownerIds = new Set(mockCases.map((item) => item.owner_user_id));
+    const ownerIds = new Set(allCases.map((item) => item.owner_user_id));
 
     return (
       <RoleSectionView
@@ -933,7 +939,7 @@ function AdminDashboardPage({
 
           <div className="section-stat">
             <span>CASES ON FILE</span>
-            <strong>{mockCases.length}</strong>
+            <strong>{allCases.length}</strong>
             <small>Across all courts</small>
           </div>
 
@@ -946,7 +952,7 @@ function AdminDashboardPage({
           <div className="section-stat">
             <span>HEARINGS BOOKED</span>
             <strong>
-              {mockCases.reduce(
+              {allCases.reduce(
                 (sum, item) =>
                   sum + (item.calculated_metrics?.total_hearings_scheduled ?? 0),
                 0,

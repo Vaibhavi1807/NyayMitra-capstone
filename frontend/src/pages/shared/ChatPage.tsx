@@ -5,6 +5,7 @@ import {
   KNOWN_PARTIES,
   allowedPartners,
   canChatWith,
+  deleteConversation,
   listConversations,
   partyFromSession,
   sendMessage,
@@ -58,6 +59,22 @@ function roleLabel(role: string): string {
   return role.charAt(0) + role.slice(1).toLowerCase();
 }
 
+/* How the sidebar names each category. The name describes the person on
+   the other end, so one map serves every role: a lawyer reads USER threads
+   as "Clients", a citizen reads LAWYER threads as "Lawyers", and an admin
+   sees exactly the two categories it is meant to have. */
+const CATEGORY_LABEL: Record<string, string> = {
+  USER: "Clients",
+  LAWYER: "Lawyers",
+  STAFF: "Staff",
+  ADMIN: "Admin",
+};
+
+/* The party on the other end of a thread. */
+function peerOf(thread: ChatConversation, myId: string): ChatParty {
+  return thread.parties.find((p) => p.id !== myId) ?? thread.parties[0];
+}
+
 export default function ChatPage({
   session,
   onBack,
@@ -81,6 +98,13 @@ export default function ChatPage({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+
+  /* Which category the list is showing, and the thread the ✕ is armed on.
+     Deletion asks twice: the control sits a single click from the
+     conversation it destroys, and something irreversible should not be one
+     slip away. */
+  const [filter, setFilter] = useState<string>("all");
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -185,6 +209,47 @@ export default function ChatPage({
     }
   };
 
+  /* Deleting a thread. The arm state clears on either outcome, so the ✕
+     never stays sitting on "Delete?" after a failure. */
+  const remove = async (id: string) => {
+    setError(null);
+
+    try {
+      await deleteConversation(id);
+
+      /* The open thread may be the one going — drop it rather than leave
+         the panel reading a conversation that no longer exists. */
+      if (activeId === id) setActiveId(null);
+
+      await refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Conversation not deleted.",
+      );
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
+  /* The sidebar's categories: every role this account may address, each
+     with its count, so the grouping reads even while a category is still
+     empty. Derived from the matrix rather than written into the JSX —
+     when the rules change, these change with them. */
+  const categories = [
+    { key: "all", label: "All", count: threads.length },
+    ...allowedPartners(me.role).map((role) => ({
+      key: role,
+      label: CATEGORY_LABEL[role] ?? roleLabel(role),
+      count: threads.filter((thread) => peerOf(thread, me.id).role === role)
+        .length,
+    })),
+  ];
+
+  const visibleThreads =
+    filter === "all"
+      ? threads
+      : threads.filter((thread) => peerOf(thread, me.id).role === filter);
+
   /* Parties this role is allowed to address — the matrix decides, not us. */
   const startable = KNOWN_PARTIES.filter(
     (party) =>
@@ -255,14 +320,17 @@ export default function ChatPage({
             <button
               type="button"
               className="chat-new-btn"
-              onClick={() => setPicking((value) => !value)}
+              onClick={() => {
+                setPicking((value) => !value);
+                setPendingDelete(null);
+              }}
             >
-              New chat
+              {picking ? "Close" : "＋ New chat"}
             </button>
           </div>
 
           {loading ? (
-            <p className="chat-muted">Loading conversations…</p>
+            <p className="chat-muted chat-center">Loading conversations…</p>
           ) : threads.length === 0 ? (
             <div className="chat-empty">
               <p>No conversations yet.</p>
@@ -272,50 +340,100 @@ export default function ChatPage({
               </p>
             </div>
           ) : (
-            <ul className="chat-thread-list">
-              {threads.map((thread) => {
-                const peer =
-                  thread.parties.find((p) => p.id !== me.id) ??
-                  thread.parties[0];
-                const last = thread.messages[thread.messages.length - 1];
+            <>
+              <div className="chat-cats">
+                {categories.map((category) => (
+                  <button
+                    key={category.key}
+                    type="button"
+                    className={`chat-cat${
+                      filter === category.key ? " is-on" : ""
+                    }`}
+                    aria-pressed={filter === category.key}
+                    onClick={() => {
+                      setFilter(category.key);
+                      setPendingDelete(null);
+                    }}
+                  >
+                    {category.label}
+                    <span>{category.count}</span>
+                  </button>
+                ))}
+              </div>
 
-                return (
-                  <li key={thread.id}>
-                    <button
-                      type="button"
-                      className={`chat-thread-item${
-                        thread.id === activeId ? " is-active" : ""
-                      }`}
-                      onClick={() => setActiveId(thread.id)}
-                    >
-                      <span className="chat-avatar" aria-hidden="true">
-                        {peer.name.charAt(0)}
-                      </span>
+              {visibleThreads.length === 0 ? (
+                <p className="chat-muted chat-center">
+                  No{" "}
+                  {CATEGORY_LABEL[filter] ?? roleLabel(filter).toLowerCase()}{" "}
+                  conversations here yet.
+                </p>
+              ) : (
+                <ul className="chat-thread-list">
+                  {visibleThreads.map((thread) => {
+                    const peer = peerOf(thread, me.id);
+                    const last = thread.messages[thread.messages.length - 1];
+                    const armed = pendingDelete === thread.id;
 
-                      <span className="chat-thread-meta">
-                        <span className="chat-thread-top">
-                          <strong>{peer.name}</strong>
-                          <time>{formatStamp(thread.updatedAt)}</time>
-                        </span>
+                    return (
+                      <li key={thread.id} className="chat-thread-row">
+                        <button
+                          type="button"
+                          className={`chat-thread-item${
+                            thread.id === activeId ? " is-active" : ""
+                          }`}
+                          onClick={() => {
+                            setActiveId(thread.id);
+                            setPendingDelete(null);
+                          }}
+                        >
+                          <span className="chat-avatar" aria-hidden="true">
+                            {peer.name.charAt(0)}
+                          </span>
 
-                        <span className="chat-thread-sub">
-                          {roleLabel(peer.role)}
-                          {thread.caseCnr
-                            ? ` · ${thread.caseCnr}`
-                            : ""}
-                        </span>
+                          <span className="chat-thread-meta">
+                            <span className="chat-thread-top">
+                              <strong>{peer.name}</strong>
+                              <time>{formatStamp(thread.updatedAt)}</time>
+                            </span>
 
-                        <span className="chat-thread-preview">
-                          {last
-                            ? `${last.senderId === me.id ? "You: " : ""}${last.body}`
-                            : "No messages yet"}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                            <span className="chat-thread-sub">
+                              {roleLabel(peer.role)}
+                              {thread.caseCnr
+                                ? ` · ${thread.caseCnr}`
+                                : ""}
+                            </span>
+
+                            <span className="chat-thread-preview">
+                              {last
+                                ? `${last.senderId === me.id ? "You: " : ""}${last.body}`
+                                : "No messages yet"}
+                            </span>
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`chat-thread-delete${
+                            armed ? " is-armed" : ""
+                          }`}
+                          aria-label={
+                            armed
+                              ? `Confirm deleting the conversation with ${peer.name}`
+                              : `Delete the conversation with ${peer.name}`
+                          }
+                          onClick={() => {
+                            if (armed) void remove(thread.id);
+                            else setPendingDelete(thread.id);
+                          }}
+                        >
+                          {armed ? "Delete" : "✕"}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
           )}
 
           {picking && (

@@ -11,7 +11,7 @@ import RoleDashboardShell, {
 } from "../../components/RoleDashboardShell";
 import RoleSectionView from "../../components/RoleSectionView";
 import { initialsOf } from "../../lib/initials";
-import { mockCases } from "../../mocks/cases";
+import { getCases } from "../../api/caseApi";
 import { STAFF_TASKS, STAFF_DOCUMENTS } from "../../mocks/staffWork";
 import "../../components/RoleDashboardShell.css";
 import "../../components/RoleSectionView.css";
@@ -104,7 +104,13 @@ function StaffDashboardPage({
 
   const todayIso = new Date().toISOString().slice(0, 10);
 
-  const upcomingHearings = mockCases.filter(
+  /* Seeded matters plus any the citizens filed since. Read
+     once here so the header, the lists and the reports below
+     all count the same set rather than re-reading storage at
+     each use site. */
+  const allCases = getCases();
+
+  const upcomingHearings = allCases.filter(
     (item) => item.next_hearing_date >= todayIso,
   );
 
@@ -117,7 +123,7 @@ function StaffDashboardPage({
       icon: "📋",
       tone: "purple",
       label: "CASES ON FILE",
-      value: String(mockCases.length),
+      value: String(allCases.length),
       detail: "Records you may update",
     },
     {
@@ -257,7 +263,7 @@ function StaffDashboardPage({
 
           <div className="section-stat">
             <span>ON FILE</span>
-            <strong>{mockCases.length}</strong>
+            <strong>{allCases.length}</strong>
             <small>Records you may edit</small>
           </div>
 
@@ -272,7 +278,7 @@ function StaffDashboardPage({
             <strong>
               {
                 new Set(
-                  mockCases.map((item) => item.current_case_stage),
+                  allCases.map((item) => item.current_case_stage),
                 ).size
               }
             </strong>
@@ -296,7 +302,7 @@ function StaffDashboardPage({
           </p>
 
           <ul className="section-rows">
-            {mockCases.map((item) => (
+            {allCases.map((item) => (
               <li key={item.cnr_number} className="section-row">
 
                 <span className="section-row-avatar">
@@ -337,7 +343,7 @@ function StaffDashboardPage({
       a.next_hearing_date.localeCompare(b.next_hearing_date),
     );
 
-    const recent = mockCases
+    const recent = allCases
       .flatMap((item) =>
         item.case_history_timeline.map((entry) => ({
           cnr: item.cnr_number,
@@ -384,7 +390,7 @@ function StaffDashboardPage({
           <div className="section-stat">
             <span>CONCLUDED</span>
             <strong>
-              {mockCases.reduce(
+              {allCases.reduce(
                 (sum, item) => sum + item.case_history_timeline.length,
                 0,
               )}
@@ -710,7 +716,7 @@ function StaffDashboardPage({
   if (activeSection === "reports") {
     const byStage = new Map<string, number>();
 
-    for (const item of mockCases) {
+    for (const item of allCases) {
       byStage.set(
         item.current_case_stage,
         (byStage.get(item.current_case_stage) ?? 0) + 1,
@@ -732,7 +738,7 @@ function StaffDashboardPage({
 
           <div className="section-stat">
             <span>CASES SEEN</span>
-            <strong>{mockCases.length}</strong>
+            <strong>{allCases.length}</strong>
             <small>In today's window</small>
           </div>
 

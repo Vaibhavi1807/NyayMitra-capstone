@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { mockCases } from "../../mocks/cases";
+import { getCasesForLawyer } from "../../api/caseApi";
 import type { Case } from "../../types/case";
 import type { ChatTarget } from "../../api/chatApi";
 
@@ -54,13 +54,11 @@ function LawyerCasesPage({
   onBack,
   onOpenChat,
 }: LawyerCasesPageProps) {
-  const myCases = useMemo(
-    () =>
-      mockCases.filter(
-        (item) => item.handling_lawyer_id === lawyerId,
-      ),
-    [lawyerId],
-  );
+  /* Read on every render rather than memoised on lawyerId:
+     a citizen can file a new matter and name this advocate as
+     its handler while the tab is open, and the caseload
+     should pick that up without a reload. */
+  const myCases = getCasesForLawyer(lawyerId);
 
   /* The nearest upcoming hearing across the whole caseload. */
   const nextHearing = useMemo(() => {
