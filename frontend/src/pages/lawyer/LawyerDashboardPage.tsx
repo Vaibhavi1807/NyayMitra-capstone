@@ -306,81 +306,185 @@ function LawyerDashboardPage({
 
 
         {/* =================================================
-            OVERVIEW
+            WORK — ACTIVE CASES + MESSAGES
+
+            The two things an advocate does between hearings:
+            check the matters on their list, and reply to the
+            people on them. They lead the page because they
+            change daily; everything below is standing
+            information about the profile.
             ================================================= */}
 
-        <section className="lawyer-dashboard-overview">
+        <section className="lawyer-dashboard-specialization-grid">
 
-          <div className="lawyer-dashboard-heading">
+          <button
+            type="button"
+            className="lawyer-dashboard-wide-card
+                       lawyer-dashboard-action-card"
+            onClick={() => onNavigate("lawyerCases")}
+          >
 
-            <div>
+            <div className="lawyer-dashboard-card-heading">
 
-              <span className="lawyer-dashboard-section-label">
-                WORKSPACE OVERVIEW
-              </span>
+              <div className="lawyer-dashboard-stat-icon purple">
+                ⚖
+              </div>
 
-              <h2>
-                Your professional snapshot
-              </h2>
+              <h3>
+                Active Cases
+              </h3>
 
             </div>
 
+            <p className="lawyer-dashboard-muted">
+              Every matter assigned to you — parties, stage,
+              documents on file, the next hearing and any
+              orders passed, with a shortcut to message the
+              client.
+            </p>
+
+            <span className="lawyer-dashboard-action-cta">
+              Open my caseload →
+            </span>
+
+          </button>
+
+
+          <button
+            type="button"
+            className="lawyer-dashboard-wide-card
+                       lawyer-dashboard-action-card"
+            onClick={() => onNavigate("chat")}
+          >
+
+            <div className="lawyer-dashboard-card-heading">
+
+              <div className="lawyer-dashboard-stat-icon blue">
+                💬
+              </div>
+
+              <h3>
+                Messages
+              </h3>
+
+            </div>
+
+            <p className="lawyer-dashboard-muted">
+              Three channels in one inbox — clients, court
+              staff, and fellow advocates — so replies go to
+              whoever is actually waiting.
+            </p>
+
+            <span className="lawyer-dashboard-action-cta">
+              Open inbox →
+            </span>
+
+          </button>
+
+        </section>
+
+
+        {/* =================================================
+            PROFILE COMPLETENESS
+            ================================================= */}
+
+        <section className="lawyer-dashboard-profile-progress">
+
+          <div>
+
+            <span className="lawyer-dashboard-section-label">
+              PROFILE COMPLETENESS
+            </span>
+
+            <h2>
+              Keep your professional
+              profile complete
+            </h2>
+
             <p>
-              Live information from the
-              NyayMitra lawyer API
+              More complete information makes
+              the lawyer profile more useful
+              across NyayMitra.
+            </p>
+
+          </div>
+
+          <div className="lawyer-dashboard-progress">
+
+            <div className="lawyer-dashboard-progress-number">
+              {profileCompleteness}%
+            </div>
+
+            <div className="lawyer-dashboard-progress-track">
+              <div
+                style={{
+                  width: `${profileCompleteness}%`,
+                }}
+              />
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* =================================================
+            VIEW YOUR PROFILE
+
+            The professional snapshot this screen used to
+            print in full now lives behind one button. Every
+            field it showed — experience, practice areas,
+            courts, registration, contact — is on the profile
+            page, where it can also be corrected, so repeating
+            it here only gave a second place to fall out of
+            date.
+            ================================================= */}
+
+        <section className="lawyer-dashboard-cta">
+
+          <div>
+
+            <span>
+              PROFESSIONAL PROFILE
+            </span>
+
+            <h2>
+              View your profile
+            </h2>
+
+            <p>
+              Open the complete profile to read your
+              professional, contact, education and practice
+              information — and edit anything that has
+              changed.
             </p>
 
           </div>
 
 
-          <div className="lawyer-dashboard-stat-grid">
+          <div className="lawyer-dashboard-cta-actions">
 
-            <StatCard
-              icon="⚖"
-              tone="purple"
-              label="EXPERIENCE"
-              value={
-                lawyer.years_of_experience !==
-                  null &&
-                lawyer.years_of_experience !==
-                  undefined
-                  ? `${lawyer.years_of_experience} yrs`
-                  : "—"
+            <button
+              type="button"
+              onClick={() =>
+                onNavigate("lawyerProfile")
               }
-              detail="Professional experience"
-            />
+            >
+              View and edit profile →
+            </button>
 
-            <StatCard
-              icon="§"
-              tone="blue"
-              label="PRACTICE AREAS"
-              value={String(
-                practiceAreas.length
-              )}
-              detail="Areas listed in profile"
-            />
-
-            <StatCard
-              icon="⌖"
-              tone="orange"
-              label="COURTS"
-              value={String(
-                courts.length
-              )}
-              detail="Courts listed in profile"
-            />
-
-            <StatCard
-              icon="✓"
-              tone="green"
-              label="PROFILE STATUS"
-              value={
-                lawyer.profile_status ||
-                "—"
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                window.scrollTo({
+                  top: 0,
+                  behavior: "smooth",
+                })
               }
-              detail="Backend profile status"
-              status
-            />
+            >
+              Back to top ↑
+            </button>
 
           </div>
 
@@ -612,181 +716,6 @@ function LawyerDashboardPage({
 
         </section>
 
-
-        {/* =================================================
-            PROFILE COMPLETENESS
-            ================================================= */}
-
-        <section className="lawyer-dashboard-profile-progress">
-
-          <div>
-
-            <span className="lawyer-dashboard-section-label">
-              PROFILE COMPLETENESS
-            </span>
-
-            <h2>
-              Keep your professional
-              profile complete
-            </h2>
-
-            <p>
-              More complete information makes
-              the lawyer profile more useful
-              across NyayMitra.
-            </p>
-
-          </div>
-
-          <div className="lawyer-dashboard-progress">
-
-            <div className="lawyer-dashboard-progress-number">
-              {profileCompleteness}%
-            </div>
-
-            <div className="lawyer-dashboard-progress-track">
-              <div
-                style={{
-                  width: `${profileCompleteness}%`,
-                }}
-              />
-            </div>
-
-          </div>
-
-        </section>
-
-
-        {/* =================================================
-            WORK — ACTIVE CASES + MESSAGES
-
-            The two things an advocate does between hearings:
-            check the matters on their list, and reply to the
-            people on them.
-            ================================================= */}
-
-        <section className="lawyer-dashboard-specialization-grid">
-
-          <button
-            type="button"
-            className="lawyer-dashboard-wide-card
-                       lawyer-dashboard-action-card"
-            onClick={() => onNavigate("lawyerCases")}
-          >
-
-            <div className="lawyer-dashboard-card-heading">
-
-              <div className="lawyer-dashboard-stat-icon purple">
-                ⚖
-              </div>
-
-              <h3>
-                Active Cases
-              </h3>
-
-            </div>
-
-            <p className="lawyer-dashboard-muted">
-              Every matter assigned to you — parties,
-              current stage, judge and the next hearing
-              date, with a shortcut to message the client.
-            </p>
-
-            <span className="lawyer-dashboard-action-cta">
-              Open my caseload →
-            </span>
-
-          </button>
-
-
-          <button
-            type="button"
-            className="lawyer-dashboard-wide-card
-                       lawyer-dashboard-action-card"
-            onClick={() => onNavigate("chat")}
-          >
-
-            <div className="lawyer-dashboard-card-heading">
-
-              <div className="lawyer-dashboard-stat-icon blue">
-                💬
-              </div>
-
-              <h3>
-                Messages
-              </h3>
-
-            </div>
-
-            <p className="lawyer-dashboard-muted">
-              See which users contacted you and carry on the
-              conversation, plus the staff and admin channels
-              you are allowed to use.
-            </p>
-
-            <span className="lawyer-dashboard-action-cta">
-              Open inbox →
-            </span>
-
-          </button>
-
-        </section>
-
-
-        {/* =================================================
-            CTA
-            ================================================= */}
-
-        <section className="lawyer-dashboard-cta">
-
-          <div>
-
-            <span>
-              PROFESSIONAL PROFILE
-            </span>
-
-            <h2>
-              Review your lawyer profile
-            </h2>
-
-            <p>
-              Open the complete profile page
-              to review your professional,
-              contact, education and practice
-              information.
-            </p>
-
-          </div>
-
-
-          <div className="lawyer-dashboard-cta-actions">
-
-            <button
-              type="button"
-              onClick={() =>
-                onNavigate("lawyerProfile")
-              }
-            >
-              View My Profile →
-            </button>
-
-            <button
-              type="button"
-              className="secondary"
-              onClick={() =>
-                window.scrollTo({
-                  top: 0,
-                  behavior: "smooth",
-                })
-              }
-            >
-              Back to top ↑
-            </button>
-
-          </div>
-
-        </section>
-
       </main>
 
     </div>
@@ -810,61 +739,6 @@ function getInitials(
         part[0]?.toUpperCase() || ""
     )
     .join("");
-}
-
-
-function StatCard({
-  icon,
-  tone,
-  label,
-  value,
-  detail,
-  status = false,
-}: {
-  icon: string;
-  tone:
-    | "purple"
-    | "blue"
-    | "orange"
-    | "green";
-  label: string;
-  value: string;
-  detail: string;
-  status?: boolean;
-}) {
-  return (
-    <div className="lawyer-dashboard-stat-card">
-
-      <div
-        className={`lawyer-dashboard-stat-icon ${tone}`}
-      >
-        {icon}
-      </div>
-
-      <div>
-
-        <span>
-          {label}
-        </span>
-
-        <strong
-          className={
-            status
-              ? "status-value"
-              : undefined
-          }
-        >
-          {value}
-        </strong>
-
-        <small>
-          {detail}
-        </small>
-
-      </div>
-
-    </div>
-  );
 }
 
 

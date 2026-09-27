@@ -238,3 +238,51 @@
     flex-wrap: wrap;
   }
 }
+
+/* =========================================================
+   WORK ASSIGNMENT — set by the admin on Staff Management
+   ========================================================= */
+
+.staff-dashboard-assignment {
+  border-left: 3px solid #4f46c5;
+}
+
+.staff-dashboard-assignment em {
+  flex: 0 0 auto;
+
+  padding: 5px 11px;
+
+  border-radius: 999px;
+
+  background: #f0edff;
+
+  color: #6d4aff;
+
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+
+  letter-spacing: 0.06em;
+}
+
+/* =========================================================
+   AUTHORITIES BY CATEGORY
+   ========================================================= */
+
+.staff-dashboard-authority-groups {
+  display: flex;
+  flex-direction: column;
+
+  gap: 18px;
+
+  margin-top: 16px;
+}
+
+.staff-dashboard-authority-group
+  .role-dashboard-section-label {
+  color: #4f46c5;
+}
+
+.staff-dashboard-authority-group ul {
+  margin-top: 9px;
+}

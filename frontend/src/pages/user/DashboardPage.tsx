@@ -331,43 +331,7 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
 
 
             {/* =================================================
-                6. TELL US WHAT HAPPENED
-                ================================================= */}
-
-            <button
-              type="button"
-              className="dashboard-action-card"
-              onClick={() => onNavigate("tellUs")}
-            >
-
-              <div className="dashboard-action-icon purple">
-                ✦
-              </div>
-
-              <div className="dashboard-action-content">
-
-                <span>LEGAL GUIDANCE</span>
-
-                <h3>
-                  Tell Us What Happened
-                </h3>
-
-                <p>
-                  Describe your situation and get
-                  useful guidance about possible next steps.
-                </p>
-
-              </div>
-
-              <div className="dashboard-action-arrow">
-                →
-              </div>
-
-            </button>
-
-
-            {/* =================================================
-                7. VOICE NYAYMITRA
+                6. VOICE NYAYMITRA
                 ================================================= */}
 
             <button
@@ -382,15 +346,15 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
 
               <div className="dashboard-action-content">
 
-                <span>VOICE ASSISTANCE</span>
+                <span>SPEAK ABOUT YOUR SITUATION</span>
 
                 <h3>
                   Voice NyayMitra
                 </h3>
 
                 <p>
-                  Ask questions and interact with
-                  NyayMitra using your voice.
+                  Say what happened in your own words and
+                  get what to do next and how urgent it is.
                 </p>
 
               </div>
@@ -403,7 +367,7 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
 
 
             {/* =================================================
-                8. CASE TIMELINE
+                7. CASE TIMELINE
                 ================================================= */}
 
             <button
@@ -427,42 +391,6 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
                 <p>
                   Track important hearings, events
                   and stages in your case journey.
-                </p>
-
-              </div>
-
-              <div className="dashboard-action-arrow">
-                →
-              </div>
-
-            </button>
-
-
-            {/* =================================================
-                 9. NEXT STEPS
-                ================================================= */}
-
-            <button
-                 type="button"
-                 className="dashboard-action-card"
-                 onClick={() => onNavigate("nextSteps")}
-                >
-
-              <div className="dashboard-action-icon indigo">
-                →
-              </div>
-
-              <div className="dashboard-action-content">
-
-                <span>CASE GUIDANCE</span>
-
-                <h3>
-                  Next Steps
-                </h3>
-
-                <p>
-                  Understand what you may need to
-                  do next in your legal situation.
                 </p>
 
               </div>

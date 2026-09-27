@@ -8,15 +8,25 @@ import RoleDashboardShell, {
 import RoleSectionView from "../../components/RoleSectionView";
 import { initialsOf } from "../../lib/initials";
 import { issueStaffAccount, DEMO_ACCOUNTS } from "../../api/authApi";
+import { isDeactivated, toggleAccountStatus } from "../../api/accountApi";
 import {
   AUTHORITY_CATALOG,
   ADMIN_AUTHORITIES,
+  STAFF_WORK,
+  authoritiesByCategory,
   getAuthoritiesFor,
+  getWorkFor,
   setAuthorityFor,
   setAuthoritiesFor,
+  setWorkFor,
 } from "../../api/authorityApi";
-import { getLawyers, getLawyerById } from "../../api/lawyerApi";
-import type { Lawyer } from "../../api/lawyerApi";
+import type { StaffWorkId } from "../../api/authorityApi";
+import {
+  getLawyers,
+  getLawyerById,
+  setLawyerVerification,
+} from "../../api/lawyerApi";
+import type { Lawyer, VerificationState } from "../../api/lawyerApi";
 import { getCases } from "../../api/caseApi";
 import "../../components/RoleDashboardShell.css";
 import "../../components/RoleSectionView.css";
@@ -143,6 +153,52 @@ function AdminDashboardPage({
   };
 
   /* =====================================================
+     STAFF WORK
+
+     Who does what, chosen once from the six areas and kept
+     in step here so the select repaints without a reload.
+     ===================================================== */
+
+  const [workAssignments, setWorkAssignments] = useState<
+    Record<string, string>
+  >(() =>
+    Object.fromEntries(
+      initialStaff.map((member) => [
+        member.userId,
+        getWorkFor(member.userId) ?? "",
+      ]),
+    ),
+  );
+
+  const assignWork = (staffUserId: string, workId: StaffWorkId | "") => {
+    setWorkFor(staffUserId, workId);
+    setWorkAssignments((previous) => ({
+      ...previous,
+      [staffUserId]: workId,
+    }));
+  };
+
+  /* =====================================================
+     ACCOUNT STATUS
+
+     Citizen sign-in state. Kept locally alongside the store
+     so the pill and the button change together.
+     ===================================================== */
+
+  const [accountStates, setAccountStates] = useState<
+    Record<string, boolean>
+  >({});
+
+  const flipAccount = (userId: string) => {
+    const next = toggleAccountStatus(userId);
+
+    setAccountStates((previous) => ({
+      ...previous,
+      [userId]: next === "deactivated",
+    }));
+  };
+
+  /* =====================================================
      LAWYER DIRECTORY (real service, fetched on demand)
 
      Three screens read this — Manage Lawyers, Lawyer
@@ -220,7 +276,7 @@ function AdminDashboardPage({
   >("pending");
 
   useEffect(() => {
-    if (activeSection !== "records") return;
+    if (activeSection !== "records" && activeSection !== "lawyers") return;
     if (recordStatus !== "pending" || recordsRequested.current) return;
 
     /* Needs the summary first — otherwise there is no ID list to resolve. */
@@ -246,6 +302,39 @@ function AdminDashboardPage({
   }, [activeSection, recordStatus, lawyerStatus, lawyerList]);
 
   const retryRecords = () => setRecordStatus("pending");
+
+  /* =====================================================
+     VERIFICATION
+
+     Ruling on an advocate writes to the store and repaints
+     the row here, so the pill changes under the button that
+     changed it rather than after a reload.
+     ===================================================== */
+
+  const decideVerification = (
+    lawyerId: string,
+    state: VerificationState,
+  ) => {
+    setLawyerVerification(lawyerId, state);
+
+    setRecordDetails((previous) =>
+      previous.map((item) =>
+        item.lawyer_id === lawyerId
+          ? { ...item, profile_status: state }
+          : item,
+      ),
+    );
+  };
+
+  const verificationOf = (lawyerId: string): string => {
+    const detail = recordDetails.find(
+      (item) => item.lawyer_id === lawyerId,
+    );
+
+    if (detail?.profile_status) return detail.profile_status;
+
+    return recordStatus === "ready" ? "Not recorded" : "Checking…";
+  };
 
   /* One shared notice so Manage Lawyers, Lawyer Records and Platform Data
      cannot disagree about what "the directory is unavailable" looks like. */
@@ -419,8 +508,8 @@ function AdminDashboardPage({
       icon: "🗂️",
       title: "Staff Management",
       description:
-        "Issue and revoke staff credentials. Staff members " +
-        "sign in through this admin login.",
+        "Issue staff credentials and assign each member the " +
+        "work they are responsible for.",
       status: "ready",
       badge: "Open",
       onOpen: () => setActiveSection("staff"),
@@ -452,8 +541,8 @@ function AdminDashboardPage({
       icon: "⚖️",
       title: "Manage Lawyers",
       description:
-        "Review lawyer registrations, verification status " +
-        "and profile records from the lawyer database.",
+        "Verify or reject advocate registrations, and review " +
+        "verification status against each lawyer record.",
       status: "ready",
       badge: "Open",
       onOpen: () => setActiveSection("lawyers"),
@@ -485,8 +574,8 @@ function AdminDashboardPage({
       icon: "🔐",
       title: "Access & Roles",
       description:
-        "Grant or revoke the authorities staff hold across " +
-        "users, lawyers, cases, documents and messages.",
+        "Assign each staff member their work, then grant or " +
+        "revoke authorities by category.",
       status: "ready",
       badge: "Open",
       onOpen: () => setActiveSection("access"),
@@ -599,33 +688,59 @@ function AdminDashboardPage({
           </p>
 
           <ul className="section-rows">
-            {citizens.map((row) => (
-              <li key={row.id} className="section-row">
+            {citizens.map((row) => {
+              /* Whether the administrator has switched this one off.
+                 Only applies to accounts that can actually sign in —
+                 a case owner with no login has nothing to switch. */
+              const off = row.issued
+                ? accountStates[row.id] ?? isDeactivated(row.id)
+                : false;
 
-                <span className="section-row-avatar">
-                  {initialsOf(row.name)}
-                </span>
+              return (
+                <li key={row.id} className="section-row">
 
-                <div className="section-row-body">
-                  <strong>{row.name}</strong>
-                  <span>
-                    {row.id} · {row.email}
+                  <span className="section-row-avatar">
+                    {initialsOf(row.name)}
                   </span>
-                </div>
 
-                <div className="section-row-meta">
-                  <time>
-                    {row.cases} case{row.cases === 1 ? "" : "s"}
-                  </time>
-                  <span
-                    className={`section-pill ${row.issued ? "good" : "warn"}`}
-                  >
-                    {row.issued ? "Account active" : "No login issued"}
-                  </span>
-                </div>
+                  <div className="section-row-body">
+                    <strong>{row.name}</strong>
+                    <span>
+                      {row.id} · {row.email}
+                    </span>
+                  </div>
 
-              </li>
-            ))}
+                  <div className="section-row-meta">
+                    <time>
+                      {row.cases} case{row.cases === 1 ? "" : "s"}
+                    </time>
+
+                    {row.issued ? (
+                      <>
+                        <span
+                          className={`section-pill ${off ? "warn" : "good"}`}
+                        >
+                          {off ? "Deactivated" : "Active"}
+                        </span>
+
+                        <button
+                          type="button"
+                          className="section-toggle"
+                          onClick={() => flipAccount(row.id)}
+                        >
+                          {off ? "Reactivate" : "Deactivate"}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="section-pill warn">
+                        No login issued
+                      </span>
+                    )}
+                  </div>
+
+                </li>
+              );
+            })}
           </ul>
 
         </div>
@@ -644,9 +759,9 @@ function AdminDashboardPage({
         portal="NYAYMITRA ADMIN PORTAL"
         title="Manage"
         titleAccent="lawyers."
-        heroDescription="The first page of the advocate directory, read live from the lawyer service — experience and location for every registered practitioner."
+        heroDescription="The advocate directory, read live from the lawyer service — and the place where each registration is verified, rejected or left pending."
         workspaceTitle="Review lawyer registrations"
-        workspaceSubtitle="Directory read straight from the API"
+        workspaceSubtitle="Verify or reject from the row"
         onBack={() => setActiveSection(null)}
       >
         <div className="section-stats">
@@ -679,6 +794,18 @@ function AdminDashboardPage({
             <small>{SENIOR_YEARS}+ years on this page</small>
           </div>
 
+          <div className="section-stat">
+            <span>VERIFIED</span>
+            <strong>
+              {recordStatus === "ready"
+                ? recordDetails.filter(
+                    (l) => l.profile_status === "Verified",
+                  ).length
+                : "—"}
+            </strong>
+            <small>Papers confirmed on this page</small>
+          </div>
+
         </div>
 
         <div className="section-card">
@@ -690,10 +817,12 @@ function AdminDashboardPage({
           <h3>Lawyer registrations</h3>
 
           <p>
-            Served by GET /api/lawyers. The summary response carries
-            identity, experience and location only — bar details and
-            verification status live on Lawyer Records, which resolves
-            each profile through the detail endpoint.
+            The summary response carries identity, experience and
+            location only — each row is therefore resolved through the
+            detail endpoint to reach verification status. Ruling here
+            is the platform's decision, not the advocate's: it is
+            stored against the record and shown everywhere the status
+            appears.
           </p>
 
           {lawyerNotice ?? (
@@ -730,6 +859,52 @@ function AdminDashboardPage({
                       >
                         {senior ? "Senior" : "Practising"}
                       </span>
+                    </div>
+
+                    {/* ----------------------------------------
+                        VERIFICATION
+
+                        The decision itself, on the row it
+                        belongs to. Detail calls arrive in
+                        parallel, so the pill says so while
+                        they are still out rather than
+                        showing nothing.
+                        ---------------------------------------- */}
+
+                    <div className="section-row-actions">
+
+                      <span
+                        className={`section-pill ${
+                          verificationOf(lawyer.lawyer_id) === "Verified"
+                            ? "good"
+                            : verificationOf(lawyer.lawyer_id) === "Rejected"
+                              ? "warn"
+                              : "info"
+                        }`}
+                      >
+                        {verificationOf(lawyer.lawyer_id)}
+                      </span>
+
+                      <button
+                        type="button"
+                        className="section-action"
+                        onClick={() =>
+                          decideVerification(lawyer.lawyer_id, "Verified")
+                        }
+                      >
+                        Verify
+                      </button>
+
+                      <button
+                        type="button"
+                        className="section-action is-danger"
+                        onClick={() =>
+                          decideVerification(lawyer.lawyer_id, "Rejected")
+                        }
+                      >
+                        Reject
+                      </button>
+
                     </div>
 
                   </li>
@@ -1043,6 +1218,39 @@ function AdminDashboardPage({
      ===================================================== */
 
   if (activeSection === "access") {
+    /* =================================================
+       STAFF IN CATEGORIES
+
+       Grouped by the work they were assigned on Staff
+       Management rather than by seniority or join date,
+       because that is the axis the admin is actually
+       deciding on: this row is the people who handle
+       documents, and here is what document people may do.
+       ================================================= */
+
+    const workOf = (userId: string) =>
+      workAssignments[userId] ?? getWorkFor(userId) ?? "";
+
+    const buckets = STAFF_WORK.map((work) => ({
+      key: work.id as string,
+      label: work.label,
+      note: work.description,
+      members: staffList.filter(
+        (member) => workOf(member.userId) === work.id,
+      ),
+    }))
+      .concat([
+        {
+          key: "unassigned",
+          label: "Unassigned",
+          note: "No work chosen yet — defaults only.",
+          members: staffList.filter(
+            (member) => workOf(member.userId) === "",
+          ),
+        },
+      ])
+      .filter((bucket) => bucket.members.length > 0);
+
     return (
       <div className="role-dashboard-page">
 
@@ -1095,11 +1303,11 @@ function AdminDashboardPage({
                   ADMIN WORKSPACE
                 </span>
 
-                <h2>Delegate staff authorities</h2>
+                <h2>Assign work, then delegate what it needs</h2>
 
                 <p>
                   Signed in as {session.fullName} (
-                  {session.userId})
+                  {session.userId}))
                 </p>
 
               </div>
@@ -1165,99 +1373,215 @@ function AdminDashboardPage({
 
             </div>
           ) : (
-            <div className="admin-access-grid">
+            <div className="admin-access-groups">
 
-              {staffList.map((member) => {
+              {buckets.map((bucket) => (
 
-                const held =
-                  grants[member.userId] ??
-                  getAuthoritiesFor(member.userId);
+                <section
+                  key={bucket.key}
+                  className="admin-access-bucket"
+                >
 
-                return (
-                  <div
-                    key={member.userId}
-                    className="admin-staff-card admin-access-card"
-                  >
+                  <header className="admin-access-bucket-head">
 
-                    <header className="admin-access-card-head">
+                    <div>
 
-                      <div>
-
-                        <span className="role-dashboard-section-label">
-                          STAFF
-                        </span>
-
-                        <h3>{member.fullName}</h3>
-
-                        <p>
-                          {member.email} · {member.userId}
-                        </p>
-
-                      </div>
-
-                      <span className="admin-access-count">
-                        {held.length} of {AUTHORITY_CATALOG.length}
+                      <span className="section-sublabel">
+                        {bucket.label}
                       </span>
 
-                    </header>
+                      <p>{bucket.note}</p>
 
-                    <ul className="admin-access-list">
+                    </div>
 
-                      {AUTHORITY_CATALOG.map((authority) => (
-                        <li key={authority.id}>
-                          <label>
+                    <span className="admin-access-count">
+                      {bucket.members.length}{" "}
+                      {bucket.members.length === 1
+                        ? "person"
+                        : "people"}
+                    </span>
 
-                            <input
-                              type="checkbox"
-                              checked={held.includes(authority.id)}
-                              onChange={(event) =>
-                                toggleAuthority(
-                                  member.userId,
-                                  authority.id,
-                                  event.target.checked,
-                                )
-                              }
-                            />
+                  </header>
 
-                            <span>
-                              <strong>{authority.label}</strong>
-                              <small>{authority.description}</small>
+                  <div className="admin-access-grid">
+
+                    {bucket.members.map((member) => {
+
+                      const held =
+                        grants[member.userId] ??
+                        getAuthoritiesFor(member.userId);
+
+                      return (
+                        <div
+                          key={member.userId}
+                          className="admin-staff-card admin-access-card"
+                        >
+
+                          <header className="admin-access-card-head">
+
+                            <div>
+
+                              <span className="role-dashboard-section-label">
+                                STAFF
+                              </span>
+
+                              <h3>{member.fullName}</h3>
+
+                              <p>
+                                {member.email} · {member.userId}
+                              </p>
+
+                            </div>
+
+                            <span className="admin-access-count">
+                              {held.length} of {AUTHORITY_CATALOG.length}
                             </span>
 
-                          </label>
-                        </li>
-                      ))}
+                          </header>
 
-                    </ul>
+                          {/* --------------------------------
+                              AUTHORITIES BY CATEGORY
+                              -------------------------------- */}
 
-                    <footer className="admin-access-actions">
+                          <div className="admin-access-categories">
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          bulkAuthorities(
-                            member.userId,
-                            AUTHORITY_CATALOG.map((a) => a.id),
-                          )
-                        }
-                      >
-                        Grant all
-                      </button>
+                            {authoritiesByCategory().map(
+                              (group) => {
+                                const ids = group.authorities.map(
+                                  (authority) => authority.id,
+                                );
+                                const inGroup = ids.filter((id) =>
+                                  held.includes(id),
+                                ).length;
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          bulkAuthorities(member.userId, [])
-                        }
-                      >
-                        Revoke all
-                      </button>
+                                return (
+                                  <section
+                                    key={group.category}
+                                    className="admin-access-category"
+                                  >
 
-                    </footer>
+                                    <header>
+
+                                      <span className="section-sublabel">
+                                        {group.category}
+                                      </span>
+
+                                      <span className="admin-access-count">
+                                        {inGroup} of {ids.length}
+                                      </span>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          bulkAuthorities(
+                                            member.userId,
+                                            [
+                                              ...new Set([
+                                                ...held,
+                                                ...ids,
+                                              ]),
+                                            ],
+                                          )
+                                        }
+                                      >
+                                        Grant
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          bulkAuthorities(
+                                            member.userId,
+                                            held.filter(
+                                              (id) => !ids.includes(id),
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        Revoke
+                                      </button>
+
+                                    </header>
+
+                                    <ul className="admin-access-list">
+
+                                      {group.authorities.map(
+                                        (authority) => (
+                                          <li key={authority.id}>
+                                            <label>
+
+                                              <input
+                                                type="checkbox"
+                                                checked={held.includes(
+                                                  authority.id,
+                                                )}
+                                                onChange={(event) =>
+                                                  toggleAuthority(
+                                                    member.userId,
+                                                    authority.id,
+                                                    event.target
+                                                      .checked,
+                                                  )
+                                                }
+                                              />
+
+                                              <span>
+                                                <strong>
+                                                  {authority.label}
+                                                </strong>
+                                                <small>
+                                                  {authority.description}
+                                                </small>
+                                              </span>
+
+                                            </label>
+                                          </li>
+                                        ),
+                                      )}
+
+                                    </ul>
+
+                                  </section>
+                                );
+                              },
+                            )}
+
+                          </div>
+
+                          <footer className="admin-access-actions">
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                bulkAuthorities(
+                                  member.userId,
+                                  AUTHORITY_CATALOG.map((a) => a.id),
+                                )
+                              }
+                            >
+                              Grant all
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                bulkAuthorities(member.userId, [])
+                              }
+                            >
+                              Revoke all
+                            </button>
+
+                          </footer>
+
+                        </div>
+                      );
+                    })}
 
                   </div>
-                );
-              })}
+
+                </section>
+
+              ))}
 
             </div>
           )}
@@ -1436,38 +1760,79 @@ function AdminDashboardPage({
 
               <h3>Staff accounts</h3>
 
+              <p className="admin-staff-note">
+                Assign each member the work they are responsible for.
+                The assignment is what groups them on Access &amp;
+                Roles, and it is what they see at the top of their own
+                dashboard.
+              </p>
+
               <div className="admin-staff-list">
 
-                {staffList.map((staff) => (
-                  <div
-                    key={staff.email}
-                    className="admin-staff-row"
-                  >
+                {staffList.map((staff) => {
+                  const assigned =
+                    workAssignments[staff.userId] ??
+                    getWorkFor(staff.userId) ??
+                    "";
 
-                    <div className="admin-staff-row-icon">
-                      {staff.fullName
-                        .trim()
-                        .split(/\s+/)
-                        .slice(0, 2)
-                        .map(
-                          (part) =>
-                            part[0]?.toUpperCase() || "",
-                        )
-                        .join("")}
+                  return (
+                    <div
+                      key={staff.email}
+                      className="admin-staff-row"
+                    >
+
+                      <div className="admin-staff-row-icon">
+                        {staff.fullName
+                          .trim()
+                          .split(/\s+/)
+                          .slice(0, 2)
+                          .map(
+                            (part) =>
+                              part[0]?.toUpperCase() || "",
+                          )
+                          .join("")}
+                      </div>
+
+                      <div className="admin-staff-row-body">
+
+                        <strong>{staff.fullName}</strong>
+
+                        <span>{staff.email}</span>
+
+                        <select
+                          className="section-select"
+                          aria-label={`Work assigned to ${staff.fullName}`}
+                          value={assigned}
+                          onChange={(event) =>
+                            assignWork(
+                              staff.userId,
+                              event.target.value as StaffWorkId | "",
+                            )
+                          }
+                        >
+
+                          <option value="">
+                            Unassigned
+                          </option>
+
+                          {STAFF_WORK.map((work) => (
+                            <option
+                              key={work.id}
+                              value={work.id}
+                            >
+                              {work.label}
+                            </option>
+                          ))}
+
+                        </select>
+
+                      </div>
+
+                      <em>STAFF</em>
+
                     </div>
-
-                    <div>
-
-                      <strong>{staff.fullName}</strong>
-
-                      <span>{staff.email}</span>
-
-                    </div>
-
-                    <em>STAFF</em>
-
-                  </div>
-                ))}
+                  );
+                })}
 
               </div>
 

@@ -492,3 +492,119 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   STAFF WORK ASSIGNMENT
+   ========================================================= */
+
+.admin-staff-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-staff-note {
+  margin: 6px 0 16px;
+
+  color: #7b8095;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+}
+
+/* =========================================================
+   ACCESS & ROLES — STAFF GROUPED BY WORK, AUTHORITIES
+   GROUPED BY CATEGORY
+   ========================================================= */
+
+.admin-access-groups {
+  display: flex;
+  flex-direction: column;
+
+  gap: 22px;
+}
+
+.admin-access-bucket {
+  padding: 22px;
+
+  background: #fdfdff;
+
+  border: 1px solid #e9ebf4;
+  border-radius: 20px;
+}
+
+.admin-access-bucket-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+
+  border-bottom: 1px solid #eef0f6;
+}
+
+.admin-access-bucket-head p {
+  margin: 5px 0 0;
+
+  color: #7b8095;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+}
+
+.admin-access-categories {
+  display: flex;
+  flex-direction: column;
+
+  gap: 14px;
+
+  margin-top: 18px;
+  padding-top: 16px;
+
+  border-top: 1px solid #eef0f6;
+}
+
+.admin-access-category header {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 9px;
+}
+
+.admin-access-category header .section-sublabel {
+  flex: 1;
+  min-width: 0;
+
+  color: #4f46c5;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-access-category header button {
+  padding: 4px 10px;
+
+  border: 1px solid #dfe2ee;
+  border-radius: 999px;
+
+  background: #fff;
+
+  color: #4f46c5;
+
+  font-size: 10.5px;
+  font-weight: 750;
+
+  cursor: pointer;
+}
+
+.admin-access-category header button:hover {
+  background: #f0edff;
+  border-color: #dcdcf4;
+}

@@ -516,3 +516,180 @@
     padding: 20px;
   }
 }
+/* =========================================================
+   EDIT MODE
+   ========================================================= */
+
+.lawyer-edit-bar {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 24px;
+  padding: 20px 24px;
+  background: white;
+  border: 1px solid #e4e7f0;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(31, 41, 91, 0.07);
+}
+
+.lawyer-edit-bar p {
+  margin: 7px 0 0;
+  color: #5f6579;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.lawyer-edit-bar button {
+  flex-shrink: 0;
+
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: #4f46c5;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lawyer-edit-bar button:hover {
+  background: #403ab5;
+}
+
+.lawyer-edit-panel {
+  padding: 28px;
+  background: white;
+  border: 1px solid #e4e7f0;
+  border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(31, 41, 91, 0.07);
+}
+
+.lawyer-edit-note {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px dashed #c9c9ee;
+  border-radius: 14px;
+  background: #f7f7ff;
+}
+
+.lawyer-edit-note p {
+  margin: 0;
+  color: #5b6076;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.lawyer-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+
+  margin-bottom: 20px;
+}
+
+.lawyer-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.lawyer-edit-field.is-wide {
+  grid-column: 1 / -1;
+}
+
+.lawyer-edit-field span {
+  color: #5f6579;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lawyer-edit-field small {
+  color: #8b90a3;
+  font-size: 12px;
+}
+
+.lawyer-edit-field input,
+.lawyer-edit-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #dfe2ee;
+  border-radius: 12px;
+  background: #fbfcff;
+  color: #20264f;
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.lawyer-edit-field textarea {
+  resize: vertical;
+}
+
+.lawyer-edit-field input:focus,
+.lawyer-edit-field textarea:focus {
+  outline: none;
+  border-color: #4f46c5;
+  background: #fff;
+}
+
+.lawyer-edit-actions {
+  display: flex;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #eceef5;
+}
+
+.lawyer-edit-save,
+.lawyer-edit-cancel {
+  padding: 13px 26px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lawyer-edit-save {
+  border: none;
+  background: #4f46c5;
+  color: #fff;
+}
+
+.lawyer-edit-save:hover {
+  background: #403ab5;
+}
+
+.lawyer-edit-cancel {
+  border: 1px solid #dfe2ee;
+  background: #fff;
+  color: #5f6579;
+}
+
+.lawyer-edit-cancel:hover {
+  background: #f4f5fa;
+}
+
+@media (max-width: 650px) {
+  .lawyer-edit-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lawyer-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lawyer-edit-actions {
+    flex-direction: column;
+  }
+
+  .lawyer-edit-save,
+  .lawyer-edit-cancel {
+    width: 100%;
+  }
+}

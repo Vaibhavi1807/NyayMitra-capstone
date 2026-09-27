@@ -12,10 +12,10 @@ from one login — the door you choose decides which dashboard you get.
 
 | Role | Sign in through | Gets |
 |------|-----------------|------|
-| **Citizen (USER)** | "I am a citizen" | My Cases, Find a Lawyer, chat with a lawyer or staff, translated case documents |
-| **Lawyer (LAWYER)** | "I am an advocate" | Profile, active caseload with full matter detail, chat with clients and staff |
-| **Administrator (ADMIN)** | "Administrator / staff" | Every dashboard section, staff account issuance, Access & Roles authority grants |
-| **Staff (STAFF)** | **through the Admin door** | Case files, hearings, document processing, task queue, reports — each gated on what the admin granted |
+| **Citizen (USER)** | "I am a citizen" | My Cases (new case, documents, chat with the assigned lawyer), Court Orders in plain language, Case Timeline, Delay Analysis, Voice NyayMitra, Find a Lawyer, Translation |
+| **Lawyer (LAWYER)** | "I am an advocate" | Active Cases with documents, next hearings and court orders, Messages, an editable profile |
+| **Administrator (ADMIN)** | "Administrator / staff" | Every dashboard section, staff account issuance and work assignment, Access & Roles authority grants, user deactivation, lawyer verification |
+| **Staff (STAFF)** | **through the Admin door** | Case files, hearings, document processing, **lawyer verification**, task queue, reports — each gated on what the admin granted |
 
 Staff deliberately has no door of its own: an administrator issues the
 credentials, and the staff member then signs in through the administrator's
@@ -153,30 +153,56 @@ is held before it is released.
 
 **Citizen**
 - **My Cases** — only the signed-in user's own matters, filtered by
-  `owner_user_id`; stages, hearing dates, timeline and metrics.
+  `owner_user_id`. From one place: file a **new case** with its first
+  documents, open an **ongoing case** to see that case's documents, add
+  more to it, and **chat with the lawyer assigned to it**.
 - **Find a Lawyer** — live directory from `GET /api/lawyers`, with a
   **Chat** button per profile.
-- **Dashboard Chat** — a card that opens a conversation with a chosen lawyer.
-- Translated case documents and voice input through the NLP service.
+- **Court Order** — upload an image or PDF and the NLP service explains
+  it in simple words; orders are listed per ongoing case.
+- **Case Timeline** and **Delay Analysis** — pick an ongoing case, then
+  read its timeline, or ask for a predicted delay and the reason behind
+  it.
+- **Voice NyayMitra** — speak, the audio becomes text, and the answer
+  comes back as **What to do next** plus an **Urgency of your incident**
+  panel.
+- **Translation** — translate case documents through the NLP service.
 
 **Lawyer**
-- Profile and practice areas from the lawyer service.
-- **Active Cases** — matters where `handling_lawyer_id` matches the session,
-  with parties, stage, presiding judge, schedule and full history.
-- **Messages** — one click into the shared inbox, plus "Message client"
-  buttons on each matter, so a lawyer always sees who contacted them.
+- **Active Cases** sits above the profile block, with each matter's
+  documents on file, its next court hearing and its court orders.
+- **Messages** — one click into the shared inbox, categories for
+  clients, staff and other advocates, plus "Message client" buttons on
+  each matter.
+- **View your profile** opens the full record, where an **Edit profile**
+  toggle lets the advocate change their own fields. Verification status
+  is deliberately not one of them.
 
 **Administrator**
-- Staff management (issue credentials through the Admin door).
-- **Access & Roles** — grant or revoke each staff authority individually, or
-  grant-all / revoke-all. The admin's own row is fixed at full authority.
-- Manage Users, Manage Lawyers, Lawyer Records, Platform Data.
+- **Staff Management** — issue credentials through the Admin door and
+  **assign each member the work they do** (case records, hearings,
+  document processing, lawyer verification, communications, reports).
+- **Manage Users** — switch a citizen account **active or deactivated**;
+  a deactivated account is refused at the login door with a plain
+  explanation rather than a wrong-password error.
+- **Manage Lawyers** — **verify or reject** an advocate's registration
+  on the row it belongs to.
+- **Messages** — two categories, **from lawyers** and **from staff**.
+- **Access & Roles** — staff grouped **by their assigned work**,
+  authorities grouped **into categories**, with grant and revoke per
+  category and per authority.
+- Lawyer Records and Platform Data are unchanged.
 
 **Staff**
-- Case Files, Hearings, Document Processing, Task Queue, Reports — each
-  section opens only if its authority is granted, and otherwise reads
-  **Not granted** rather than failing when clicked.
-- A live **Your authorities** panel listing what this account holds.
+- Case Files, Hearings, Document Processing, **Lawyer Verification**,
+  Task Queue, Reports — each section opens only if its authority is
+  granted, and otherwise reads **Not granted** rather than failing when
+  clicked.
+- Their own **work assignment** at the top of the dashboard, and a live
+  **Your authorities** panel grouped by the same categories Access &
+  Roles uses.
+- Verification runs on the same store the admin writes to, so a ruling
+  made as staff shows up on the admin's screens and vice versa.
 
 ### Communication matrix
 
@@ -192,6 +218,16 @@ Who may start a chat with whom:
 Citizen ↔ Admin is deliberately absent: a citizen reaches the administration
 through staff. The matrix is enforced in `src/api/chatApi.ts`, not by hiding
 buttons.
+
+Two lists are derived from that one matrix:
+
+- **`allowedPartners`** — who a role may exchange messages with.
+- **`visiblePartners`** — who becomes a sidebar category and a "new
+  conversation" entry point. It differs in exactly one place: an advocate
+  browses **Clients / Lawyers / Staff** (the three the brief asks for)
+  and does not navigate by an Admin channel, while the administrator
+  still opens threads with advocates — which is what puts its
+  **From lawyers** category to work.
 
 ---
 
@@ -217,11 +253,19 @@ buttons.
 | POST | `/api/translate` |
 | POST | `/api/translate/indic-to-indic` |
 | POST | `/api/voice` |
+| POST | `/api/guidance` |
+| POST | `/api/explain-order` |
 | GET | `/health` |
 
 All three model checkpoints are gated on HuggingFace. They are loaded lazily
 on first use and released after `MODEL_IDLE_SECONDS`, which brings the idle
 footprint from roughly 4.5 GB down to about 370 MB.
+
+`/api/explain-order` turns an uploaded court order into plain language;
+`/api/guidance` is the rule scorer behind **Voice NyayMitra**. A rule
+matches on *coverage* — how much of the rule's own phrasing the question
+actually covers — rather than on the raw score, because a near-miss can
+out-score a genuine match.
 
 ---
 
@@ -253,12 +297,23 @@ These are real and deliberately left visible rather than papered over:
 - **No cases endpoint.** `GET /api/cases` returns 404; case records live in
   `src/mocks/cases.ts` and `owner_user_id` / `handling_lawyer_id` are local
   fields on top of them.
-- **Chat and authority grants are `localStorage` mocks.** They mirror the
-  real shapes so the swap is a one-file change when the endpoints arrive.
+- **Chat, authority grants, account status and lawyer verification are
+  `localStorage` mocks.** They mirror the real shapes so each swap is a
+  one-file change when the endpoints arrive: `chatApi.ts`,
+  `authorityApi.ts` (work assignment lives here too), `accountApi.ts`
+  and the verification overlay in `lawyerApi.ts`.
 - **No `/api/auth/login`** on the lawyer service, so `VITE_AUTH_MODE=api` is
-  wired but not yet usable; `mock` is the working mode.
-- **Newly issued staff fall back to default authorities.** Staff issued during
-  a session do not appear in the seeded account list until reload.
+  wired but not yet usable; `mock` is the working mode. The deactivation
+  check sits ahead of both modes, so it survives that switch.
+- **Newly issued staff fall back to default authorities and no work
+  assignment.** Staff issued during a session do not appear in the seeded
+  account list until reload.
+- **Urgency has no model.** Voice NyayMitra's *Urgency of your incident*
+  panel says so plainly rather than inventing a number; the endpoint is
+  awaited.
+- **Delay prediction has no model.** Delay Analysis shows the ongoing
+  cases and the **Predict Delay** control with its reasoning, but the
+  result panel is a placeholder until the model API lands.
 - **`LAWYER_0003` differs between mock and API.** The mock session calls it
   Adv. Rohan Deshmukh; the database has another advocate at that ID.
 - **React Compiler is not enabled.** `react()` is called without `compiler: true`

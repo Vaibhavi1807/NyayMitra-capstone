@@ -1,5 +1,6 @@
 import type { Role } from "../auth/roles";
 import type { Session } from "../auth/session";
+import { isDeactivated } from "./accountApi";
 
 /* =========================================================
    NYAYMITRA — AUTH API (MOCK FIRST)
@@ -273,6 +274,27 @@ async function apiLogin(input: LoginInput): Promise<Session> {
 export async function login(
   input: LoginInput,
 ): Promise<Session> {
+  /*
+   * DEACTIVATED ACCOUNTS
+   *
+   * Checked before either path runs, mock or API. An account the
+   * administrator switched off never gets as far as its password —
+   * and saying which it is costs nothing, because somebody who has
+   * been switched off is exactly the person who needs to know.
+   */
+  const deactivated = DEMO_ACCOUNTS.find(
+    (account) =>
+      account.email.trim().toLowerCase() ===
+      input.identifier.trim().toLowerCase(),
+  );
+
+  if (deactivated && isDeactivated(deactivated.userId)) {
+    throw new Error(
+      "This account has been deactivated. " +
+        "Contact the administrator to have it reactivated.",
+    );
+  }
+
   if (USE_MOCK) {
     /* Simulated network delay so the UI shows its
        loading state the same way it will with FastAPI. */

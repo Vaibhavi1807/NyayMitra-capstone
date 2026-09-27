@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   getLawyerById,
+  editableSnapshot,
+  toProfileDraft,
+  fromProfileDraft,
+  saveProfileEdits,
+  PROFILE_SCALAR_FIELDS,
+  PROFILE_LIST_FIELDS,
+  type ProfileDraft,
   type Lawyer,
 } from "../../api/lawyerApi";
 import "./LawyerProfilePage.css";
@@ -17,6 +24,13 @@ function LawyerProfilePage({
   const [lawyer, setLawyer] = useState<Lawyer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  /* Editing works off a copy of the record's own current values,
+     so nothing on screen is ever a guess about what the API last
+     returned. Every field is held as text — list values are one
+     entry per line — until it is saved. */
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<ProfileDraft>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +66,34 @@ function LawyerProfilePage({
       cancelled = true;
     };
   }, [lawyerId]);
+
+  const startEditing = () => {
+    if (!lawyer) return;
+
+    setDraft(toProfileDraft(editableSnapshot(lawyer)));
+    setEditing(true);
+  };
+
+  const updateDraft = (key: keyof ProfileDraft, value: string) => {
+    setDraft((previous) => ({ ...previous, [key]: value }));
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setDraft({});
+  };
+
+  const saveEditing = () => {
+    if (!lawyer) return;
+
+    const patch = fromProfileDraft(draft);
+
+    saveProfileEdits(lawyer.lawyer_id, patch);
+    setLawyer({ ...lawyer, ...patch });
+
+    setEditing(false);
+    setDraft({});
+  };
 
   if (loading) {
     return (
@@ -109,6 +151,162 @@ function LawyerProfilePage({
             ← Back to Dashboard
           </button>
         </div>
+      </div>
+    );
+  }
+
+  /* =========================================================
+     EDIT MODE
+
+     Its own screen rather than controls scattered through the
+     read-only view: the sections below are laid out to be
+     scanned, and input fields dropped between them would turn
+     a profile into a form.
+     ========================================================= */
+  if (editing) {
+    return (
+      <div className="lawyer-profile-page">
+
+        <section className="lawyer-profile-hero">
+          <div className="lawyer-profile-hero-glow" />
+
+          <div className="lawyer-profile-hero-content">
+
+            <button
+              type="button"
+              onClick={cancelEditing}
+              className="lawyer-profile-back"
+            >
+              ← Cancel
+            </button>
+
+            <div className="lawyer-profile-eyebrow">
+              <span>✎</span>
+              EDITING YOUR PROFILE
+            </div>
+
+            <div className="lawyer-profile-identity">
+
+              <div className="lawyer-profile-avatar">
+                <span>{getInitials(lawyer.full_name)}</span>
+              </div>
+
+              <div className="lawyer-profile-title">
+                <h1>{lawyer.full_name}</h1>
+
+                <p>
+                  Corrections are kept on this device and read back
+                  everywhere your profile is shown.
+                </p>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        <main className="lawyer-profile-main">
+
+          <div className="lawyer-edit-panel">
+
+            <div className="lawyer-section-heading">
+              <span className="lawyer-section-label">
+                YOUR DETAILS
+              </span>
+
+              <h2>Correct what has changed</h2>
+            </div>
+
+            <div className="lawyer-edit-note">
+              <span>ⓘ</span>
+
+              <p>
+                Enrollment number, registration and bar council are
+                what the council has on record. They are shown for
+                reference and cannot be edited here.
+              </p>
+            </div>
+
+            <div className="lawyer-edit-grid">
+
+              {PROFILE_SCALAR_FIELDS.map((field) => (
+                <label
+                  key={field.key}
+                  className={
+                    "lawyer-edit-field" +
+                    (field.lines ? " is-wide" : "")
+                  }
+                >
+                  <span>{field.label}</span>
+
+                  {field.lines ? (
+                    <textarea
+                      rows={field.lines}
+                      value={draft[field.key] ?? ""}
+                      onChange={(event) =>
+                        updateDraft(field.key, event.target.value)
+                      }
+                    />
+                  ) : (
+                    <input
+                      type={field.type ?? "text"}
+                      value={draft[field.key] ?? ""}
+                      onChange={(event) =>
+                        updateDraft(field.key, event.target.value)
+                      }
+                    />
+                  )}
+                </label>
+              ))}
+
+            </div>
+
+            <div className="lawyer-edit-grid">
+
+              {PROFILE_LIST_FIELDS.map((field) => (
+                <label
+                  key={field.key}
+                  className="lawyer-edit-field is-wide"
+                >
+                  <span>{field.label}</span>
+
+                  <textarea
+                    rows={4}
+                    value={draft[field.key] ?? ""}
+                    onChange={(event) =>
+                      updateDraft(field.key, event.target.value)
+                    }
+                  />
+
+                  <small>One entry per line</small>
+                </label>
+              ))}
+
+            </div>
+
+            <div className="lawyer-edit-actions">
+
+              <button
+                type="button"
+                onClick={saveEditing}
+                className="lawyer-edit-save"
+              >
+                Save changes
+              </button>
+
+              <button
+                type="button"
+                onClick={cancelEditing}
+                className="lawyer-edit-cancel"
+              >
+                Discard
+              </button>
+
+            </div>
+
+          </div>
+
+        </main>
+
       </div>
     );
   }
@@ -183,6 +381,32 @@ function LawyerProfilePage({
          ===================================================== */}
 
       <main className="lawyer-profile-main">
+
+        {/* EDIT ENTRY */}
+
+        <div className="lawyer-edit-bar">
+
+          <div>
+
+            <span className="lawyer-section-label">
+              YOUR RECORD
+            </span>
+
+            <p>
+              Everything below is what NyayMitra has on file for
+              you. If something has changed, correct it here.
+            </p>
+
+          </div>
+
+          <button
+            type="button"
+            onClick={startEditing}
+          >
+            Edit profile ✎
+          </button>
+
+        </div>
 
         {/* Professional summary */}
 

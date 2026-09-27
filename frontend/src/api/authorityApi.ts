@@ -10,8 +10,8 @@
    VITE_AUTHORITY_MODE to "api" and reimplement the three
    functions below once FastAPI exposes /authorities.
 
-   The catalogue deliberately mirrors the staff dashboard's
-   sections one-for-one, so a grant maps onto a real screen
+   The catalogue is the staff dashboard's sections, plus
+   lawyer verification — a grant maps onto a real screen
    instead of a flag nothing reads.
    ========================================================= */
 
@@ -19,7 +19,23 @@ export interface Authority {
   id: string;
   label: string;
   description: string;
+  /* Where this sits on the screen. Grouped rather than listed
+     flat because "Update case files" and "Submit reports" are
+     unrelated decisions — the category is what lets the admin
+     grant a whole area of work and then refine it. */
+  category: AuthorityCategory;
 }
+
+export type AuthorityCategory =
+  | "Case work"
+  | "Reviews & reporting"
+  | "Communications";
+
+export const AUTHORITY_CATEGORIES: readonly AuthorityCategory[] = [
+  "Case work",
+  "Reviews & reporting",
+  "Communications",
+];
 
 export const AUTHORITY_CATALOG: Authority[] = [
   {
@@ -27,30 +43,42 @@ export const AUTHORITY_CATALOG: Authority[] = [
     label: "Update case files",
     description:
       "Edit case records, attach documents and mark filing status.",
+    category: "Case work",
   },
   {
     id: "hearings.view",
     label: "View hearings",
     description:
       "See upcoming hearings, cause lists and court activities.",
+    category: "Case work",
   },
   {
     id: "documents.process",
     label: "Process documents",
     description:
       "Upload and process court orders through OCR and PDF pipelines.",
+    category: "Case work",
   },
   {
-    id: "messages.send",
-    label: "Message users and lawyers",
+    id: "lawyers.verify",
+    label: "Verify lawyer accounts",
     description:
-      "Hold conversations with citizens and advocates on assigned matters.",
+      "Confirm or reject an advocate's registration papers.",
+    category: "Reviews & reporting",
   },
   {
     id: "reports.submit",
     label: "Submit reports",
     description:
       "File daily activity summaries to the administrator.",
+    category: "Reviews & reporting",
+  },
+  {
+    id: "messages.send",
+    label: "Message users and lawyers",
+    description:
+      "Hold conversations with citizens and advocates on assigned matters.",
+    category: "Communications",
   },
 ];
 
@@ -58,12 +86,179 @@ export const AUTHORITY_IDS: string[] = AUTHORITY_CATALOG.map(
   (authority) => authority.id,
 );
 
-/** What a newly issued staff account starts with. */
+/** The catalogue in the order the screen groups it. */
+export function authoritiesByCategory(): Array<{
+  category: AuthorityCategory;
+  authorities: Authority[];
+}> {
+  return AUTHORITY_CATEGORIES.map((category) => ({
+    category,
+    authorities: AUTHORITY_CATALOG.filter(
+      (authority) => authority.category === category,
+    ),
+  })).filter((group) => group.authorities.length > 0);
+}
+
+/**
+ * What a newly issued staff account starts with.
+ *
+ * Deliberately small: an account is issued with the work it was
+ * created to do, and the rest is granted from Access & Roles.
+ */
 export const DEFAULT_AUTHORITIES: string[] = [
   "cases.update",
   "hearings.view",
   "messages.send",
 ];
+
+/* =========================================================
+   STAFF WORK ASSIGNMENT
+
+   Who does what, decided once here rather than inferred from
+   the authorities somebody happens to hold — the two are
+   related but not the same, and the admin needs both: the
+   assignment says what the person is for, the authorities say
+   what the platform lets them do about it.
+
+   Each entry names the authorities that work implies, so the
+   Access screen can offer it as a starting point without
+   quietly granting anything on its own.
+   ========================================================= */
+
+export type StaffWorkId =
+  | "cases"
+  | "hearings"
+  | "documents"
+  | "verification"
+  | "messages"
+  | "reports";
+
+export interface StaffWork {
+  id: StaffWorkId;
+  label: string;
+  description: string;
+  /* Suggested — never applied automatically. */
+  authorities: string[];
+}
+
+export const STAFF_WORK: readonly StaffWork[] = [
+  {
+    id: "cases",
+    label: "Case records",
+    description: "Keeps filings, parties and stage updates accurate.",
+    authorities: ["cases.update"],
+  },
+  {
+    id: "hearings",
+    label: "Hearings & cause lists",
+    description: "Tracks listed dates, adjournments and court activity.",
+    authorities: ["hearings.view", "cases.update"],
+  },
+  {
+    id: "documents",
+    label: "Document processing",
+    description: "Reads court orders and files papers against matters.",
+    authorities: ["documents.process"],
+  },
+  {
+    id: "verification",
+    label: "Lawyer verification",
+    description: "Checks registration papers before advocates go live.",
+    authorities: ["lawyers.verify"],
+  },
+  {
+    id: "messages",
+    label: "Communications",
+    description: "Answers citizens and advocates on assigned matters.",
+    authorities: ["messages.send"],
+  },
+  {
+    id: "reports",
+    label: "Operational reports",
+    description: "Compiles daily summaries for the administrator.",
+    authorities: ["reports.submit"],
+  },
+];
+
+export const STAFF_WORK_IDS: string[] = STAFF_WORK.map(
+  (work) => work.id,
+);
+
+const WORK_KEY = "nyaymitra.staff.work.v1";
+
+type WorkMap = Record<string, StaffWorkId>;
+
+let workMemory: WorkMap | null = null;
+let workStorageUsable = true;
+
+function readWork(): WorkMap {
+  if (workStorageUsable) {
+    try {
+      const raw = window.localStorage.getItem(WORK_KEY);
+
+      if (raw) {
+        const parsed = JSON.parse(raw) as WorkMap;
+
+        if (parsed && typeof parsed === "object") return parsed;
+      }
+    } catch {
+      workStorageUsable = false;
+    }
+  }
+
+  workMemory ??= {};
+  return workMemory;
+}
+
+function writeWork(next: WorkMap): void {
+  workMemory = next;
+
+  if (!workStorageUsable) return;
+
+  try {
+    window.localStorage.setItem(WORK_KEY, JSON.stringify(next));
+  } catch {
+    workStorageUsable = false;
+  }
+}
+
+/** Null until the admin has assigned something. */
+export function getWorkFor(
+  staffUserId: string,
+): StaffWorkId | null {
+  const id = staffUserId.trim();
+  if (!id) return null;
+
+  return readWork()[id] ?? null;
+}
+
+export function setWorkFor(
+  staffUserId: string,
+  /* An empty string clears the assignment. */
+  workId: StaffWorkId | "",
+): void {
+  const id = staffUserId.trim();
+  if (!id) return;
+
+  const all = readWork();
+
+  if (workId === "") {
+    delete all[id];
+  } else {
+    all[id] = workId;
+  }
+
+  writeWork(all);
+}
+
+/** The entry itself, for a label. */
+export function workById(
+  workId: StaffWorkId | null,
+): StaffWork | null {
+  if (!workId) return null;
+
+  return STAFF_WORK.find((work) => work.id === workId) ?? null;
+}
 
 /* =========================================================
    STORE

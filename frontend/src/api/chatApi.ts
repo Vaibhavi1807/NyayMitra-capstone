@@ -47,6 +47,33 @@ export function allowedPartners(role: Role): readonly Role[] {
   return ALLOWED_PARTNERS[role] ?? [];
 }
 
+/* =========================================================
+   VISIBLE PARTNERS
+
+   The subset of the above that becomes a sidebar category and a
+   "new conversation" entry point. Same matrix, minus the channels
+   somebody has no reason to go looking for.
+
+   The two differ in exactly one place, and it is deliberate: an
+   advocate's working set is clients, staff and one another, so
+   those are the three they browse. ADMIN is still an allowed
+   partner underneath — the administrator opens the thread and the
+   advocate replies into it from the list, which is what puts
+   "From lawyers" on the administrator's side — it just is not a
+   category the advocate navigates by.
+   ========================================================= */
+
+const VISIBLE_PARTNERS: Record<Role, readonly Role[]> = {
+  USER: ["LAWYER", "STAFF"],
+  LAWYER: ["USER", "LAWYER", "STAFF"],
+  STAFF: ["USER", "LAWYER", "ADMIN"],
+  ADMIN: ["LAWYER", "STAFF"],
+};
+
+export function visiblePartners(role: Role): readonly Role[] {
+  return VISIBLE_PARTNERS[role] ?? allowedPartners(role);
+}
+
 /** Can `role` open a conversation with `other`? Enforced on every send. */
 export function canChatWith(role: Role, other: Role): boolean {
   return allowedPartners(role).includes(other);

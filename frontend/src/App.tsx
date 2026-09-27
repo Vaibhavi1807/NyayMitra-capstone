@@ -19,10 +19,8 @@ import LawyerPage from "./pages/user/LawyerPage";
 import CourtOrdersPage from "./pages/user/CourtOrdersPage";
 import TranslationPage from "./pages/user/TranslationPage";
 import DelayAnalysisPage from "./pages/user/DelayAnalysisPage";
-import TellUsPage from "./pages/user/TellUsPage";
 import VoiceNyayMitraPage from "./pages/user/VoiceNyayMitraPage";
 import CaseTimelinePage from "./pages/user/CaseTimelinePage";
-import NextStepsPage from "./pages/user/NextStepsPage";
 
 // ================= LAWYER PAGES =================
 
@@ -56,10 +54,8 @@ export type Page =
   | "orders"
   | "translation"
   | "delay"
-  | "tellUs"
   | "voice"
   | "timeline"
-  | "nextSteps"
 
   // LAWYER
   | "lawyerDashboard"
@@ -134,10 +130,8 @@ const PAGES_BY_ROLE: Record<
     "orders",
     "translation",
     "delay",
-    "tellUs",
     "voice",
     "timeline",
-    "nextSteps",
   ],
 
   LAWYER: ["lawyerDashboard", "lawyerProfile", "lawyerCases", "chat"],
@@ -390,13 +384,6 @@ function App() {
         )}
 
       {session.role === "USER" &&
-        page === "tellUs" && (
-          <TellUsPage
-            onBack={goBackToDashboard}
-          />
-        )}
-
-      {session.role === "USER" &&
         page === "voice" && (
           <VoiceNyayMitraPage
             onBack={goBackToDashboard}
@@ -407,13 +394,6 @@ function App() {
         page === "timeline" && (
           <CaseTimelinePage
             userId={session.userId}
-            onBack={goBackToDashboard}
-          />
-        )}
-
-      {session.role === "USER" &&
-        page === "nextSteps" && (
-          <NextStepsPage
             onBack={goBackToDashboard}
           />
         )}

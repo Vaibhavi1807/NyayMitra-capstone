@@ -3,13 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../../auth/session";
 import {
   KNOWN_PARTIES,
-  allowedPartners,
-  canChatWith,
   deleteConversation,
   listConversations,
   partyFromSession,
   sendMessage,
   startConversation,
+  visiblePartners,
 } from "../../api/chatApi";
 import type {
   ChatConversation,
@@ -69,6 +68,39 @@ const CATEGORY_LABEL: Record<string, string> = {
   STAFF: "Staff",
   ADMIN: "Admin",
 };
+
+/* The few places where the viewer's own role changes the wording. The
+   administrator reads its two channels as inboxes rather than as people
+   — "From lawyers" and "From staff", which is what those two categories
+   are for. The advocate's list is named exactly as the brief asks:
+   clients, lawyers, staff. */
+const VIEWER_CATEGORY_LABEL: Record<string, Record<string, string>> = {
+  ADMIN: { LAWYER: "From lawyers", STAFF: "From staff" },
+  STAFF: { ADMIN: "Admins" },
+};
+
+function categoryLabel(viewer: string, peer: string): string {
+  return (
+    VIEWER_CATEGORY_LABEL[viewer]?.[peer] ??
+    CATEGORY_LABEL[peer] ??
+    roleLabel(peer)
+  );
+}
+
+/* The empty-list sentence. It has to be built from the label because the
+   label is a sentence fragment in two different ways: "clients" is a kind
+   of person, "from lawyers" is a direction. */
+function emptyConversations(viewer: string, filter: string): string {
+  if (filter === "all") return "No conversations here yet.";
+
+  const label = categoryLabel(viewer, filter);
+
+  if (label.startsWith("From ")) {
+    return `No messages ${label.toLowerCase()} yet.`;
+  }
+
+  return `No conversations with ${label.toLowerCase()} yet.`;
+}
 
 /* The party on the other end of a thread. */
 function peerOf(thread: ChatConversation, myId: string): ChatParty {
@@ -237,9 +269,9 @@ export default function ChatPage({
      when the rules change, these change with them. */
   const categories = [
     { key: "all", label: "All", count: threads.length },
-    ...allowedPartners(me.role).map((role) => ({
+    ...visiblePartners(me.role).map((role) => ({
       key: role,
-      label: CATEGORY_LABEL[role] ?? roleLabel(role),
+      label: categoryLabel(me.role, role),
       count: threads.filter((thread) => peerOf(thread, me.id).role === role)
         .length,
     })),
@@ -250,11 +282,14 @@ export default function ChatPage({
       ? threads
       : threads.filter((thread) => peerOf(thread, me.id).role === filter);
 
-  /* Parties this role is allowed to address — the matrix decides, not us. */
+  /* Parties this role may start a thread with — the visible list, so
+     somebody cannot open a conversation that has no category to file
+     it under. Replies into an existing thread are checked separately
+     against the full matrix. */
   const startable = KNOWN_PARTIES.filter(
     (party) =>
       party.id !== me.id &&
-      canChatWith(me.role, party.role) &&
+      visiblePartners(me.role).includes(party.role) &&
       !threads.some((thread) =>
         thread.parties.some((p) => p.id === party.id),
       ),
@@ -301,9 +336,9 @@ export default function ChatPage({
         </h1>
 
         <p>
-          {allowedPartners(me.role).length > 0
-            ? `As ${me.role === "USER" ? "a citizen" : roleLabel(me.role)}, you can message: ${allowedPartners(me.role)
-                .map(roleLabel)
+          {visiblePartners(me.role).length > 0
+            ? `As ${me.role === "USER" ? "a citizen" : roleLabel(me.role)}, you can message: ${visiblePartners(me.role)
+                .map((role) => CATEGORY_LABEL[role]?.toLowerCase() ?? roleLabel(role))
                 .join(", ")}.`
             : ""}{" "}
           Every message stays inside the case record.
@@ -363,9 +398,7 @@ export default function ChatPage({
 
               {visibleThreads.length === 0 ? (
                 <p className="chat-muted chat-center">
-                  No{" "}
-                  {CATEGORY_LABEL[filter] ?? roleLabel(filter).toLowerCase()}{" "}
-                  conversations here yet.
+                  {emptyConversations(me.role, filter)}
                 </p>
               ) : (
                 <ul className="chat-thread-list">

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { getCasesForLawyer } from "../../api/caseApi";
+import { listDocuments } from "../../api/documentApi";
 import type { Case } from "../../types/case";
 import type { ChatTarget } from "../../api/chatApi";
 
@@ -14,8 +15,9 @@ import "./LawyerCasesPage.css";
    advocate never sees another's files.
 
    Each card carries the full detail the brief asked for —
-   parties, stage, judge, next hearing, metrics and the
-   recent history — rather than just a title and a link.
+   parties, stage, judge, next hearing, metrics, the recent
+   history, and both the documents on file and the orders the
+   court has passed — rather than just a title and a link.
 
    "Message client" jumps straight into the chat thread with
    the person who owns the case, which is where the ongoing
@@ -217,6 +219,15 @@ function CaseDetailCard({
 }) {
   const countdown = daysUntil(caseData.next_hearing_date);
 
+  /* Read on every render, for the same reason the page does: the
+     client can upload a paper while this tab is open and the
+     matter should show it without a reload. Court orders are
+     pulled out separately because they answer a different
+     question — what the court has decided, not what is on file. */
+  const files = listDocuments(caseData.cnr_number);
+  const orders = files.filter((doc) => doc.category === "Court order");
+  const papers = files.filter((doc) => doc.category !== "Court order");
+
   return (
     <article className="case-detail">
       <header className="case-detail-head">
@@ -232,6 +243,24 @@ function CaseDetailCard({
           <small>
             {caseData.calculated_metrics.current_stage_duration_days} days
             at this stage
+          </small>
+        </div>
+
+        <div className="case-detail-stage case-detail-next">
+          <span>NEXT HEARING</span>
+          <strong>
+            {caseData.next_hearing_date
+              ? formatHearingDate(caseData.next_hearing_date)
+              : "Not listed"}
+          </strong>
+          <small>
+            {countdown === null
+              ? "Awaiting a date"
+              : countdown < 0
+                ? "Passed — needs rescheduling"
+                : countdown === 0
+                  ? "Today"
+                  : `In ${countdown} day${countdown === 1 ? "" : "s"}`}
           </small>
         </div>
       </header>
@@ -347,6 +376,65 @@ function CaseDetailCard({
             </li>
           ))}
         </ol>
+      </div>
+
+      {/* documents + orders */}
+      <div className="case-detail-files">
+
+        <section>
+          <h3>
+            Documents on file
+            <span>{papers.length}</span>
+          </h3>
+
+          {papers.length > 0 ? (
+            <ul className="case-detail-file-list">
+              {papers.map((doc) => (
+                <li key={doc.id}>
+                  <span className="case-detail-file-cat">
+                    {doc.category}
+                  </span>
+
+                  <strong>{doc.name}</strong>
+
+                  <time>{formatHearingDate(doc.uploadedAt.slice(0, 10))}</time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="case-detail-files-empty">
+              Nothing has been uploaded against this matter yet.
+            </p>
+          )}
+        </section>
+
+        <section>
+          <h3>
+            Court orders
+            <span>{orders.length}</span>
+          </h3>
+
+          {orders.length > 0 ? (
+            <ul className="case-detail-file-list">
+              {orders.map((doc) => (
+                <li key={doc.id}>
+                  <span className="case-detail-file-cat is-order">
+                    Order
+                  </span>
+
+                  <strong>{doc.name}</strong>
+
+                  <time>{formatHearingDate(doc.uploadedAt.slice(0, 10))}</time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="case-detail-files-empty">
+              No order has been recorded for this matter.
+            </p>
+          )}
+        </section>
+
       </div>
 
       <footer className="case-detail-foot">

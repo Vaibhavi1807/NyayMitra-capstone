@@ -3,8 +3,20 @@ import type { Session } from "../../auth/session";
 import type { Page } from "../../App";
 import {
   AUTHORITY_CATALOG,
+  authoritiesByCategory,
   getAuthoritiesFor,
+  getWorkFor,
+  workById,
 } from "../../api/authorityApi";
+import {
+  getLawyerById,
+  getLawyers,
+  setLawyerVerification,
+} from "../../api/lawyerApi";
+import type {
+  Lawyer,
+  VerificationState,
+} from "../../api/lawyerApi";
 import RoleDashboardShell, {
   type DashboardSection,
   type DashboardStat,
@@ -93,6 +105,72 @@ function StaffDashboardPage({
      dashboard's activeSection so both roles behave the same. */
   const [activeSection, setActiveSection] =
     useState<string | null>(null);
+
+  /* =====================================================
+     LAWYER VERIFICATION
+
+     Staff reach this through the same door the admin does,
+     and it only appears when lawyers.verify has been
+     granted — the card says so rather than opening and
+     failing.
+
+     The directory comes from the lawyer service; each row
+     is resolved through the detail endpoint because that
+     is the only place verification status exists.
+     ===================================================== */
+
+  const [lawyerList, setLawyerList] = useState<Lawyer[]>([]);
+  const [lawyerStatus, setLawyerStatus] = useState<
+    "pending" | "ready" | "error"
+  >("pending");
+
+  const [recordsLoaded, setRecordsLoaded] = useState(false);
+
+  const loadLawyerRecords = () => {
+    if (recordsLoaded) return;
+    setRecordsLoaded(true);
+    setLawyerStatus("pending");
+
+    void (async () => {
+      try {
+        const page = await getLawyers({ page: 1, limit: 20 });
+
+        const resolved = await Promise.all(
+          page.lawyers.map(async (summary) => {
+            try {
+              return await getLawyerById(summary.lawyer_id);
+            } catch {
+              return summary;
+            }
+          }),
+        );
+
+        setLawyerList(resolved);
+        setLawyerStatus("ready");
+      } catch {
+        setRecordsLoaded(false);
+        setLawyerStatus("error");
+      }
+    })();
+  };
+
+  const decideVerification = (
+    lawyerId: string,
+    state: VerificationState,
+  ) => {
+    setLawyerVerification(lawyerId, state);
+
+    setLawyerList((previous) =>
+      previous.map((item) =>
+        item.lawyer_id === lawyerId
+          ? { ...item, profile_status: state }
+          : item,
+      ),
+    );
+  };
+
+  /* The work the administrator assigned this account, if any. */
+  const myWork = workById(getWorkFor(session.userId));
 
   /* =====================================================
      WORKLIST FIGURES
@@ -206,6 +284,21 @@ function StaffDashboardPage({
       ...gated("documents.process", () =>
         setActiveSection("documents"),
       ),
+    },
+    {
+      id: "lawyers",
+      icon: "⚖️",
+      title: "Lawyer Verification",
+      description: has("lawyers.verify")
+        ? "Confirm or reject an advocate's registration " +
+          "papers — the same ruling the admin makes."
+        : "Verification authority has not been granted to " +
+          "this account. The administrator can grant it " +
+          "under Access & Roles.",
+      ...gated("lawyers.verify", () => {
+        loadLawyerRecords();
+        setActiveSection("lawyers");
+      }),
     },
     {
       id: "communication",
@@ -815,6 +908,181 @@ function StaffDashboardPage({
   }
 
   /* =====================================================
+     LAWYER VERIFICATION
+     ===================================================== */
+
+  if (activeSection === "lawyers") {
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA STAFF PORTAL"
+        title="Lawyer"
+        titleAccent="verification."
+        heroDescription="Confirm or reject advocate registrations. The decision is recorded against the record and shown on every screen that carries a status."
+        workspaceTitle="Rule on registrations"
+        workspaceSubtitle="Filed under admin authority"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>IN DIRECTORY</span>
+            <strong>
+              {lawyerStatus === "ready" ? lawyerList.length : "—"}
+            </strong>
+            <small>Resolved through the detail endpoint</small>
+          </div>
+
+          <div className="section-stat">
+            <span>VERIFIED</span>
+            <strong>
+              {lawyerStatus === "ready"
+                ? lawyerList.filter(
+                    (l) => l.profile_status === "Verified",
+                  ).length
+                : "—"}
+            </strong>
+            <small>Confirmed on this page</small>
+          </div>
+
+          <div className="section-stat">
+            <span>REJECTED</span>
+            <strong>
+              {lawyerStatus === "ready"
+                ? lawyerList.filter(
+                    (l) => l.profile_status === "Rejected",
+                  ).length
+                : "—"}
+            </strong>
+            <small>Papers returned</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            REGISTRATIONS
+          </span>
+
+          <h3>Ruling on an advocate</h3>
+
+          <p>
+            Verification is the platform's decision, not the
+            advocate's — nobody can mark their own account
+            verified. What you set here is what Manage Lawyers,
+            Lawyer Records and the directory all show.
+          </p>
+
+          {lawyerStatus === "pending" && (
+            <div className="section-empty">
+              <span>⏳</span>
+              <p>Reading the directory…</p>
+            </div>
+          )}
+
+          {lawyerStatus === "error" && (
+            <div className="section-retry">
+              <span>⚠️</span>
+              <p>
+                The lawyer service did not answer. It needs to be
+                running on port 8000.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setRecordsLoaded(false);
+                  loadLawyerRecords();
+                }}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {lawyerStatus === "ready" && (
+            <ul className="section-rows">
+              {lawyerList.map((lawyer) => {
+                const status = lawyer.profile_status || "Not recorded";
+
+                return (
+                  <li
+                    key={lawyer.lawyer_id}
+                    className="section-row"
+                  >
+
+                    <span className="section-row-avatar">
+                      {initialsOf(lawyer.full_name)}
+                    </span>
+
+                    <div className="section-row-body">
+                      <strong>{lawyer.full_name}</strong>
+                      <span>
+                        {lawyer.lawyer_id}
+                        {lawyer.city ? ` · ${lawyer.city}` : ""}
+                      </span>
+                    </div>
+
+                    <div className="section-row-actions">
+
+                      <span
+                        className={`section-pill ${
+                          status === "Verified"
+                            ? "good"
+                            : status === "Rejected"
+                              ? "warn"
+                              : "info"
+                        }`}
+                      >
+                        {status}
+                      </span>
+
+                      <button
+                        type="button"
+                        className="section-action"
+                        onClick={() =>
+                          decideVerification(
+                            lawyer.lawyer_id,
+                            "Verified",
+                          )
+                        }
+                      >
+                        Verify
+                      </button>
+
+                      <button
+                        type="button"
+                        className="section-action is-danger"
+                        onClick={() =>
+                          decideVerification(
+                            lawyer.lawyer_id,
+                            "Rejected",
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+
+                    </div>
+
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <p className="section-record-note section-sublabel-list">
+            Held in the local verification store until a
+            registration endpoint exists — the ruling is real
+            inside the platform, and it survives a reload.
+          </p>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
      RENDER
      ===================================================== */
 
@@ -853,6 +1121,40 @@ function StaffDashboardPage({
 
         onSignOut={onSignOut}
       />
+
+      {/* =================================================
+          WORK ASSIGNMENT
+
+          What the administrator said this account is for.
+          Read straight off Staff Management, so the two
+          screens cannot drift apart.
+          ================================================= */}
+
+      <div className="staff-dashboard-note staff-dashboard-assignment">
+
+        <span>🗂️</span>
+
+        <div>
+
+          <strong>
+            {myWork
+              ? `Your assignment: ${myWork.label}`
+              : "No work assigned yet"}
+          </strong>
+
+          <p>
+            {myWork
+              ? myWork.description
+              : "The administrator sets this under Staff " +
+                "Management. Until then only your granted " +
+                "authorities apply."}
+          </p>
+
+        </div>
+
+        <em>{myWork ? "ASSIGNED" : "UNASSIGNED"}</em>
+
+      </div>
 
       {/* =================================================
           ADMIN-ACCOUNTABLE NOTE
@@ -907,35 +1209,56 @@ function StaffDashboardPage({
 
         </div>
 
-        <ul>
+        {/* Grouped the same way Access & Roles groups them, so a
+            person recognises a category across both screens
+            rather than re-learning the list. */}
 
-          {AUTHORITY_CATALOG.map((authority) => {
+        <div className="staff-dashboard-authority-groups">
 
-            const on = granted.includes(authority.id);
+          {authoritiesByCategory().map((group) => (
+            <section
+              key={group.category}
+              className="staff-dashboard-authority-group"
+            >
 
-            return (
-              <li
-                key={authority.id}
-                className={on ? "is-on" : "is-off"}
-              >
+              <span className="role-dashboard-section-label">
+                {group.category}
+              </span>
 
-                <span
-                  className="staff-dashboard-authority-dot"
-                  aria-hidden="true"
-                />
+              <ul>
 
-                <div>
-                  <strong>{authority.label}</strong>
-                  <small>{authority.description}</small>
-                </div>
+                {group.authorities.map((authority) => {
 
-                <em>{on ? "Granted" : "Not granted"}</em>
+                  const on = granted.includes(authority.id);
 
-              </li>
-            );
-          })}
+                  return (
+                    <li
+                      key={authority.id}
+                      className={on ? "is-on" : "is-off"}
+                    >
 
-        </ul>
+                      <span
+                        className="staff-dashboard-authority-dot"
+                        aria-hidden="true"
+                      />
+
+                      <div>
+                        <strong>{authority.label}</strong>
+                        <small>{authority.description}</small>
+                      </div>
+
+                      <em>{on ? "Granted" : "Not granted"}</em>
+
+                    </li>
+                  );
+                })}
+
+              </ul>
+
+            </section>
+          ))}
+
+        </div>
 
       </div>
 
