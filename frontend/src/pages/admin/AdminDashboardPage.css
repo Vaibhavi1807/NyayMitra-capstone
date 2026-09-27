@@ -1,0 +1,274 @@
+/* =========================================================
+   NYAYMITRA — ADMIN DASHBOARD (STAFF MANAGEMENT SCREEN)
+   ========================================================= */
+
+.admin-staff-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 18px;
+
+  margin-top: 30px;
+}
+
+.admin-staff-card {
+  padding: 26px;
+
+  background: white;
+
+  border: 1px solid #e5e7ef;
+
+  border-radius: 20px;
+
+  box-shadow:
+    0 8px 25px rgba(25, 30, 60, 0.05);
+}
+
+.admin-staff-card h3 {
+  margin: 0 0 20px;
+
+  color: #252a40;
+
+  font-size: 20px;
+
+  letter-spacing: -0.4px;
+}
+
+
+/* =========================================================
+   FIELDS
+   ========================================================= */
+
+.admin-staff-field {
+  display: block;
+
+  margin-bottom: 15px;
+}
+
+.admin-staff-field > span {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #555b6f;
+
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.admin-staff-field input {
+  width: 100%;
+
+  height: 50px;
+
+  padding: 0 15px;
+
+  border: 1px solid #e1e4ec;
+
+  border-radius: 12px;
+
+  background: #f8f9fc;
+
+  color: #252a40;
+
+  font-size: 13px;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.admin-staff-field input:focus {
+  border-color: #818cf8;
+
+  background: white;
+
+  box-shadow:
+    0 0 0 4px rgba(99, 102, 241, 0.10);
+}
+
+.admin-staff-field input::placeholder {
+  color: #a0a5b4;
+}
+
+
+/* =========================================================
+   ALERTS
+   ========================================================= */
+
+.admin-staff-alert {
+  margin-bottom: 15px;
+
+  padding: 12px 14px;
+
+  border-radius: 11px;
+
+  font-size: 12px;
+
+  line-height: 1.5;
+}
+
+.admin-staff-alert.error {
+  border: 1px solid #fbd5d5;
+
+  background: #fdf1f1;
+
+  color: #b42318;
+}
+
+.admin-staff-alert.success {
+  border: 1px solid #cdeeda;
+
+  background: #eaf9f1;
+
+  color: #17834c;
+}
+
+
+/* =========================================================
+   SUBMIT
+   ========================================================= */
+
+.admin-staff-submit {
+  width: 100%;
+
+  height: 50px;
+
+  border: none;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #4338ca,
+      #6366f1
+    );
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  box-shadow:
+    0 8px 20px rgba(79, 70, 229, 0.22);
+
+  transition: 0.2s ease;
+}
+
+.admin-staff-submit:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 12px 25px rgba(79, 70, 229, 0.3);
+}
+
+
+/* =========================================================
+   STAFF LIST
+   ========================================================= */
+
+.admin-staff-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 11px;
+}
+
+.admin-staff-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 13px;
+
+  padding: 13px 15px;
+
+  background: #f8f9fc;
+
+  border: 1px solid #ecedf4;
+
+  border-radius: 13px;
+}
+
+.admin-staff-row-icon {
+  width: 40px;
+  height: 40px;
+
+  flex-shrink: 0;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #3730a3,
+      #6366f1
+    );
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-staff-row > div:nth-child(2) {
+  flex: 1;
+
+  min-width: 0;
+}
+
+.admin-staff-row strong {
+  display: block;
+
+  color: #30354a;
+
+  font-size: 13px;
+}
+
+.admin-staff-row span {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #8a8fa0;
+
+  font-size: 11px;
+}
+
+.admin-staff-row em {
+  flex-shrink: 0;
+
+  padding: 6px 11px;
+
+  border-radius: 999px;
+
+  background: #f0edff;
+
+  color: #6d4aff;
+
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+
+  letter-spacing: 0.06em;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 860px) {
+  .admin-staff-grid {
+    grid-template-columns: 1fr;
+  }
+}

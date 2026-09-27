@@ -1,0 +1,19 @@
+nyayMitra_data_v1.json
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Logs (NLP audit log, uvicorn, etc.)
+*.log
+access_audit.log
+
+# OS / editor
+Thumbs.db
+.DS_Store

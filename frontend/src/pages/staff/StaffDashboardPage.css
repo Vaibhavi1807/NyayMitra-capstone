@@ -1,0 +1,57 @@
+/* =========================================================
+   NYAYMITRA — STAFF DASHBOARD
+   ========================================================= */
+
+/* The note sits inside the shell's bottom padding. */
+.staff-dashboard-note {
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 15px;
+
+  max-width: 1080px;
+
+  margin: -75px auto 0;
+
+  padding: 20px 24px;
+
+  background: #f4f4ff;
+
+  border: 1px solid #dcdcfb;
+
+  border-radius: 18px;
+}
+
+.staff-dashboard-note > span {
+  font-size: 22px;
+}
+
+.staff-dashboard-note strong {
+  display: block;
+
+  color: #3f3a9e;
+
+  font-size: 14px;
+}
+
+.staff-dashboard-note p {
+  margin: 5px 0 0;
+
+  color: #6b7089;
+
+  font-size: 12px;
+
+  line-height: 1.6;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .staff-dashboard-note {
+    margin: -55px 20px 0;
+  }
+}
