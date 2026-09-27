@@ -86,6 +86,27 @@ export function getCasesForLawyer(lawyerId: string): Case[] {
   );
 }
 
+/* The stages a matter reaches when it is over. There is no `status`
+   field on Case, so the stage is the only thing that can answer
+   "is this still live?" — and it is worth being generous here: a
+   word the fixture does not use leaves the case open rather than
+   hiding it from the citizen who filed it. */
+const CLOSED_STAGE =
+  /(closed|concluded|disposed|dismissed|withdrawn|acquitted|settled|disposed of)/i;
+
+export function isOngoing(item: Case): boolean {
+  return !CLOSED_STAGE.test(item.current_case_stage ?? "");
+}
+
+/**
+ * The cases a screen offering a per-case action should list — delay
+ * prediction and the timeline both skip anything already finished,
+ * because the question they answer only applies while the matter runs.
+ */
+export function getOngoingCasesForUser(userId: string): Case[] {
+  return getCasesForUser(userId).filter(isOngoing);
+}
+
 /* =========================================================
    ADDING A CASE
    ========================================================= */

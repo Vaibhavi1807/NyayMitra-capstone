@@ -1900,6 +1900,428 @@ select {
   font-size: 11px;
 }
 
+/* Upload fields — which case, which file, then the action */
+
+.upload-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  margin-top: 16px;
+}
+
+.upload-fields select {
+  flex: 1 1 250px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+
+  background: #f7f8fc;
+  border: 1px solid #e3e5ed;
+  border-radius: 11px;
+
+  color: #252a40;
+  font-size: 13px;
+}
+
+.upload-fields select:focus {
+  outline: none;
+  background: white;
+  border-color: #a5a8f0;
+}
+
+/* The file picker is a choice, not the action — it steps back so the
+   button that actually files the order carries the weight. */
+.upload-fields .upload-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  height: 44px;
+  padding: 0 16px;
+
+  background: white;
+  border: 1px solid #d9dcff;
+  color: #4f46c5;
+  box-shadow: none;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-fields .upload-button:hover {
+  background: #f2f1ff;
+  transform: none;
+  box-shadow: none;
+}
+
+.upload-submit {
+  height: 44px;
+  padding: 0 22px;
+
+  border: 0;
+  border-radius: 11px;
+
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  color: white;
+
+  font-size: 13px;
+  font-weight: 750;
+
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.2);
+  transition: 0.2s ease;
+}
+
+.upload-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.upload-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.upload-error {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+
+  background: #fff5f5;
+  border: 1px solid #f6d7d7;
+  border-radius: 11px;
+
+  color: #b42318;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* Orders grouped by the matter they belong to */
+
+.orders-by-case {
+  display: flex;
+  flex-direction: column;
+
+  gap: 26px;
+}
+
+.orders-case {
+  padding: 24px;
+
+  background: white;
+  border: 1px solid #e5e7ef;
+  border-radius: 22px;
+
+  box-shadow: 0 10px 30px rgba(25, 30, 60, 0.05);
+}
+
+.orders-case-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+
+  margin-bottom: 20px;
+}
+
+.orders-case-cnr {
+  display: block;
+
+  color: #858b9d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.orders-case-head h3 {
+  margin: 6px 0 0;
+
+  color: #252a40;
+  font-size: 19px;
+}
+
+.orders-case-head p {
+  margin: 6px 0 0;
+
+  color: #7c8294;
+  font-size: 13px;
+}
+
+.orders-case-count {
+  flex-shrink: 0;
+
+  padding: 8px 13px;
+  border-radius: 999px;
+
+  background: #eeefff;
+  color: #4f46c5;
+
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.orders-empty-row {
+  padding: 28px;
+  text-align: center;
+
+  background: #fafbfe;
+  border: 1px dashed #dfe2ed;
+  border-radius: 16px;
+
+  color: #7c8294;
+  font-size: 13.5px;
+}
+
+/* Two columns inside a case rather than three: an explanation opens
+   beneath the card it belongs to, and a third of the container is
+   too narrow to read a paragraph in. */
+.orders-case .orders-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.order-remove {
+  display: block;
+  width: 100%;
+
+  margin-top: 10px;
+  padding: 10px;
+
+  background: transparent;
+  border: 1px solid #eceef4;
+  border-radius: 11px;
+
+  color: #9aa0b3;
+  font-size: 11.5px;
+  font-weight: 650;
+  font-family: inherit;
+
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.order-remove:hover {
+  background: #fdf0f2;
+  border-color: #f4ccd4;
+  color: #b4243a;
+}
+
+/* The explanation, opened in place */
+
+.explain-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+
+  border-top: 1px dashed #e3e5ed;
+}
+
+.explain-note {
+  margin-bottom: 12px;
+  padding: 12px 13px;
+
+  background: #fff9ec;
+  border: 1px solid #f3e3bd;
+  border-radius: 11px;
+
+  color: #8a6116;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.explain-panel textarea {
+  width: 100%;
+  padding: 12px;
+
+  background: #f7f8fc;
+  border: 1px solid #e3e5ed;
+  border-radius: 11px;
+
+  color: #252a40;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.55;
+
+  resize: vertical;
+}
+
+.explain-panel textarea:focus {
+  outline: none;
+  background: white;
+  border-color: #a5a8f0;
+}
+
+.explain-submit,
+.explain-clear {
+  display: block;
+  width: 100%;
+
+  margin-top: 12px;
+  padding: 12px;
+
+  border: 0;
+  border-radius: 11px;
+
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  color: white;
+
+  font-size: 13px;
+  font-weight: 750;
+  font-family: inherit;
+
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.explain-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.explain-clear {
+  background: #eef0ff;
+  color: #4338ca;
+  font-weight: 650;
+}
+
+.explain-clear:hover {
+  background: #e4e6ff;
+}
+
+.explain-summary {
+  margin: 0 0 14px;
+
+  color: #4c5266;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.explain-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  display: grid;
+  gap: 11px;
+}
+
+.explain-points li {
+  padding: 13px 14px;
+
+  background: #f7f8fc;
+  border: 1px solid #e9ebf3;
+  border-radius: 12px;
+}
+
+.explain-points strong {
+  display: block;
+
+  color: #252a40;
+  font-size: 13.5px;
+}
+
+.explain-points span {
+  display: block;
+  margin-top: 6px;
+
+  color: #6b7183;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.explain-dates,
+.explain-terms {
+  margin-top: 16px;
+}
+
+.explain-dates > span,
+.explain-terms > span {
+  display: block;
+  margin-bottom: 9px;
+
+  color: #858b9d;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.explain-dates > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.explain-dates em {
+  padding: 5px 11px;
+
+  background: #eef0ff;
+  border: 1px solid #d9dcff;
+  border-radius: 999px;
+
+  color: #4338ca;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.explain-terms dl {
+  margin: 0;
+
+  display: grid;
+  gap: 11px;
+}
+
+.explain-terms dt {
+  color: #252a40;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+
+.explain-terms dd {
+  margin: 4px 0 0;
+
+  color: #6b7183;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.explain-disclaimer {
+  margin: 16px 0 0;
+  padding-top: 13px;
+
+  border-top: 1px dashed #e3e5ed;
+
+  color: #9aa0b3;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+/* Scoped to .orders-case: the generic .orders-grid rules further down
+   carry lower specificity and would be outranked by the two-column
+   grouping above. */
+@media (max-width: 860px) {
+  .orders-case .orders-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orders-case-head {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .upload-fields {
+    flex-direction: column;
+  }
+
+  .upload-fields select,
+  .upload-fields .upload-button,
+  .upload-submit {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
 /* Orders heading */
 
 .orders-heading {
@@ -6041,6 +6463,78 @@ select {
   padding: 65px 0 90px;
 }
 
+/* ---------- CASE PICKER HEAD ---------- */
+
+/* The list replaced the number field, so the block that used to
+   explain what to type now explains what to choose. Kept centred
+   to match the hero directly above it. */
+.delay-case-picker-head {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.delay-case-picker-head h2 {
+  margin: 10px 0 0;
+  color: #1e293b;
+  font-size: clamp(24px, 3vw, 32px);
+}
+
+.delay-case-picker-head p {
+  margin: 10px auto 0;
+  max-width: 640px;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+/* ---------- MODEL STATUS ---------- */
+
+/* Says what is not connected, in the position where its output
+   will appear — so the panel is replaced rather than removed
+   when the API lands. */
+.delay-model-note {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+
+  padding: 20px 22px;
+  border: 1px dashed #c9c9ee;
+  border-radius: 16px;
+  background: #f7f7ff;
+}
+
+.delay-model-note > span {
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.delay-model-note strong {
+  display: block;
+  color: #4338ca;
+  font-size: 14.5px;
+}
+
+.delay-model-note p {
+  margin: 6px 0 0;
+  color: #5b6076;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+/* ---------- DELAY LEVEL TONES ---------- */
+
+.delay-stat-card strong.is-high {
+  color: #b4243a;
+}
+
+.delay-stat-card strong.is-mid {
+  color: #b4661a;
+}
+
+.delay-stat-card strong.is-low {
+  color: #15803d;
+}
+
 /* ---------- SEARCH CARD ---------- */
 
 .delay-search-card {
@@ -8784,6 +9278,21 @@ select {
   color: #64748b;
 
   font-size: 13px;
+}
+
+/* The list replaced the number field: the card that explained
+   what to type now explains what to pick, and the cases sit
+   directly beneath it. */
+.case-timeline-picker {
+  display: flex;
+  flex-direction: column;
+
+  gap: 24px;
+}
+
+.case-timeline-result-actions {
+  display: flex;
+  justify-content: center;
 }
 
 .section-label {

@@ -79,3 +79,12 @@ soundfile==0.14.0
 # Windows build that bundles libmagic. On Linux/macOS use python-magic
 # instead — upload_validation.py calls magic.from_buffer() to detect MIME.
 python-magic-bin==0.4.14
+
+
+# ---------- Court order text extraction ----------
+
+# Pure Python, and imported lazily inside the endpoint, so it costs
+# nothing until an order is actually uploaded. Without it,
+# POST /api/court-order/extract reports that it could not read the file
+# and the court-orders screen falls back to asking for the text.
+pdfplumber==0.11.10

@@ -369,6 +369,7 @@ function App() {
       {session.role === "USER" &&
         page === "orders" && (
           <CourtOrdersPage
+            userId={session.userId}
             onBack={goBackToDashboard}
           />
         )}
@@ -383,6 +384,7 @@ function App() {
       {session.role === "USER" &&
         page === "delay" && (
           <DelayAnalysisPage
+            userId={session.userId}
             onBack={goBackToDashboard}
           />
         )}
@@ -404,6 +406,7 @@ function App() {
       {session.role === "USER" &&
         page === "timeline" && (
           <CaseTimelinePage
+            userId={session.userId}
             onBack={goBackToDashboard}
           />
         )}

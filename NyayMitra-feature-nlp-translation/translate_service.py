@@ -420,6 +420,260 @@ async def voice_endpoint(
         )
 
 
+# ---------------------------------------------------------------------------
+# COURT ORDERS — read the file, then explain it in plain language.
+#
+# Neither of these loads a model. Explaining an order should not cost
+# 370 MB and ten seconds of model load, and it does not need one: an
+# order is written in standing language, and restating that language
+# plainly is fast, deterministic, and honest about what it actually saw.
+#
+# Extraction is best effort. A PDF with a text layer is easy; a
+# photograph of a paper order needs OCR this host does not have. When
+# extraction fails the caller is told exactly why, so the UI can ask
+# for the text rather than inventing an explanation of a file it
+# never read.
+# ---------------------------------------------------------------------------
+
+
+def _extract_pdf_text(data: bytes):
+    """Return (text, reason). `reason` is set only when text is empty."""
+    try:
+        import io
+
+        import pdfplumber
+    except ImportError:
+        return "", (
+            "Reading PDFs needs pdfplumber, which is not installed "
+            "on this host."
+        )
+
+    try:
+        with pdfplumber.open(io.BytesIO(data)) as pdf:
+            pages = [(page.extract_text() or "") for page in pdf.pages]
+    except Exception as exc:
+        logging.getLogger("nyaymitra.court_order").exception(
+            "pdf text extraction failed: %r", exc
+        )
+        return "", "This PDF could not be read. It may be a scan of an image."
+
+    text = "\n".join(page for page in pages if page.strip()).strip()
+
+    if not text:
+        return "", (
+            "No text layer found in this PDF. It looks like a scan, which "
+            "this host cannot read without OCR."
+        )
+
+    return text, ""
+
+
+@app.post("/api/court-order/extract")
+async def court_order_extract(
+    file: UploadFile = File(...),
+    auth=Depends(verify_api_key),
+):
+    """Best-effort text out of an uploaded court order."""
+    name = (file.filename or "").lower()
+    data = await file.read()
+
+    looks_like_pdf = name.endswith(".pdf") or (
+        file.content_type or ""
+    ) == "application/pdf"
+
+    if looks_like_pdf:
+        text, reason = _extract_pdf_text(data)
+    else:
+        text = ""
+        reason = (
+            "Images need OCR, which is not installed on this host. "
+            "Paste the text of the order and it will be explained."
+        )
+
+    log_access(
+        "/api/court-order/extract",
+        f"filename={file.filename} read_chars={len(text)}",
+    )
+
+    if not text:
+        return {"ok": False, "text": "", "needs_text": True, "reason": reason}
+
+    return {"ok": True, "text": text, "needs_text": False, "reason": ""}
+
+
+# The standing wording of an order, and what it means to the person
+# reading it. Ordered so the first point is usually the headline.
+_ORDER_RULES = [
+    (
+        r"\b(adjourn\w*|postpon\w*|defer\w*)\b",
+        "The hearing has been postponed",
+        "The court has put this hearing off. A postponement decides "
+        "nothing — the case simply returns on the next date.",
+    ),
+    (
+        r"\b(reserved|reserved for judgment)\b",
+        "Judgment is reserved",
+        "Both sides have finished arguing. The judge will pass orders "
+        "later, so the decision is not out yet.",
+    ),
+    (
+        r"\b(granted|allowed|admitted|accepted)\b",
+        "An application was allowed",
+        "What one side asked for has been accepted, subject to whatever "
+        "conditions the order sets out.",
+    ),
+    (
+        r"\b(rejected|refused|dismissed|denied)\b",
+        "An application was refused",
+        "What one side asked for has been turned down. The order will "
+        "say whether it can be challenged, and by when.",
+    ),
+    (
+        r"\b(notice|summons)\b",
+        "Notice goes to the other side",
+        "The other party has been asked to respond. They must file "
+        "their reply before the matter can be heard.",
+    ),
+    (
+        r"\b(stay(ed|ing|s)?)\b",
+        "The proceedings are stayed",
+        "The case is on hold for now. No further step is taken until "
+        "the stay is lifted.",
+    ),
+    (
+        r"\b(bail)\b",
+        "The order deals with bail",
+        "It sets whether someone may be released, and on what "
+        "conditions.",
+    ),
+    (
+        r"\b(costs?)\b",
+        "Costs are mentioned",
+        "The order says who pays the expenses of this application, or "
+        "of the case so far.",
+    ),
+    (
+        r"\b(directed to\b|\bshall\s+(?:file|appear|produce|submit))\b",
+        "The court gave a direction",
+        "A party has been told to do something — file paper, appear, "
+        "or produce a document — by a date.",
+    ),
+    (
+        r"\b(interim|temporary)\b",
+        "This looks like an interim order",
+        "It is a direction given while the case is still running, not "
+        "the final outcome.",
+    ),
+    (
+        r"\b(final (?:order|judgment|decision)|judgment is pronounced"
+        r"|decree)\b",
+        "This looks like the final order",
+        "The court has recorded its decision on the matter.",
+    ),
+]
+
+_DATE_PATTERNS = [
+    r"\b\d{1,2}(?:st|nd|rd|th)?\s+"
+    r"(?:January|February|March|April|May|June|July|August|September"
+    r"|October|November|December)\s+\d{4}\b",
+    r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
+]
+
+
+def _order_dates(text: str):
+    """Every date the order mentions, in first-seen order, capped."""
+    found = []
+
+    for pattern in _DATE_PATTERNS:
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            value = match.group(0)
+            if value not in found:
+                found.append(value)
+
+    return found[:6]
+
+
+def _first_sentence(text: str, limit: int = 340) -> str:
+    compact = re.sub(r"\s+", " ", text).strip()
+    if not compact:
+        return ""
+
+    boundary = re.search(r"(?<=[.!?])\s", compact)
+    head = compact[: boundary.start()] if boundary else compact
+
+    if len(head) > limit:
+        head = head[: limit - 1].rstrip() + "…"
+
+    return head
+
+
+class CourtOrderExplainRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    filename: str = ""
+
+
+@app.post("/api/court-order/explain")
+def court_order_explain(
+    req: CourtOrderExplainRequest,
+    auth=Depends(verify_api_key),
+):
+    """Explain a court order in plain English.
+
+    Built by recognising the standing language orders use and restating
+    it, plus the glossary's own plain reading of any legal term that
+    appears. Nothing is asserted that was not in the text: if the order
+    does not use recognisable wording, the response says so instead of
+    summarising a file it did not understand.
+    """
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No text to explain.")
+
+    lowered = text.lower()
+
+    points = [
+        {"heading": heading, "plain": plain}
+        for pattern, heading, plain in _ORDER_RULES
+        if re.search(pattern, lowered)
+    ]
+
+    if not points:
+        points = [
+            {
+                "heading": "No standard order wording was recognised",
+                "plain": (
+                    "This order does not use the usual phrasing, so "
+                    "nothing has been summarised for you. Read it with "
+                    "your advocate before acting on it."
+                ),
+            }
+        ]
+
+    terms = [
+        {"term": item["formal_term"], "plain": item["plain_explanation_en"]}
+        for item in find_glossary_matches(text)
+    ]
+
+    log_access(
+        "/api/court-order/explain",
+        f"filename={req.filename or '-'} chars={len(text)} "
+        f"points={len(points)} terms={len(terms)}",
+    )
+
+    return {
+        "filename": req.filename,
+        "summary": _first_sentence(text) or "Court order",
+        "points": points,
+        "key_dates": _order_dates(text),
+        "terms": terms,
+        "disclaimer": (
+            "This is a plain-language reading of the words in the file. "
+            "It is not legal advice, and the original order is what "
+            "governs the case."
+        ),
+    }
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "model_loaded": model is not None}
