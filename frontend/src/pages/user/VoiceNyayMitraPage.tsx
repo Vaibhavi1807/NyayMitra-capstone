@@ -2,6 +2,8 @@ import {useRef, useState } from "react";
 
 import { transcribeVoice } from "../../api/translationApi";
 
+import ServiceStatus from "../../components/ServiceStatus";
+
 type VoiceNyayMitraPageProps = {
   onBack: () => void;
 };
@@ -284,6 +286,9 @@ const stopListening = () => {
           ===================================================== */}
 
       <section className="voice-main">
+
+        {/* NLP SERVICE STATUS */}
+        <ServiceStatus />
 
         {/* LANGUAGE */}
 

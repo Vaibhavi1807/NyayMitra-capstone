@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { translateText } from "../../api/translationApi";
 
+import ServiceStatus from "../../components/ServiceStatus";
+
 type TranslationPageProps = {
   onBack: () => void;
 };
@@ -212,6 +214,9 @@ export default function TranslationPage({
 
       {/* MAIN */}
       <section className="translation-main">
+
+        {/* NLP SERVICE STATUS */}
+        <ServiceStatus />
 
         {/* LANGUAGE SELECTOR */}
         <div className="translation-language-card">
@@ -452,14 +457,8 @@ export default function TranslationPage({
         {/* ERROR */}
         {error && (
           <div
-            style={{
-              marginTop: "16px",
-              padding: "12px 16px",
-              borderRadius: "10px",
-              background: "#fff1f1",
-              color: "#b42318",
-              fontSize: "14px",
-            }}
+            className="translation-error"
+            role="alert"
           >
             {error}
           </div>
