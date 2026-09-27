@@ -333,7 +333,10 @@ function AdminDashboardPage({
 
     if (detail?.profile_status) return detail.profile_status;
 
-    return recordStatus === "ready" ? "Not recorded" : "Checking…";
+    if (recordStatus === "ready") return "Not recorded";
+    if (recordStatus === "error") return "Status unavailable";
+
+    return "Checking…";
   };
 
   /* One shared notice so Manage Lawyers, Lawyer Records and Platform Data
@@ -799,7 +802,8 @@ function AdminDashboardPage({
             <strong>
               {recordStatus === "ready"
                 ? recordDetails.filter(
-                    (l) => l.profile_status === "Verified",
+                    (l) =>
+                      l.profile_status?.toLowerCase() === "verified",
                   ).length
                 : "—"}
             </strong>
@@ -830,6 +834,7 @@ function AdminDashboardPage({
               {lawyerList.map((lawyer) => {
                 const senior =
                   (lawyer.years_of_experience ?? 0) >= SENIOR_YEARS;
+                const status = verificationOf(lawyer.lawyer_id);
 
                 return (
                   <li key={lawyer.lawyer_id} className="section-row">
@@ -875,14 +880,14 @@ function AdminDashboardPage({
 
                       <span
                         className={`section-pill ${
-                          verificationOf(lawyer.lawyer_id) === "Verified"
+                          status.toLowerCase() === "verified"
                             ? "good"
-                            : verificationOf(lawyer.lawyer_id) === "Rejected"
+                            : status.toLowerCase() === "rejected"
                               ? "warn"
                               : "info"
                         }`}
                       >
-                        {verificationOf(lawyer.lawyer_id)}
+                        {status}
                       </span>
 
                       <button

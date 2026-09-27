@@ -120,15 +120,17 @@ function StaffDashboardPage({
      ===================================================== */
 
   const [lawyerList, setLawyerList] = useState<Lawyer[]>([]);
-  const [lawyerStatus, setLawyerStatus] = useState<
-    "pending" | "ready" | "error"
-  >("pending");
 
-  const [recordsLoaded, setRecordsLoaded] = useState(false);
+  /* "idle" until the card is opened, so a failure can be retried
+     without the guard that stops a double-fetch swallowing the
+     second attempt. */
+  const [lawyerStatus, setLawyerStatus] = useState<
+    "idle" | "pending" | "ready" | "error"
+  >("idle");
 
   const loadLawyerRecords = () => {
-    if (recordsLoaded) return;
-    setRecordsLoaded(true);
+    if (lawyerStatus === "pending" || lawyerStatus === "ready") return;
+
     setLawyerStatus("pending");
 
     void (async () => {
@@ -148,7 +150,6 @@ function StaffDashboardPage({
         setLawyerList(resolved);
         setLawyerStatus("ready");
       } catch {
-        setRecordsLoaded(false);
         setLawyerStatus("error");
       }
     })();
@@ -938,7 +939,8 @@ function StaffDashboardPage({
             <strong>
               {lawyerStatus === "ready"
                 ? lawyerList.filter(
-                    (l) => l.profile_status === "Verified",
+                    (l) =>
+                      l.profile_status?.toLowerCase() === "verified",
                   ).length
                 : "—"}
             </strong>
@@ -950,7 +952,8 @@ function StaffDashboardPage({
             <strong>
               {lawyerStatus === "ready"
                 ? lawyerList.filter(
-                    (l) => l.profile_status === "Rejected",
+                    (l) =>
+                      l.profile_status?.toLowerCase() === "rejected",
                   ).length
                 : "—"}
             </strong>
@@ -990,10 +993,7 @@ function StaffDashboardPage({
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setRecordsLoaded(false);
-                  loadLawyerRecords();
-                }}
+                onClick={() => loadLawyerRecords()}
               >
                 Try again
               </button>
@@ -1027,9 +1027,9 @@ function StaffDashboardPage({
 
                       <span
                         className={`section-pill ${
-                          status === "Verified"
+                          status.toLowerCase() === "verified"
                             ? "good"
-                            : status === "Rejected"
+                            : status.toLowerCase() === "rejected"
                               ? "warn"
                               : "info"
                         }`}
