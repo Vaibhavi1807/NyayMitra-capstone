@@ -1,5 +1,10 @@
+import gc
+import os
 import re
+import threading
+import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import torch
@@ -8,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from IndicTransToolkit.processor import IndicProcessor
-from test_asr import transcribe_and_discard
+from test_asr import transcribe_and_discard, release_idle_model
 from upload_validation import validate_audio_upload, UploadValidationError
 from glossary_matcher import find_glossary_matches
 import logging
@@ -52,6 +57,21 @@ model = None
 indic_indic_tokenizer = None
 indic_indic_model = None
 
+# --- lazy model cache -------------------------------------------------------
+# The three checkpoints total ~4.7 GB. They used to be built at startup (and the
+# ASR one at import), so the service held all of it for its whole life and left
+# the machine ~3.5 GB short. Each model now loads on first use and is released
+# again after MODEL_IDLE_SECONDS without a request, so an idle service costs only
+# the interpreter. Load, inference and unload all run under that model's lock, so
+# the reaper can never unload a checkpoint a request is still using.
+MODEL_IDLE_SECONDS = float(os.environ.get("MODEL_IDLE_SECONDS", "600"))
+
+_model_locks = {
+    "en_indic": threading.Lock(),
+    "indic_indic": threading.Lock(),
+}
+_last_used: dict[str, float] = {}
+
 
 def verify_api_key(authorization: str = Header(None)):
     if authorization != f"Bearer {API_KEY}":
@@ -73,28 +93,100 @@ def _use_legacy_cache(model):
     return model
 
 
-def load_model():
+def _ensure_model(name: str):
+    """Build one checkpoint on first use. Caller must hold `_model_locks[name]`.
+
+    `_use_legacy_cache` is applied here rather than at import so a model that has
+    been released and reloaded gets the same transformers shim as a first load.
+    """
     global tokenizer, model, indic_indic_tokenizer, indic_indic_model
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        EN_INDIC_MODEL, trust_remote_code=True
-    )
-    model = _use_legacy_cache(
-        AutoModelForSeq2SeqLM.from_pretrained(
-            EN_INDIC_MODEL, trust_remote_code=True
-        ).to(DEVICE)
-    )
-    model.eval()
+    if name == "en_indic":
+        if model is None:
+            print("Loading en-indic model...", flush=True)
+            tokenizer = AutoTokenizer.from_pretrained(
+                EN_INDIC_MODEL, trust_remote_code=True
+            )
+            model = _use_legacy_cache(
+                AutoModelForSeq2SeqLM.from_pretrained(
+                    EN_INDIC_MODEL, trust_remote_code=True
+                ).to(DEVICE)
+            )
+            model.eval()
+            print("en-indic model ready.", flush=True)
+        return
 
-    indic_indic_tokenizer = AutoTokenizer.from_pretrained(
-        INDIC_INDIC_MODEL, trust_remote_code=True
-    )
-    indic_indic_model = _use_legacy_cache(
-        AutoModelForSeq2SeqLM.from_pretrained(
-            INDIC_INDIC_MODEL, trust_remote_code=True
-        ).to(DEVICE)
-    )
-    indic_indic_model.eval()
+    if name == "indic_indic":
+        if indic_indic_model is None:
+            print("Loading indic-indic model...", flush=True)
+            indic_indic_tokenizer = AutoTokenizer.from_pretrained(
+                INDIC_INDIC_MODEL, trust_remote_code=True
+            )
+            indic_indic_model = _use_legacy_cache(
+                AutoModelForSeq2SeqLM.from_pretrained(
+                    INDIC_INDIC_MODEL, trust_remote_code=True
+                ).to(DEVICE)
+            )
+            indic_indic_model.eval()
+            print("indic-indic model ready.", flush=True)
+        return
+
+    raise KeyError(f"unknown model {name!r}")
+
+
+def _release_model(name: str) -> bool:
+    """Drop one translation checkpoint. Caller must hold `_model_locks[name]`."""
+    global tokenizer, model, indic_indic_tokenizer, indic_indic_model
+
+    if name == "en_indic":
+        if model is None:
+            return False
+        model = None
+        tokenizer = None
+    elif name == "indic_indic":
+        if indic_indic_model is None:
+            return False
+        indic_indic_model = None
+        indic_indic_tokenizer = None
+    else:
+        raise KeyError(f"unknown model {name!r}")
+
+    gc.collect()
+    print(f"Released idle model {name} (~1.2 GB freed).", flush=True)
+    return True
+
+
+@contextmanager
+def _loaded(name: str):
+    """Lock a model, load it if needed, run the body, then stamp it as used."""
+    with _model_locks[name]:
+        _ensure_model(name)
+        try:
+            yield
+        finally:
+            _last_used[name] = time.time()
+
+
+def _reaper():
+    """Release checkpoints that have gone idle so their memory returns to the OS."""
+    while True:
+        time.sleep(30)
+
+        for name, lock in _model_locks.items():
+            if time.time() - _last_used.get(name, 0.0) < MODEL_IDLE_SECONDS:
+                continue
+            if not lock.acquire(blocking=False):
+                continue  # a request is loading or running with it
+            try:
+                _release_model(name)
+            finally:
+                lock.release()
+
+        # The ASR model keeps its own lock inside test_asr, so it self-guards.
+        try:
+            release_idle_model(MODEL_IDLE_SECONDS)
+        except Exception as exc:  # noqa: BLE001 - the reaper must never die
+            print(f"reaper: ASR release skipped ({exc!r})", flush=True)
 
 app = FastAPI(title="NyayMitra Translation Service")
 
@@ -108,9 +200,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    print("Loading IndicTrans2 model...")
-    load_model()
-    print("IndicTrans2 model loaded successfully.")
+    print(
+        f"Models load on first use and are released after "
+        f"{MODEL_IDLE_SECONDS:.0f}s idle; nothing is held at startup.",
+        flush=True,
+    )
+    threading.Thread(target=_reaper, name="model-reaper", daemon=True).start()
 
 class TranslateRequest(BaseModel):
     case_id: str
@@ -148,19 +243,21 @@ def translate_endpoint(req: TranslateRequest, auth=Depends(verify_api_key)):
     try:
         if req.source_lang == "en":
             internal_target_lang = LANG_CODE_MAP[req.target_lang]
-            translated_text = translate(
-                req.source_text,
-                internal_target_lang,
-            )
+            with _loaded("en_indic"):
+                translated_text = translate(
+                    req.source_text,
+                    internal_target_lang,
+                )
         else:
             if req.source_lang == req.target_lang:
                 translated_text = req.source_text
             else:
-                translated_text = translate_indic_to_indic(
-                    req.source_text,
-                    LANG_CODE_MAP[req.source_lang],
-                    LANG_CODE_MAP[req.target_lang],
-                )
+                with _loaded("indic_indic"):
+                    translated_text = translate_indic_to_indic(
+                        req.source_text,
+                        LANG_CODE_MAP[req.source_lang],
+                        LANG_CODE_MAP[req.target_lang],
+                    )
     except Exception:
         raise HTTPException(
             status_code=500,
@@ -260,9 +357,10 @@ def translate_indic_to_indic_endpoint(req: IndicToIndicRequest, auth=Depends(ver
     if req.source_lang == req.target_lang:
         return {"translated_text": req.source_text, "note": "source and target language are the same"}
 
-    translated_text = translate_indic_to_indic(
-        req.source_text, LANG_CODE_MAP[req.source_lang], LANG_CODE_MAP[req.target_lang]
-    )
+    with _loaded("indic_indic"):
+        translated_text = translate_indic_to_indic(
+            req.source_text, LANG_CODE_MAP[req.source_lang], LANG_CODE_MAP[req.target_lang]
+        )
 
     return {
         "case_id": req.case_id,
