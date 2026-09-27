@@ -110,14 +110,19 @@ export default function TranslationPage({
     }
   };
 
+  /* The service only ever translates INTO Hindi or Marathi
+     (LANG_CODE_MAP has no "en"), so an English source has no
+     valid counterpart to swap with. */
+  const canSwap = sourceLanguage !== "en";
+
   const handleSwap = () => {
+    if (!canSwap) return;
+
+    /* True exchange. targetLanguage is always "hi" | "mr", and the
+       guard above narrows sourceLanguage to "hi" | "mr" as well, so
+       source and target can never collapse onto the same code. */
     const newSource = targetLanguage;
-    const newTarget =
-      sourceLanguage === "en"
-        ? "hi"
-        : sourceLanguage === "hi"
-        ? "mr"
-        : "hi";
+    const newTarget = sourceLanguage;
 
     setSourceLanguage(newSource);
     setTargetLanguage(newTarget);
@@ -126,6 +131,8 @@ export default function TranslationPage({
       setText(translatedText);
       setTranslatedText("");
     }
+
+    setError("");
   };
 
   const handleClear = () => {
@@ -266,6 +273,12 @@ export default function TranslationPage({
             type="button"
             className="translation-swap-button"
             onClick={handleSwap}
+            disabled={!canSwap}
+            title={
+              canSwap
+                ? "Swap languages"
+                : "English can only be the source language — this service translates into Hindi or Marathi."
+            }
             aria-label="Swap languages"
           >
             ⇄

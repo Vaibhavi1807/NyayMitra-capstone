@@ -57,6 +57,21 @@ sentencepiece==0.2.2   # tokenizer backend
 sacremoses==0.2.0      # pulled in by the tokenizer
 
 
+# ---------- ASR (voice) ----------
+
+# NOT optional: test_asr.py does `from transformers import AutoModel`, and
+# auto_map resolves AutoModel to model_onnx.IndicASRModel, which imports
+# onnxruntime at module scope. Without it, importing test_asr -- and therefore
+# starting the whole service -- fails with ModuleNotFoundError.
+# 1.30.0 is the first release with a cp314 wheel; CPUExecutionProvider only.
+onnxruntime==1.30.0
+
+# Speeds up huggingface_hub downloads substantially (the AI4Bharat repos use
+# Xet storage; without this, hub silently falls back to slower HTTP and the
+# multi-GB snapshot can stall).
+huggingface_hub[hf_xet]==0.36.2
+
+
 # ---------- Audio + upload validation ----------
 
 soundfile==0.14.0
