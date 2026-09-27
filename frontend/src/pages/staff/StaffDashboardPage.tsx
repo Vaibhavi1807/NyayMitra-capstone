@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Session } from "../../auth/session";
 import type { Page } from "../../App";
 import {
@@ -8,7 +9,12 @@ import RoleDashboardShell, {
   type DashboardSection,
   type DashboardStat,
 } from "../../components/RoleDashboardShell";
+import RoleSectionView from "../../components/RoleSectionView";
+import { initialsOf } from "../../lib/initials";
+import { mockCases } from "../../mocks/cases";
+import { STAFF_TASKS, STAFF_DOCUMENTS } from "../../mocks/staffWork";
 import "../../components/RoleDashboardShell.css";
+import "../../components/RoleSectionView.css";
 import "./StaffDashboardPage.css";
 
 /* =========================================================
@@ -38,6 +44,33 @@ type StaffDashboardPageProps = {
   onNavigate: (page: Page) => void;
 };
 
+/* =====================================================
+   DATE HELPERS
+   ===================================================== */
+
+function formatDay(iso: string): string {
+  const parsed = new Date(`${iso}T00:00:00`);
+
+  if (Number.isNaN(parsed.getTime())) return iso;
+
+  return parsed.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function daysFromToday(iso: string): number | null {
+  const target = new Date(`${iso}T00:00:00`).getTime();
+
+  if (Number.isNaN(target)) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Math.round((target - today.getTime()) / 86_400_000);
+}
+
 function StaffDashboardPage({
   session,
   onSignOut,
@@ -49,30 +82,57 @@ function StaffDashboardPage({
 
   const granted = getAuthoritiesFor(session.userId);
 
+  /* Acknowledges the (mock) report submission without
+     pretending a network call happened. */
+  const [reportSent, setReportSent] = useState(false);
+
   const has = (authorityId: string) =>
     granted.includes(authorityId);
+
+  /* Which inline screen, if any, is open. Mirrors the admin
+     dashboard's activeSection so both roles behave the same. */
+  const [activeSection, setActiveSection] =
+    useState<string | null>(null);
+
+  /* =====================================================
+     WORKLIST FIGURES
+
+     Counted from the same fixtures the screens below read,
+     so the header can never claim a number the list does
+     not then show.
+     ===================================================== */
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const upcomingHearings = mockCases.filter(
+    (item) => item.next_hearing_date >= todayIso,
+  );
+
+  const openTasks = STAFF_TASKS.filter(
+    (task) => task.status !== "Done",
+  );
 
   const stats: DashboardStat[] = [
     {
       icon: "📋",
       tone: "purple",
-      label: "ASSIGNED CASES",
-      value: "—",
-      detail: "Assigned by admin",
+      label: "CASES ON FILE",
+      value: String(mockCases.length),
+      detail: "Records you may update",
     },
     {
       icon: "📅",
       tone: "blue",
-      label: "HEARINGS TODAY",
-      value: "—",
-      detail: "Court activities",
+      label: "HEARINGS AHEAD",
+      value: String(upcomingHearings.length),
+      detail: "Still to be held",
     },
     {
       icon: "📝",
       tone: "orange",
-      label: "PENDING UPDATES",
-      value: "—",
-      detail: "Case records to file",
+      label: "OPEN TASKS",
+      value: String(openTasks.length),
+      detail: "Assigned by admin",
     },
     {
       icon: "✅",
@@ -83,6 +143,30 @@ function StaffDashboardPage({
     },
   ];
 
+  /* =====================================================
+     AUTHORITY GATE
+
+     Each staff section corresponds to exactly one authority
+     (see AUTHORITY_CATALOG). Not holding it means the card
+     says so rather than opening and failing.
+     ===================================================== */
+
+  const gated = (
+    authorityId: string,
+    onOpen: () => void,
+  ): Pick<
+    DashboardSection,
+    "status" | "badge" | "cta" | "onOpen"
+  > =>
+    has(authorityId)
+      ? { status: "ready", badge: "Open", onOpen }
+      : {
+          status: "planned",
+          badge: "Not granted",
+          cta: "Ask the administrator for access",
+          onOpen,
+        };
+
   const sections: DashboardSection[] = [
     {
       id: "caseFiles",
@@ -91,7 +175,9 @@ function StaffDashboardPage({
       description:
         "Operational case management: update case records, " +
         "attach documents and track filing status.",
-      status: "planned",
+      ...gated("cases.update", () =>
+        setActiveSection("caseFiles"),
+      ),
     },
     {
       id: "hearings",
@@ -100,7 +186,9 @@ function StaffDashboardPage({
       description:
         "View upcoming hearings, cause lists and court " +
         "activities for assigned cases.",
-      status: "planned",
+      ...gated("hearings.view", () =>
+        setActiveSection("hearings"),
+      ),
     },
     {
       id: "documents",
@@ -109,7 +197,9 @@ function StaffDashboardPage({
       description:
         "Upload and process court orders and case " +
         "documents through OCR and PDF pipelines.",
-      status: "planned",
+      ...gated("documents.process", () =>
+        setActiveSection("documents"),
+      ),
     },
     {
       id: "communication",
@@ -121,10 +211,7 @@ function StaffDashboardPage({
         : "Messaging authority has not been granted to this " +
           "account. The administrator can restore it under " +
           "Access & Roles.",
-      status: has("messages.send") ? "ready" : "planned",
-      badge: has("messages.send") ? "Open" : "Not granted",
-      cta: "Ask the administrator for access",
-      onOpen: () => onNavigate("chat"),
+      ...gated("messages.send", () => onNavigate("chat")),
     },
     {
       id: "tasks",
@@ -133,7 +220,9 @@ function StaffDashboardPage({
       description:
         "Work through tasks assigned by the administrator, " +
         "with priority and due-date tracking.",
-      status: "planned",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => setActiveSection("tasks"),
     },
     {
       id: "reports",
@@ -142,9 +231,582 @@ function StaffDashboardPage({
       description:
         "Daily activity summaries submitted to the " +
         "administrator for review.",
-      status: "planned",
+      ...gated("reports.submit", () =>
+        setActiveSection("reports"),
+      ),
     },
   ];
+
+  /* =====================================================
+     CASE FILES
+     ===================================================== */
+
+  if (activeSection === "caseFiles") {
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA STAFF PORTAL"
+        title="Case"
+        titleAccent="files."
+        heroDescription="Every matter you are authorized to update, with its parties, current stage and hearing date."
+        workspaceTitle="Update case records"
+        workspaceSubtitle="Filed under admin authority"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>ON FILE</span>
+            <strong>{mockCases.length}</strong>
+            <small>Records you may edit</small>
+          </div>
+
+          <div className="section-stat">
+            <span>WITH A DATE</span>
+            <strong>{upcomingHearings.length}</strong>
+            <small>Next hearing set</small>
+          </div>
+
+          <div className="section-stat">
+            <span>STAGES</span>
+            <strong>
+              {
+                new Set(
+                  mockCases.map((item) => item.current_case_stage),
+                ).size
+              }
+            </strong>
+            <small>Distinct stages</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            ALL MATTERS
+          </span>
+
+          <h3>Records you may update</h3>
+
+          <p>
+            Edits made here become part of the case record and are
+            attributable to this staff account, which is why the
+            authority to make them is granted rather than assumed.
+          </p>
+
+          <ul className="section-rows">
+            {mockCases.map((item) => (
+              <li key={item.cnr_number} className="section-row">
+
+                <span className="section-row-avatar">
+                  {initialsOf(item.petitioner_name)}
+                </span>
+
+                <div className="section-row-body">
+                  <strong>{item.petitioner_name}</strong>
+                  <span>
+                    {item.cnr_number} · {item.court_name} ·{" "}
+                    {item.respondents_list.length} respondent
+                    {item.respondents_list.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="section-row-meta">
+                  <time>{formatDay(item.next_hearing_date)}</time>
+                  <span className="section-pill info">
+                    {item.current_case_stage}
+                  </span>
+                </div>
+
+              </li>
+            ))}
+          </ul>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     HEARINGS & COURT ACTIVITIES
+     ===================================================== */
+
+  if (activeSection === "hearings") {
+    const sorted = [...upcomingHearings].sort((a, b) =>
+      a.next_hearing_date.localeCompare(b.next_hearing_date),
+    );
+
+    const recent = mockCases
+      .flatMap((item) =>
+        item.case_history_timeline.map((entry) => ({
+          cnr: item.cnr_number,
+          court: item.court_name,
+          ...entry,
+        })),
+      )
+      .sort((a, b) => b.hearing_date.localeCompare(a.hearing_date))
+      .slice(0, 5);
+
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA STAFF PORTAL"
+        title="Hearings &"
+        titleAccent="court activities."
+        heroDescription="What is still to be held, ordered by date, and the five hearings most recently concluded."
+        workspaceTitle="Track the hearing list"
+        workspaceSubtitle="Dates read from the case records"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>UPCOMING</span>
+            <strong>{sorted.length}</strong>
+            <small>Not yet held</small>
+          </div>
+
+          <div className="section-stat">
+            <span>NEXT UP</span>
+            <strong>
+              {sorted[0] ? formatDay(sorted[0].next_hearing_date) : "—"}
+            </strong>
+            <small>
+              {sorted[0] && daysFromToday(sorted[0].next_hearing_date) !== null
+                ? `In ${daysFromToday(sorted[0].next_hearing_date)} day${
+                    daysFromToday(sorted[0].next_hearing_date) === 1 ? "" : "s"
+                  }`
+                : "Nothing scheduled"}
+            </small>
+          </div>
+
+          <div className="section-stat">
+            <span>CONCLUDED</span>
+            <strong>
+              {mockCases.reduce(
+                (sum, item) => sum + item.case_history_timeline.length,
+                0,
+              )}
+            </strong>
+            <small>On record</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            UPCOMING
+          </span>
+
+          <h3>Still to be held</h3>
+
+          <p>
+            Cause lists are published by the court, not by this system —
+            these are the dates already recorded against each matter.
+          </p>
+
+          {sorted.length === 0 ? (
+            <div className="section-empty">
+              <span aria-hidden="true">📅</span>
+              <p>No hearings are scheduled. New dates will appear here.</p>
+            </div>
+          ) : (
+            <ul className="section-rows">
+              {sorted.map((item) => {
+                const days = daysFromToday(item.next_hearing_date);
+
+                return (
+                  <li key={item.cnr_number} className="section-row">
+
+                    <span className="section-row-avatar" aria-hidden="true">
+                      ⚖
+                    </span>
+
+                    <div className="section-row-body">
+                      <strong>{item.petitioner_name}</strong>
+                      <span>
+                        {item.cnr_number} · {item.presiding_judge}
+                      </span>
+                    </div>
+
+                    <div className="section-row-meta">
+                      <time>{formatDay(item.next_hearing_date)}</time>
+                      <span
+                        className={`section-pill ${
+                          days !== null && days <= 14 ? "warn" : "info"
+                        }`}
+                      >
+                        {days !== null && days >= 0
+                          ? `in ${days} day${days === 1 ? "" : "s"}`
+                          : "date set"}
+                      </span>
+                    </div>
+
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <span className="role-dashboard-section-label section-sublabel">
+            RECENTLY CONCLUDED
+          </span>
+
+          <ul className="section-rows section-sublabel-list">
+            {recent.map((entry, index) => (
+              <li
+                key={`${entry.cnr}-${entry.hearing_date}-${index}`}
+                className="section-row"
+              >
+                <span className="section-row-avatar" aria-hidden="true">
+                  ✓
+                </span>
+
+                <div className="section-row-body">
+                  <strong>{entry.purpose_of_hearing}</strong>
+                  <span>
+                    {entry.cnr} · {entry.judge_title}
+                  </span>
+                </div>
+
+                <div className="section-row-meta">
+                  <time>{formatDay(entry.hearing_date)}</time>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     DOCUMENT PROCESSING
+     ===================================================== */
+
+  if (activeSection === "documents") {
+    const pipelinePill: Record<string, string> = {
+      Filed: "good",
+      Translated: "good",
+      "OCR complete": "info",
+      "Awaiting OCR": "warn",
+    };
+
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA STAFF PORTAL"
+        title="Document"
+        titleAccent="processing."
+        heroDescription="Court orders, statements and affidavits running through the OCR and translation pipeline."
+        workspaceTitle="Process case documents"
+        workspaceSubtitle="Gated on documents.process"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>IN QUEUE</span>
+            <strong>{STAFF_DOCUMENTS.length}</strong>
+            <small>Documents on file</small>
+          </div>
+
+          <div className="section-stat">
+            <span>AWAITING OCR</span>
+            <strong>
+              {
+                STAFF_DOCUMENTS.filter(
+                  (doc) => doc.pipeline === "Awaiting OCR",
+                ).length
+              }
+            </strong>
+            <small>Not yet read</small>
+          </div>
+
+          <div className="section-stat">
+            <span>PAGES</span>
+            <strong>
+              {STAFF_DOCUMENTS.reduce((sum, doc) => sum + doc.pages, 0)}
+            </strong>
+            <small>Across the queue</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            PROCESSING QUEUE
+          </span>
+
+          <h3>Documents and where they are in the pipeline</h3>
+
+          <p>
+            OCR and translation run on the NLP service, so a document sits
+            in “Awaiting OCR” until that service is up. Upload itself
+            lands with the document API, which is still pending.
+          </p>
+
+          <ul className="section-rows">
+            {STAFF_DOCUMENTS.map((doc) => (
+              <li key={doc.id} className="section-row">
+
+                <span className="section-row-avatar" aria-hidden="true">
+                  📄
+                </span>
+
+                <div className="section-row-body">
+                  <strong>{doc.title}</strong>
+                  <span>
+                    {doc.id} · {doc.kind} · {doc.cnr} · {doc.pages} page
+                    {doc.pages === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="section-row-meta">
+                  <time>{formatDay(doc.received)}</time>
+                  <span
+                    className={`section-pill ${pipelinePill[doc.pipeline] ?? ""}`}
+                  >
+                    {doc.pipeline}
+                  </span>
+                </div>
+
+              </li>
+            ))}
+          </ul>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     TASK QUEUE
+     ===================================================== */
+
+  if (activeSection === "tasks") {
+    const priorityPill: Record<string, string> = {
+      High: "warn",
+      Normal: "info",
+      Low: "",
+    };
+
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA STAFF PORTAL"
+        title="Task"
+        titleAccent="queue."
+        heroDescription="Work assigned to you by the administrator, ordered by what falls due first."
+        workspaceTitle="Work through your tasks"
+        workspaceSubtitle="Assigned and visible to the admin"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>OPEN</span>
+            <strong>{openTasks.length}</strong>
+            <small>Awaiting action</small>
+          </div>
+
+          <div className="section-stat">
+            <span>HIGH PRIORITY</span>
+            <strong>
+              {
+                openTasks.filter((task) => task.priority === "High")
+                  .length
+              }
+            </strong>
+            <small>Among the open ones</small>
+          </div>
+
+          <div className="section-stat">
+            <span>COMPLETED</span>
+            <strong>
+              {STAFF_TASKS.filter((task) => task.status === "Done").length}
+            </strong>
+            <small>Closed off</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            ASSIGNED TO YOU
+          </span>
+
+          <h3>Task queue</h3>
+
+          <p>
+            Ordered by due date so the thing that falls due first is never
+            buried under the thing that was asked for most recently.
+          </p>
+
+          <ul className="section-rows">
+            {[...STAFF_TASKS]
+              .sort((a, b) => a.due.localeCompare(b.due))
+              .map((task) => {
+                const days = daysFromToday(task.due);
+                const overdue =
+                  task.status !== "Done" &&
+                  days !== null &&
+                  days < 0;
+
+                return (
+                  <li key={task.id} className="section-row">
+
+                    <span className="section-row-avatar" aria-hidden="true">
+                      {task.status === "Done" ? "✓" : "•"}
+                    </span>
+
+                    <div className="section-row-body">
+                      <strong>{task.title}</strong>
+                      <span>
+                        {task.id} · {task.cnr}
+                      </span>
+                    </div>
+
+                    <div className="section-row-meta">
+                      <time>
+                        {formatDay(task.due)}
+                        {overdue ? " · overdue" : ""}
+                      </time>
+                      <span
+                        className={`section-pill ${
+                          priorityPill[task.priority] ?? ""
+                        }`}
+                      >
+                        {task.priority}
+                      </span>
+                      <span
+                        className={`section-pill ${
+                          task.status === "Done" ? "good" : ""
+                        }`}
+                      >
+                        {task.status}
+                      </span>
+                    </div>
+
+                  </li>
+                );
+              })}
+          </ul>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     OPERATIONAL REPORTS
+     ===================================================== */
+
+  if (activeSection === "reports") {
+    const byStage = new Map<string, number>();
+
+    for (const item of mockCases) {
+      byStage.set(
+        item.current_case_stage,
+        (byStage.get(item.current_case_stage) ?? 0) + 1,
+      );
+    }
+
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA STAFF PORTAL"
+        title="Operational"
+        titleAccent="reports."
+        heroDescription="The daily summary you file with the administrator — every figure below is counted from work in progress."
+        workspaceTitle="File the daily summary"
+        workspaceSubtitle="Submitted to the administrator"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>CASES SEEN</span>
+            <strong>{mockCases.length}</strong>
+            <small>In today's window</small>
+          </div>
+
+          <div className="section-stat">
+            <span>HEARINGS DUE</span>
+            <strong>{upcomingHearings.length}</strong>
+            <small>Still to be held</small>
+          </div>
+
+          <div className="section-stat">
+            <span>DOCUMENTS</span>
+            <strong>{STAFF_DOCUMENTS.length}</strong>
+            <small>Through the pipeline</small>
+          </div>
+
+          <div className="section-stat">
+            <span>TASKS CLOSED</span>
+            <strong>
+              {STAFF_TASKS.filter((task) => task.status === "Done").length}
+            </strong>
+            <small>Of {STAFF_TASKS.length} assigned</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            SUMMARY
+          </span>
+
+          <h3>Work by stage</h3>
+
+          <p>
+            Submitted reports are read by the administrator alongside every
+            other staff member's, which is how the admin compares activity
+            across accounts.
+          </p>
+
+          <div className="section-chip-list">
+            {[...byStage.entries()].map(([stage, count]) => (
+              <span key={stage} className="section-chip">
+                {stage} · {count}
+              </span>
+            ))}
+          </div>
+
+          <div className="section-record-block">
+
+            {reportSent ? (
+              <div className="section-pill good">
+                Summary filed with the administrator
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="section-retry"
+                onClick={() => setReportSent(true)}
+              >
+                File today's summary
+              </button>
+            )}
+
+            <p className="section-record-note section-sublabel-list">
+              The acknowledgement is local until the reporting endpoint
+              exists — nothing has left this machine.
+            </p>
+
+          </div>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
 
   /* =====================================================
      RENDER

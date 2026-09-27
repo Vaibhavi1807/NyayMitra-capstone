@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "../../auth/session";
 import type { Page } from "../../App";
 import RoleDashboardShell, {
   type DashboardSection,
   type DashboardStat,
 } from "../../components/RoleDashboardShell";
+import RoleSectionView from "../../components/RoleSectionView";
+import { initialsOf } from "../../lib/initials";
 import { issueStaffAccount, DEMO_ACCOUNTS } from "../../api/authApi";
 import {
   AUTHORITY_CATALOG,
@@ -13,7 +15,11 @@ import {
   setAuthorityFor,
   setAuthoritiesFor,
 } from "../../api/authorityApi";
+import { getLawyers, getLawyerById } from "../../api/lawyerApi";
+import type { Lawyer } from "../../api/lawyerApi";
+import { mockCases } from "../../mocks/cases";
 import "../../components/RoleDashboardShell.css";
+import "../../components/RoleSectionView.css";
 import "./AdminDashboardPage.css";
 
 /* =========================================================
@@ -35,6 +41,19 @@ type AdminDashboardPageProps = {
   onSignOut: () => void;
   onNavigate: (page: Page) => void;
 };
+
+/* =========================================================
+   PAGE SIZE
+
+   Small on purpose: the summary endpoint's records are
+   sparse, and Lawyer Records resolves each one through a
+   second call, so this number is what the detail screen
+   costs as well as what the list shows.
+   ========================================================= */
+
+const RECORD_PAGE_SIZE = 12;
+
+const SENIOR_YEARS = 15;
 
 /* =========================================================
    STAFF RECORD (read-only list built from mock data)
@@ -122,6 +141,167 @@ function AdminDashboardPage({
       [staffUserId]: next,
     }));
   };
+
+  /* =====================================================
+     LAWYER DIRECTORY (real service, fetched on demand)
+
+     Three screens read this — Manage Lawyers, Lawyer
+     Records and the lawyer count on Platform Data — but
+     opening the dashboard should not cost a request. The
+     fetch runs the first time one of those sections is
+     opened and then stays warm.
+
+     The ref guard exists because StrictMode invokes the
+     effect twice in development; without it each visit to
+     these screens would issue two identical requests. On
+     failure the guard is released so the retry button can
+     ask again rather than leaving a permanent error.
+     ===================================================== */
+
+  const lawyersRequested = useRef(false);
+
+  const [lawyerList, setLawyerList] = useState<Lawyer[]>([]);
+  const [lawyerTotal, setLawyerTotal] = useState(0);
+
+  /* "pending" covers both not-yet-started and in flight, so the effect
+     never has to set state to say it has begun — only to report the
+     outcome, which it does from the async callback. */
+  const [lawyerStatus, setLawyerStatus] = useState<
+    "pending" | "ready" | "error"
+  >("pending");
+
+  const lawyerSectionOpen =
+    activeSection === "lawyers" ||
+    activeSection === "records" ||
+    activeSection === "data";
+
+  useEffect(() => {
+    if (!lawyerSectionOpen || lawyerStatus !== "pending") return;
+    if (lawyersRequested.current) return;
+
+    lawyersRequested.current = true;
+
+    void (async () => {
+      try {
+        const response = await getLawyers({
+          page: 1,
+          limit: RECORD_PAGE_SIZE,
+        });
+
+        setLawyerList(response.lawyers);
+        setLawyerTotal(response.total_count);
+        setLawyerStatus("ready");
+      } catch {
+        lawyersRequested.current = false;
+        setLawyerStatus("error");
+      }
+    })();
+  }, [lawyerSectionOpen, lawyerStatus]);
+
+  const retryLawyers = () => setLawyerStatus("pending");
+
+  /* =====================================================
+     FULL RECORDS
+
+     GET /api/lawyers returns a summary only — enrollment
+     number, bar council, practice areas and status are all
+     blank in the list response. They exist on
+     GET /api/lawyers/{id}, so the Records screen resolves
+     each row itself once the summary has arrived, in
+     parallel, and falls back to the summary for any lawyer
+     whose detail call fails rather than dropping the card.
+     ===================================================== */
+
+  const recordsRequested = useRef(false);
+
+  const [recordDetails, setRecordDetails] = useState<Lawyer[]>([]);
+  const [recordStatus, setRecordStatus] = useState<
+    "pending" | "ready" | "error"
+  >("pending");
+
+  useEffect(() => {
+    if (activeSection !== "records") return;
+    if (recordStatus !== "pending" || recordsRequested.current) return;
+
+    /* Needs the summary first — otherwise there is no ID list to resolve. */
+    if (lawyerStatus !== "ready" || lawyerList.length === 0) return;
+
+    recordsRequested.current = true;
+
+    void (async () => {
+      try {
+        const resolved = await Promise.all(
+          lawyerList.map((lawyer) =>
+            getLawyerById(lawyer.lawyer_id).catch(() => lawyer),
+          ),
+        );
+
+        setRecordDetails(resolved);
+        setRecordStatus("ready");
+      } catch {
+        recordsRequested.current = false;
+        setRecordStatus("error");
+      }
+    })();
+  }, [activeSection, recordStatus, lawyerStatus, lawyerList]);
+
+  const retryRecords = () => setRecordStatus("pending");
+
+  /* One shared notice so Manage Lawyers, Lawyer Records and Platform Data
+     cannot disagree about what "the directory is unavailable" looks like. */
+  const lawyerNotice =
+    lawyerStatus === "pending" ? (
+      <div className="section-empty">
+        <span aria-hidden="true">⏳</span>
+        <p>Loading the lawyer directory…</p>
+      </div>
+    ) : lawyerStatus === "error" ? (
+      <div className="section-empty">
+        <span aria-hidden="true">⚠</span>
+        <p>
+          Could not reach the lawyer service. Start it on port 8000 and try
+          again.
+        </p>
+        <button
+          type="button"
+          className="section-retry"
+          onClick={retryLawyers}
+        >
+          Try again
+        </button>
+      </div>
+    ) : lawyerList.length === 0 ? (
+      <div className="section-empty">
+        <span aria-hidden="true">⚖</span>
+        <p>The directory has no lawyer records yet.</p>
+      </div>
+    ) : null;
+
+  /* Records resolves a second endpoint on top of the summary, so it
+     defers to lawyerNotice whenever the summary itself is the thing
+     that has not arrived yet — otherwise both would describe the same
+     wait differently. */
+  const recordNotice =
+    lawyerStatus !== "ready" ? (
+      lawyerNotice
+    ) : recordStatus === "error" ? (
+      <div className="section-empty">
+        <span aria-hidden="true">⚠</span>
+        <p>The detail endpoint did not answer. Try again.</p>
+        <button
+          type="button"
+          className="section-retry"
+          onClick={retryRecords}
+        >
+          Try again
+        </button>
+      </div>
+    ) : recordStatus === "pending" ? (
+      <div className="section-empty">
+        <span aria-hidden="true">⏳</span>
+        <p>Resolving full records from the detail endpoint…</p>
+      </div>
+    ) : null;
 
   /* =====================================================
      ISSUE STAFF ACCOUNT
@@ -257,7 +437,9 @@ function AdminDashboardPage({
       description:
         "View, verify and deactivate citizen accounts, and " +
         "review each user's case activity.",
-      status: "planned",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => setActiveSection("users"),
     },
     {
       id: "lawyers",
@@ -266,7 +448,9 @@ function AdminDashboardPage({
       description:
         "Review lawyer registrations, verification status " +
         "and profile records from the lawyer database.",
-      status: "planned",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => setActiveSection("lawyers"),
     },
     {
       id: "records",
@@ -275,7 +459,9 @@ function AdminDashboardPage({
       description:
         "Full lawyer records: enrollment details, practice " +
         "areas, courts, location and contact information.",
-      status: "planned",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => setActiveSection("records"),
     },
     {
       id: "data",
@@ -284,7 +470,9 @@ function AdminDashboardPage({
       description:
         "Platform-level data: cases, court orders, " +
         "translations and usage statistics.",
-      status: "planned",
+      status: "ready",
+      badge: "Open",
+      onOpen: () => setActiveSection("data"),
     },
     {
       id: "access",
@@ -302,6 +490,543 @@ function AdminDashboardPage({
   /* =====================================================
      STAFF MANAGEMENT SCREEN
      ===================================================== */
+
+  /* =====================================================
+     MANAGE USERS
+     ===================================================== */
+
+  if (activeSection === "users") {
+    /*
+     * Accounts first, then any case owner the database knows
+     * about that has no login issued. The admin needs both in
+     * one list: only one of them can actually sign in, and
+     * that difference is the whole point of this screen.
+     */
+    const rows = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        email: string;
+        issued: boolean;
+        cases: number;
+      }
+    >();
+
+    for (const account of DEMO_ACCOUNTS) {
+      if (account.role !== "USER") continue;
+
+      rows.set(account.userId, {
+        id: account.userId,
+        name: account.fullName,
+        email: account.email,
+        issued: true,
+        cases: 0,
+      });
+    }
+
+    for (const item of mockCases) {
+      const existing = rows.get(item.owner_user_id);
+
+      if (existing) {
+        existing.cases += 1;
+        continue;
+      }
+
+      rows.set(item.owner_user_id, {
+        id: item.owner_user_id,
+        name: item.petitioner_name,
+        email: "No login issued",
+        issued: false,
+        cases: 1,
+      });
+    }
+
+    const citizens = [...rows.values()];
+
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA ADMIN PORTAL"
+        title="Manage"
+        titleAccent="users."
+        heroDescription="Citizen accounts, their sign-in state and the case activity attached to each one."
+        workspaceTitle="Review citizen accounts"
+        workspaceSubtitle="Verify or deactivate from here"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>CITIZEN RECORDS</span>
+            <strong>{citizens.length}</strong>
+            <small>Known to the platform</small>
+          </div>
+
+          <div className="section-stat">
+            <span>LOGIN ACCOUNTS</span>
+            <strong>{citizens.filter((row) => row.issued).length}</strong>
+            <small>Can sign in</small>
+          </div>
+
+          <div className="section-stat">
+            <span>CASES ON FILE</span>
+            <strong>{mockCases.length}</strong>
+            <small>Linked to citizens</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            CITIZEN DIRECTORY
+          </span>
+
+          <h3>Accounts and case activity</h3>
+
+          <p>
+            A record can exist without a login — that happens when a case
+            is filed on someone's behalf before their account is set up.
+            Those are flagged so nothing gets worked on under the wrong
+            name.
+          </p>
+
+          <ul className="section-rows">
+            {citizens.map((row) => (
+              <li key={row.id} className="section-row">
+
+                <span className="section-row-avatar">
+                  {initialsOf(row.name)}
+                </span>
+
+                <div className="section-row-body">
+                  <strong>{row.name}</strong>
+                  <span>
+                    {row.id} · {row.email}
+                  </span>
+                </div>
+
+                <div className="section-row-meta">
+                  <time>
+                    {row.cases} case{row.cases === 1 ? "" : "s"}
+                  </time>
+                  <span
+                    className={`section-pill ${row.issued ? "good" : "warn"}`}
+                  >
+                    {row.issued ? "Account active" : "No login issued"}
+                  </span>
+                </div>
+
+              </li>
+            ))}
+          </ul>
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     MANAGE LAWYERS
+     ===================================================== */
+
+  if (activeSection === "lawyers") {
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA ADMIN PORTAL"
+        title="Manage"
+        titleAccent="lawyers."
+        heroDescription="The first page of the advocate directory, read live from the lawyer service — experience and location for every registered practitioner."
+        workspaceTitle="Review lawyer registrations"
+        workspaceSubtitle="Directory read straight from the API"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>IN DIRECTORY</span>
+            <strong>
+              {lawyerStatus === "ready" ? lawyerTotal : "—"}
+            </strong>
+            <small>Records on the service</small>
+          </div>
+
+          <div className="section-stat">
+            <span>LOADED HERE</span>
+            <strong>
+              {lawyerStatus === "ready" ? lawyerList.length : "—"}
+            </strong>
+            <small>First page of {lawyerTotal}</small>
+          </div>
+
+          <div className="section-stat">
+            <span>SENIOR COUNSEL</span>
+            <strong>
+              {lawyerStatus === "ready"
+                ? lawyerList.filter(
+                    (l) => (l.years_of_experience ?? 0) >= SENIOR_YEARS,
+                  ).length
+                : "—"}
+            </strong>
+            <small>{SENIOR_YEARS}+ years on this page</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            REGISTRATIONS
+          </span>
+
+          <h3>Lawyer registrations</h3>
+
+          <p>
+            Served by GET /api/lawyers. The summary response carries
+            identity, experience and location only — bar details and
+            verification status live on Lawyer Records, which resolves
+            each profile through the detail endpoint.
+          </p>
+
+          {lawyerNotice ?? (
+            <ul className="section-rows">
+              {lawyerList.map((lawyer) => {
+                const senior =
+                  (lawyer.years_of_experience ?? 0) >= SENIOR_YEARS;
+
+                return (
+                  <li key={lawyer.lawyer_id} className="section-row">
+
+                    <span className="section-row-avatar">
+                      {initialsOf(lawyer.full_name)}
+                    </span>
+
+                    <div className="section-row-body">
+                      <strong>{lawyer.full_name}</strong>
+                      <span>
+                        {lawyer.lawyer_id}
+                        {lawyer.city ? ` · ${lawyer.city}` : ""}
+                        {lawyer.state ? `, ${lawyer.state}` : ""}
+                        {lawyer.professional_email
+                          ? ` · ${lawyer.professional_email}`
+                          : ""}
+                      </span>
+                    </div>
+
+                    <div className="section-row-meta">
+                      <time>
+                        {lawyer.years_of_experience ?? 0} yrs
+                      </time>
+                      <span
+                        className={`section-pill ${senior ? "info" : ""}`}
+                      >
+                        {senior ? "Senior" : "Practising"}
+                      </span>
+                    </div>
+
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     LAWYER RECORDS — the full file, not the summary
+     ===================================================== */
+
+  if (activeSection === "records") {
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA ADMIN PORTAL"
+        title="Lawyer"
+        titleAccent="records."
+        heroDescription="Enrollment details, practice areas, courts, location and contact information — the full profile behind each summary row."
+        workspaceTitle="Read the complete records"
+        workspaceSubtitle="Resolved through the detail endpoint"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            FULL RECORDS
+          </span>
+
+          <h3>Enrollment and practice</h3>
+
+          <p>
+            The same first page as Manage Lawyers, but resolved through
+            the lawyer detail endpoint — that is the only way to see bar
+            details, practice areas and verification status, because the
+            list response leaves them blank.
+          </p>
+
+          {recordNotice ?? (
+            <div>
+              {recordDetails.map((lawyer) => (
+                <div
+                  key={lawyer.lawyer_id}
+                  className="section-record"
+                >
+
+                  <header className="section-record-head">
+
+                    <span className="section-row-avatar">
+                      {initialsOf(lawyer.full_name)}
+                    </span>
+
+                    <div>
+                      <strong>{lawyer.full_name}</strong>
+                      <span>
+                        {lawyer.lawyer_id}
+                        {lawyer.enrollment_number
+                          ? ` · Enr. ${lawyer.enrollment_number}`
+                          : ""}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`section-pill ${
+                        lawyer.profile_status ? "good" : "warn"
+                      }`}
+                    >
+                      {lawyer.profile_status || "No status recorded"}
+                    </span>
+
+                  </header>
+
+                  <dl className="section-field-grid">
+
+                    <div>
+                      <dt>Bar council</dt>
+                      <dd>{lawyer.bar_council || "—"}</dd>
+                    </div>
+
+                    <div>
+                      <dt>Year of enrolment</dt>
+                      <dd>{lawyer.year_of_enrollment || "—"}</dd>
+                    </div>
+
+                    <div>
+                      <dt>Experience</dt>
+                      <dd>
+                        {lawyer.years_of_experience ?? 0} years
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Location</dt>
+                      <dd>
+                        {lawyer.city || lawyer.district || "—"}
+                        {lawyer.state ? `, ${lawyer.state}` : ""}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Phone</dt>
+                      <dd>
+                        {lawyer.professional_phone_number ||
+                          lawyer.office_phone ||
+                          "—"}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Email</dt>
+                      <dd>
+                        {lawyer.professional_email || "—"}
+                      </dd>
+                    </div>
+
+                  </dl>
+
+                  <div className="section-record-block">
+
+                    <span className="role-dashboard-section-label">
+                      PRACTICE AREAS
+                    </span>
+
+                    {lawyer.practice_areas?.length ? (
+                      <div className="section-chip-list">
+                        {lawyer.practice_areas.map((area) => (
+                          <span key={area} className="section-chip">
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="section-record-note">Not listed.</p>
+                    )}
+
+                  </div>
+
+                  <div className="section-record-block">
+
+                    <span className="role-dashboard-section-label">
+                      COURTS OF PRACTICE
+                    </span>
+
+                    {lawyer.courts_of_practice?.length ? (
+                      <div className="section-chip-list">
+                        {lawyer.courts_of_practice.map((court) => (
+                          <span key={court} className="section-chip">
+                            {court}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="section-record-note">Not listed.</p>
+                    )}
+
+                  </div>
+
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+      </RoleSectionView>
+    );
+  }
+
+  /* =====================================================
+     PLATFORM DATA
+     ===================================================== */
+
+  if (activeSection === "data") {
+    const byCourt = new Map<string, number>();
+    const byStage = new Map<string, number>();
+
+    for (const item of mockCases) {
+      byCourt.set(
+        item.court_name,
+        (byCourt.get(item.court_name) ?? 0) + 1,
+      );
+      byStage.set(
+        item.current_case_stage,
+        (byStage.get(item.current_case_stage) ?? 0) + 1,
+      );
+    }
+
+    const ownerIds = new Set(mockCases.map((item) => item.owner_user_id));
+
+    return (
+      <RoleSectionView
+        session={session}
+        portal="NYAYMITRA ADMIN PORTAL"
+        title="Platform"
+        titleAccent="data."
+        heroDescription="Platform-level figures — cases, citizens and the lawyer directory — counted from the records the services actually hold."
+        workspaceTitle="Read the platform figures"
+        workspaceSubtitle="Counted live, not stored"
+        onBack={() => setActiveSection(null)}
+      >
+        <div className="section-stats">
+
+          <div className="section-stat">
+            <span>CASES ON FILE</span>
+            <strong>{mockCases.length}</strong>
+            <small>Across all courts</small>
+          </div>
+
+          <div className="section-stat">
+            <span>CITIZENS ON CASES</span>
+            <strong>{ownerIds.size}</strong>
+            <small>Distinct owners</small>
+          </div>
+
+          <div className="section-stat">
+            <span>HEARINGS BOOKED</span>
+            <strong>
+              {mockCases.reduce(
+                (sum, item) =>
+                  sum + (item.calculated_metrics?.total_hearings_scheduled ?? 0),
+                0,
+              )}
+            </strong>
+            <small>Scheduled to date</small>
+          </div>
+
+          <div className="section-stat">
+            <span>LAWYERS</span>
+            <strong>
+              {lawyerStatus === "ready" ? lawyerList.length : "—"}
+            </strong>
+            <small>From the directory</small>
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            BREAKDOWN
+          </span>
+
+          <h3>Cases by court</h3>
+
+          <p>
+            Useful for spotting where filings concentrate, which is the
+            first thing anyone asks when case numbers move.
+          </p>
+
+          <div className="section-stats">
+            {[...byCourt.entries()].map(([court, count]) => (
+              <div key={court} className="section-stat">
+                <span>COURT</span>
+                <strong>{count}</strong>
+                <small>{court}</small>
+              </div>
+            ))}
+          </div>
+
+          <span className="role-dashboard-section-label section-sublabel">
+            CASES BY STAGE
+          </span>
+
+          <div className="section-chip-list section-sublabel-list">
+            {[...byStage.entries()].map(([stage, count]) => (
+              <span key={stage} className="section-chip">
+                {stage} · {count}
+              </span>
+            ))}
+          </div>
+
+        </div>
+
+        <div className="section-card">
+
+          <span className="role-dashboard-section-label">
+            DIRECTORY SERVICE
+          </span>
+
+          <h3>Lawyer directory</h3>
+
+          <p>
+            The only figure here that does not come from local records —
+            it is read from the lawyer API, so it waits for the service.
+          </p>
+
+          {lawyerNotice ?? (
+            <div className="section-chip-list">
+              <span className="section-chip">
+                {lawyerList.length} records returned
+              </span>
+            </div>
+          )}
+
+        </div>
+      </RoleSectionView>
+    );
+  }
 
   /* =====================================================
      ACCESS & ROLES SCREEN

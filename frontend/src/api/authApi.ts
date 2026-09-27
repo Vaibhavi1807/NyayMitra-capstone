@@ -292,6 +292,7 @@ export async function login(
 
 export const DEMO_ACCOUNTS = MOCK_ACCOUNTS.map(
   (account) => ({
+    userId: account.userId,
     role: account.role,
     fullName: account.fullName,
     email: account.email,
