@@ -46,6 +46,7 @@ export type Page =
   | "dashboard"
   | "cases"
   | "lawyer"
+  | "viewLawyer"
   | "orders"
   | "translation"
   | "delay"
@@ -118,6 +119,7 @@ const PAGES_BY_ROLE: Record<
     "dashboard",
     "cases",
     "lawyer",
+    "viewLawyer",
     "orders",
     "translation",
     "delay",
@@ -175,6 +177,13 @@ function App() {
         : "dashboard";
     });
 
+  /*
+   * Lawyer the signed-in citizen is currently reading.
+   * Set when a card on the "Find a Lawyer" page is opened.
+   */
+  const [selectedLawyerId, setSelectedLawyerId] =
+    useState<string | null>(null);
+
   /* =======================================================
      LOGIN / LOGOUT
      ======================================================= */
@@ -183,6 +192,7 @@ function App() {
     saveSession(next);
 
     setSession(next);
+    setSelectedLawyerId(null);
     setActivePage(homePageForRole(next.role));
 
     window.scrollTo({ top: 0 });
@@ -192,6 +202,7 @@ function App() {
     clearSession();
 
     setSession(null);
+    setSelectedLawyerId(null);
     setActivePage("dashboard");
 
     window.scrollTo({ top: 0 });
@@ -226,6 +237,17 @@ function App() {
 
   const goBackToDashboard = () => {
     setActivePage(homePageForRole(session.role));
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  /* Opens a lawyer's full profile from the results grid. */
+  const openLawyerProfile = (lawyerId: string) => {
+    setSelectedLawyerId(lawyerId);
+    setActivePage("viewLawyer");
 
     window.scrollTo({
       top: 0,
@@ -276,9 +298,21 @@ function App() {
         )}
 
       {session.role === "USER" &&
-        page === "lawyer" && (
+        (page === "lawyer" ||
+          (page === "viewLawyer" &&
+            !selectedLawyerId)) && (
           <LawyerPage
             onBack={goBackToDashboard}
+            onViewProfile={openLawyerProfile}
+          />
+        )}
+
+      {session.role === "USER" &&
+        page === "viewLawyer" &&
+        selectedLawyerId && (
+          <LawyerProfilePage
+            lawyerId={selectedLawyerId}
+            onBack={() => goToPage("lawyer")}
           />
         )}
 

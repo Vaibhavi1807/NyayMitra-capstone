@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { translateText } from "../../api/translationApi";
+
 type TranslationPageProps = {
   onBack: () => void;
 };
@@ -80,38 +82,12 @@ export default function TranslationPage({
     }
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8001/api/translate",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization":
-              "Bearer nyaymitra-local-test-2026",
-          },
-
-          body: JSON.stringify({
-              case_id: "demo-001",
-              source_text: text,
-              source_lang: sourceLanguage,
-              target_lang: targetLanguage,
-        }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(
-          () => null
-        );
-
-        throw new Error(
-          errorData?.detail ||
-            `Translation failed (${response.status})`
-        );
-      }
-
-      const data = await response.json();
+      const data = await translateText({
+        case_id: "demo-001",
+        source_text: text,
+        source_lang: sourceLanguage,
+        target_lang: targetLanguage,
+      });
 
       setTranslatedText(
         data.translated_text || ""
@@ -123,7 +99,9 @@ export default function TranslationPage({
       );
 
       setError(
-        "Unable to translate. Please make sure the NyayMitra translation service is running."
+        error instanceof Error && error.message
+          ? error.message
+          : "Unable to translate. Please make sure the NyayMitra translation service is running."
       );
     } finally {
       setLoading(false);

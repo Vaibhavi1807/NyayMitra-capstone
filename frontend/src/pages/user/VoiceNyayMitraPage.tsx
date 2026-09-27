@@ -1,5 +1,7 @@
 import {useRef, useState } from "react";
 
+import { transcribeVoice } from "../../api/translationApi";
+
 type VoiceNyayMitraPageProps = {
   onBack: () => void;
 };
@@ -123,40 +125,12 @@ export default function VoiceNyayMitraPage({
 const audioBlob = await blobToWav(recordedBlob);
 
       try {
-        const formData = new FormData();
-
-        formData.append(
-          "audio",
-          audioBlob,
-          "voice-recording.wav"
-        );
-
-        formData.append(
-          "target_lang",
-          language
-        );
-
         setQuestion("Transcribing your voice...");
 
-        const response = await fetch(
-          "http://127.0.0.1:8001/api/voice",
-          {
-            method: "POST",
-            headers: {
-              Authorization:
-                "Bearer nyaymitra-local-test-2026",
-            },
-            body: formData,
-          }
+        const data = await transcribeVoice(
+          audioBlob,
+          language as "hi" | "mr"
         );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data?.detail || "Voice transcription failed."
-          );
-        }
 
         setQuestion(
           data.transcribed_text || ""

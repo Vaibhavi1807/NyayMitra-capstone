@@ -806,6 +806,7 @@ select {
 
 .lawyer-filter {
   width: 205px;
+  height: 54px;
 
   padding: 0 14px;
 
@@ -819,6 +820,15 @@ select {
 
   font-size: 12px;
   font-weight: 650;
+}
+
+.lawyer-filter:focus {
+  outline: none;
+
+  border-color: #818cf8;
+
+  box-shadow:
+    0 0 0 4px rgba(99, 102, 241, 0.1);
 }
 
 .lawyer-filter-summary {
@@ -970,6 +980,523 @@ select {
 
   font-size: 10px;
   font-weight: 750;
+}
+
+/* =========================================================
+   PAGE BACK WRAPPER
+
+   Anchors the absolutely positioned .page-back-button to
+   the top of its own page instead of to the document.
+   ========================================================= */
+
+.page-back-wrapper {
+  position: relative;
+}
+
+/* =========================================================
+   LAWYER SEARCH — CLEAR BUTTON
+   ========================================================= */
+
+.lawyer-clear {
+  border: none;
+
+  background: transparent;
+
+  color: #858b9e;
+
+  font-size: 20px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.lawyer-clear:hover {
+  color: #4338ca;
+}
+
+/* =========================================================
+   LAWYER CARD — HEADER BADGES
+   ========================================================= */
+
+.suggested-badge {
+  display: inline-block;
+
+  margin-bottom: 14px;
+
+  padding: 6px 12px;
+
+  border-radius: 999px;
+
+  background: #eef0ff;
+
+  color: #4338ca;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 0.03em;
+}
+
+.lawyer-card h3 {
+  margin: 17px 0 5px;
+
+  color: #20253a;
+
+  font-size: 17px;
+  font-weight: 750;
+
+  line-height: 1.3;
+}
+
+.lawyer-specialization {
+  margin: 0;
+
+  min-height: 32px;
+
+  color: #4f46c5;
+
+  font-size: 12px;
+  font-weight: 650;
+
+  line-height: 1.45;
+}
+
+/* =========================================================
+   LAWYER CARD — EXPERIENCE / LOCATION / ENROLLED
+   ========================================================= */
+
+.lawyer-meta {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 8px;
+
+  margin-top: 17px;
+}
+
+.lawyer-meta > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+
+  min-width: 0;
+
+  padding: 10px 8px;
+
+  background: #f7f8fc;
+
+  border-radius: 12px;
+
+  text-align: center;
+}
+
+.lawyer-meta span {
+  color: #6366f1;
+
+  font-size: 13px;
+}
+
+.lawyer-meta strong {
+  overflow: hidden;
+
+  color: #20253a;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.lawyer-meta small {
+  color: #858b9e;
+
+  font-size: 9px;
+  font-weight: 650;
+
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   LAWYER CARD — DIVIDER + LANGUAGES
+   ========================================================= */
+
+.lawyer-divider {
+  height: 1px;
+
+  margin: 17px 0 14px;
+
+  background: #eef0f5;
+}
+
+.lawyer-languages {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.lawyer-languages > span {
+  color: #777d91;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.lawyer-languages > div {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 6px;
+}
+
+.lawyer-languages > div > span {
+  padding: 4px 9px;
+
+  border: 1px solid #e5e7ef;
+
+  border-radius: 999px;
+
+  background: #fbfbfe;
+
+  color: #454b5f;
+
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.lawyer-languages .lawyer-language-muted {
+  border-style: dashed;
+
+  color: #9aa0b2;
+}
+
+/* =========================================================
+   LAWYER CARD — VIEW PROFILE ACTION
+   ========================================================= */
+
+.lawyer-profile-btn {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 17px;
+
+  padding: 11px 15px;
+
+  border: 1px solid #dcdff5;
+
+  border-radius: 13px;
+
+  background: #f5f6ff;
+
+  color: #4338ca;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.lawyer-profile-btn span {
+  font-size: 15px;
+}
+
+.lawyer-profile-btn:hover {
+  border-color: #4338ca;
+
+  background:
+    linear-gradient(
+      135deg,
+      #4338ca,
+      #6366f1
+    );
+
+  color: white;
+}
+
+/* =========================================================
+   LAWYER RESULTS — LOADING SKELETON
+   ========================================================= */
+
+.lawyer-skeleton {
+  pointer-events: none;
+}
+
+.lawyer-skeleton-line {
+  height: 13px;
+
+  margin-bottom: 13px;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #f0f1f7 25%,
+      #e3e5f1 50%,
+      #f0f1f7 75%
+    );
+
+  background-size: 200% 100%;
+
+  animation: lawyer-shimmer 1.4s ease-in-out infinite;
+}
+
+.lawyer-skeleton-line.w40 { width: 40%; }
+.lawyer-skeleton-line.w55 { width: 55%; }
+.lawyer-skeleton-line.w70 { width: 70%; }
+.lawyer-skeleton-line.w85 { width: 85%; }
+
+@keyframes lawyer-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =========================================================
+   LAWYER RESULTS — SERVICE ERROR
+   ========================================================= */
+
+.lawyer-error {
+  padding: 55px 24px;
+
+  border: 1px dashed #e2e4f0;
+
+  border-radius: 20px;
+
+  background: white;
+
+  text-align: center;
+}
+
+.lawyer-error-icon {
+  width: 54px;
+  height: 54px;
+
+  display: grid;
+  place-items: center;
+
+  margin: 0 auto 16px;
+
+  border-radius: 16px;
+
+  background: #fff2f2;
+
+  color: #d5504f;
+
+  font-size: 24px;
+}
+
+.lawyer-error h3 {
+  margin: 0 0 8px;
+
+  color: #20253a;
+
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.lawyer-error p {
+  max-width: 460px;
+
+  margin: 0 auto 6px;
+
+  color: #777d91;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+}
+
+.lawyer-error .lawyer-error-hint {
+  margin-bottom: 20px;
+
+  color: #9aa0b2;
+
+  font-size: 12px;
+}
+
+.lawyer-error button {
+  padding: 11px 26px;
+
+  border: none;
+
+  border-radius: 999px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #4338ca,
+      #6366f1
+    );
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.lawyer-error button:hover {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 8px 18px rgba(79, 70, 229, 0.3);
+}
+
+/* =========================================================
+   LAWYER RESULTS — EMPTY STATE
+   ========================================================= */
+
+.lawyer-empty {
+  padding: 55px 24px;
+
+  border: 1px solid #e5e7ef;
+
+  border-radius: 20px;
+
+  background: white;
+
+  text-align: center;
+}
+
+.lawyer-empty > div {
+  font-size: 34px;
+}
+
+.lawyer-empty h3 {
+  margin: 14px 0 7px;
+
+  color: #20253a;
+
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.lawyer-empty p {
+  max-width: 420px;
+
+  margin: 0 auto 20px;
+
+  color: #858b9e;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+}
+
+.lawyer-empty button {
+  padding: 11px 26px;
+
+  border: 1px solid #dcdff5;
+
+  border-radius: 999px;
+
+  background: #f5f6ff;
+
+  color: #4338ca;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.lawyer-empty button:hover {
+  border-color: #4338ca;
+}
+
+/* =========================================================
+   LAWYER RESULTS — PAGINATION
+   ========================================================= */
+
+.lawyer-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 18px;
+
+  margin-top: 30px;
+
+  padding: 15px;
+
+  border: 1px solid #e5e7ef;
+
+  border-radius: 18px;
+
+  background: white;
+}
+
+.lawyer-pagination span {
+  color: #777d91;
+
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.lawyer-pagination button {
+  padding: 10px 20px;
+
+  border: 1px solid #dcdff5;
+
+  border-radius: 999px;
+
+  background: #f5f6ff;
+
+  color: #4338ca;
+
+  font-size: 12px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.lawyer-pagination button:hover:not(:disabled) {
+  border-color: #4338ca;
+
+  background:
+    linear-gradient(
+      135deg,
+      #4338ca,
+      #6366f1
+    );
+
+  color: white;
+}
+
+.lawyer-pagination button:disabled {
+  border-color: #e5e7ef;
+
+  background: #f7f8fc;
+
+  color: #b6bac7;
+
+  cursor: not-allowed;
 }
 
 /* =========================================================
@@ -9064,8 +9591,15 @@ select {
 .app-session-bar {
   position: fixed;
 
+  /*
+   * TOP-RIGHT CORNER
+   *
+   * Role, signed-in name and sign-out always live at the
+   * top-right so the session is visible without scrolling,
+   * on every page and at any scroll depth.
+   */
   right: 20px;
-  bottom: 20px;
+  top: 18px;
 
   z-index: 999;
 
