@@ -87,10 +87,25 @@ def detect_heading(line):
 # SIGNATURE / CERTIFICATION DETECTION
 # ---------------------------------------------------------
 
+# The line that opens an order names the court the matter is heard in —
+# "IN THE COURT OF THE CIVIL JUDGE, PUNE" — and so mentions a judge
+# without being one. The JUDGE test alone fired on line 1, which
+# started the signature block before a single paragraph had been read
+# and filed the whole document under Signatures. Heading lines are
+# therefore ruled out before that test runs.
+COURT_HEADING_RE = re.compile(
+    r"\b(IN THE COURT|COURT OF|BEFORE THE|PRESIDING|HON'BLE)\b",
+    re.I,
+)
+
+
 def is_signature_line(line):
     upper = line.upper()
 
     if "JUDGE" in upper:
+        if COURT_HEADING_RE.search(line):
+            return False
+
         return True
 
     if re.match(r"^\(.*\)\s*\(.*\)$", line):
@@ -406,6 +421,12 @@ def split_court_order(lines):
 
         heading = detect_heading(line)
         if heading == "Order":
+            # Close the paragraph that was still open *before* the flag
+            # flips: everything written above an ORDER heading is
+            # proceedings, and flushing after the flip filed the last
+            # paragraph before the heading as part of the Order.
+            flush_paragraph()
+
             order_heading_seen = True
             continue
         elif heading:

@@ -255,6 +255,8 @@ Two lists are derived from that one matrix:
 | POST | `/api/voice` |
 | POST | `/api/guidance` |
 | POST | `/api/explain-order` |
+| POST | `/api/court-order/explain` |
+| POST | `/api/court-order/extract` |
 | GET | `/health` |
 
 All three model checkpoints are gated on HuggingFace. They are loaded lazily
@@ -262,7 +264,15 @@ on first use and released after `MODEL_IDLE_SECONDS`, which brings the idle
 footprint from roughly 4.5 GB down to about 370 MB.
 
 `/api/explain-order` turns an uploaded court order into plain language;
-`/api/guidance` is the rule scorer behind **Voice NyayMitra**. A rule
+`/api/court-order/explain` is the newer pipeline: it accepts a multipart
+PDF upload (or the old pasted-text body) and returns a stable shape of
+`summary` plus the five document sections — Case Details, Proceedings,
+Order, Signatures, Document Certification — with `metadata.ocr_used`,
+`page_count` and the security scan result. Uploaded files are validated
+(PDF only, size cap), scanned for active content, extracted to a temp
+file that is always deleted, and never executed; sections the document
+does not contain come back as `"Not available in the document."` rather
+than as invented text. `/api/guidance` is the rule scorer behind **Voice NyayMitra**. A rule
 matches on *coverage* — how much of the rule's own phrasing the question
 actually covers — rather than on the raw score, because a near-miss can
 out-score a genuine match.

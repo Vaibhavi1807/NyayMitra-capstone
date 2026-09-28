@@ -115,3 +115,90 @@ export async function explainOrderText(
 
   return (await response.json()) as ExplainResult;
 }
+
+/* =========================================================
+   UPLOADED DOCUMENT
+
+   One call instead of two: the service validates the PDF,
+   scans it, reads it (OCR for a scanned page), splits it into
+   the five sections a court order is written in, and explains
+   each. Every section comes back even when the document does
+   not contain it, so the screen can say "not in this
+   document" rather than leaving a hole.
+   ========================================================= */
+
+export interface CourtOrderParagraph {
+  number: number | null;
+  text: string;
+}
+
+export interface CourtOrderSection {
+  section_id: string;
+  title: string;
+  available: boolean;
+  text: string | null;
+  paragraphs: CourtOrderParagraph[];
+  page_start: number | null;
+  page_end: number | null;
+  explanation: ExplainPoint[];
+  key_dates: string[];
+  note: string;
+  translated_text?: string | null;
+}
+
+export interface CourtOrderMetadata {
+  ocr_used: boolean;
+  page_count: number;
+  security_scan: { scanned: boolean; status: string };
+  extraction: { direct_pages: number; ocr_pages: number[] };
+  text_characters: number;
+  sections_found: number;
+}
+
+export interface UploadExplainResult {
+  success: boolean;
+  filename: string;
+  language: string;
+  summary: string;
+  sections: CourtOrderSection[];
+  metadata: CourtOrderMetadata;
+  points: ExplainPoint[];
+  key_dates: string[];
+  terms: ExplainTerm[];
+  disclaimer: string;
+  translation?: {
+    requested: string;
+    applied: boolean;
+    reason: string;
+  };
+}
+
+/** Read a court order PDF and explain it, in one request. */
+export async function explainOrderUpload(
+  file: File,
+  language = "en",
+): Promise<UploadExplainResult> {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  body.append("language", language);
+
+  const response = await fetch(
+    `${TRANSLATION_API_BASE_URL}/api/court-order/explain`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TRANSLATION_API_KEY}` },
+      body,
+    },
+  );
+
+  if (!response.ok) {
+    /* The service's message is written for the person who uploaded:
+       "not a PDF", "too large", "could not be accepted for security
+       reasons" — never an internal detail. */
+    throw new Error(
+      await readDetail(response, "The court order could not be read."),
+    );
+  }
+
+  return (await response.json()) as UploadExplainResult;
+}

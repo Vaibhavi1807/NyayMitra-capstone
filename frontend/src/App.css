@@ -9260,3 +9260,180 @@ select {
     display: none;
   }
 }
+
+/* =========================================================
+   UPLOADED ORDER — how it was read, and what it contained
+   ========================================================= */
+
+/* The language sits between the case and the file picker: it is
+   a choice about the answer, not about the document. */
+.explain-language {
+  flex: 1 1 170px !important;
+}
+
+/* A refusal while reading one order, on the card it happened on */
+.order-card-error {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+
+  background: #fff5f5;
+  border: 1px solid #f6d7d7;
+  border-radius: 11px;
+
+  color: #b42318;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.order-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  margin: 0 0 16px;
+}
+
+.order-badge {
+  padding: 5px 11px;
+
+  background: #eef0ff;
+  border: 1px solid #d9dcff;
+  border-radius: 999px;
+
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* OCR and translation are the two things worth noticing about
+   how the answer was produced, so they are marked apart. */
+.order-badge-accent {
+  background: #e8f6ee;
+  border-color: #c9e9d6;
+  color: #1c7a4b;
+}
+
+.order-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.order-section {
+  padding: 14px;
+
+  background: #f7f8fc;
+  border: 1px solid #e9ebf3;
+  border-radius: 14px;
+}
+
+.order-section header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 9px;
+}
+
+.order-section h4 {
+  margin: 0;
+
+  color: #252a40;
+  font-size: 13.5px;
+}
+
+/* A section the document does not carry — stated, never filled in */
+.order-section-missing {
+  flex-shrink: 0;
+
+  padding: 4px 10px;
+  border-radius: 999px;
+
+  background: #fff9ec;
+  border: 1px solid #f3e3bd;
+
+  color: #8a6116;
+  font-size: 10.5px;
+  font-weight: 750;
+}
+
+.order-section-absent {
+  margin: 0;
+
+  color: #9aa0b3;
+  font-size: 12.5px;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.order-section-text {
+  margin: 0 0 8px;
+
+  color: #4c5266;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.order-section-text:last-child {
+  margin-bottom: 0;
+}
+
+.order-section-points {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+
+  border-top: 1px dashed #e3e5ed;
+
+  display: grid;
+  gap: 8px;
+}
+
+.order-section-points strong {
+  display: block;
+
+  color: #252a40;
+  font-size: 12.5px;
+}
+
+.order-section-points span {
+  display: block;
+  margin-top: 4px;
+
+  color: #6b7183;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.order-section-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  margin-top: 10px;
+}
+
+.order-section-dates em {
+  padding: 4px 10px;
+
+  background: #eef0ff;
+  border: 1px solid #d9dcff;
+  border-radius: 999px;
+
+  color: #4338ca;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+/* =========================================================
+   SMALL SCREENS
+   ========================================================= */
+
+@media (max-width: 560px) {
+  .order-section header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}

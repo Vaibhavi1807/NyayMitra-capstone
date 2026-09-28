@@ -10,8 +10,10 @@ import {
 } from "../../api/documentApi";
 import {
   explainOrderText,
+  explainOrderUpload,
   extractOrderText,
   type ExplainResult,
+  type UploadExplainResult,
 } from "../../api/courtOrderApi";
 
 /* =========================================================
@@ -27,10 +29,14 @@ import {
    The orders are grouped by case, which is how a person
    thinks about them — not one flat list of unrelated files.
 
-   "Explain this order" reads the file and returns the points
-   in plain English. The service cannot read a photograph on a
-   host without OCR, and when that happens the card says so
-   and offers a text box instead of pretending it understood.
+   "Explain this order" now sends the file itself to the
+   service, which validates it, reads it (OCR where the page
+   is a scan), splits it into the five sections a court order
+   is written in and explains each — in English, Hindi or
+   Marathi, whichever is selected. An image still goes
+   through the older read-then-explain path, and anything
+   the service refuses opens a text box rather than a dead
+   end: the text of the order explains itself just as well.
    ========================================================= */
 
 type CourtOrdersPageProps = {
@@ -39,6 +45,19 @@ type CourtOrdersPageProps = {
 };
 
 type Explained = ExplainResult & { docId: string };
+
+/* An uploaded PDF's answer: the same plain-language fields as
+   above, plus the document's five sections and how it was read. */
+type Uploaded = UploadExplainResult & { docId: string };
+
+/* The languages the service will explain an uploaded order in.
+   The pasted-text path below is English-only, so the selector
+   labels itself as applying to the uploaded document. */
+const EXPLAIN_LANGUAGES: { code: string; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "hi", label: "हिंदी (Hindi)" },
+  { code: "mr", label: "मराठी (Marathi)" },
+];
 
 function formatDate(iso: string): string {
   if (!iso) return "—";
@@ -99,11 +118,23 @@ export default function CourtOrdersPage({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  /* Language for the next explanation of an uploaded PDF. */
+  const [language, setLanguage] = useState("en");
+
   const [workingDoc, setWorkingDoc] = useState<string | null>(null);
   const [explained, setExplained] = useState<Explained | null>(null);
+  const [uploaded, setUploaded] = useState<Uploaded | null>(null);
   const [needsTextDoc, setNeedsTextDoc] = useState<string | null>(null);
   const [paste, setPaste] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  /* A failure while reading one card belongs on that card. The
+     upload form's own error stays where it is — filing a document
+     and reading one are different mistakes. */
+  const [cardError, setCardError] = useState<{
+    docId: string;
+    message: string;
+  } | null>(null);
 
   /* ---- reading an order ---- */
 
@@ -114,10 +145,27 @@ export default function CourtOrdersPage({
     setWorkingDoc(document.id);
     setError(null);
     setExplained(null);
+    setUploaded(null);
     setNeedsTextDoc(null);
+    setCardError(null);
 
     try {
       if (file) {
+        const isPdf =
+          file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+
+        if (isPdf) {
+          /* One request: validated, security scanned, read (OCR for a
+             page that is only a scan), split into the five sections
+             and explained — in the selected language. */
+          const result = await explainOrderUpload(file, language);
+
+          setUploaded({ ...result, docId: document.id });
+          return;
+        }
+
+        /* An image takes the older two-step path: read the text,
+           then explain it. */
         const extracted = await extractOrderText(file);
 
         if (extracted.ok && extracted.text.trim()) {
@@ -138,11 +186,19 @@ export default function CourtOrdersPage({
 
       setNeedsTextDoc(document.id);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "The order could not be explained.",
-      );
+      /* The service refuses in its own words — not a PDF, too large,
+         not acceptable on security grounds — and those are shown as
+         they arrive. The paste box opens beside them, because the
+         text of the same order can still be explained without the
+         file ever being accepted. */
+      setCardError({
+        docId: document.id,
+        message:
+          err instanceof Error
+            ? err.message
+            : "The order could not be explained.",
+      });
+      setNeedsTextDoc(document.id);
     } finally {
       setWorkingDoc(null);
     }
@@ -156,19 +212,23 @@ export default function CourtOrdersPage({
 
     setWorkingDoc(document.id);
     setError(null);
+    setCardError(null);
 
     try {
       const result = await explainOrderText(paste, document.name);
 
       setExplained({ ...result, docId: document.id });
+      setUploaded(null);
       setNeedsTextDoc(null);
       setPaste("");
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "The order could not be explained.",
-      );
+      setCardError({
+        docId: document.id,
+        message:
+          err instanceof Error
+            ? err.message
+            : "The order could not be explained.",
+      });
     } finally {
       setWorkingDoc(null);
     }
@@ -253,8 +313,9 @@ export default function CourtOrdersPage({
             <h2>Explain a Court Order</h2>
 
             <p>
-              Choose the case this order belongs to, then the file — an image
-              or a PDF. It is saved to that case and explained straight away.
+              Choose the case this order belongs to, then the file — a
+              PDF or an image. It is saved to that case and explained
+              straight away, in the language picked below.
             </p>
 
             <div className="upload-fields">
@@ -273,6 +334,19 @@ export default function CourtOrdersPage({
                     value={caseData.cnr_number}
                   >
                     {caseData.cnr_number} — {caseData.case_type}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                aria-label="Language for the explanation"
+                className="explain-language"
+              >
+                {EXPLAIN_LANGUAGES.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
                   </option>
                 ))}
               </select>
@@ -384,6 +458,7 @@ export default function CourtOrdersPage({
                         const busy = workingDoc === document.id;
                         const openExplanation =
                           explained?.docId === document.id;
+                        const openUpload = uploaded?.docId === document.id;
                         const openPaste =
                           needsTextDoc === document.id;
 
@@ -452,26 +527,39 @@ export default function CourtOrdersPage({
 
                                 if (
                                   explained?.docId === document.id ||
+                                  uploaded?.docId === document.id ||
                                   needsTextDoc === document.id
                                 ) {
                                   setExplained(null);
+                                  setUploaded(null);
                                   setNeedsTextDoc(null);
+                                }
+
+                                if (cardError?.docId === document.id) {
+                                  setCardError(null);
                                 }
                               }}
                             >
                               Remove from this case
                             </button>
 
+                            {/* ---- refusal, on this card ---- */}
+
+                            {cardError?.docId === document.id && !busy && (
+                              <p className="order-card-error" role="alert">
+                                {cardError.message}
+                              </p>
+                            )}
+
                             {/* ---- paste fallback ---- */}
 
                             {openPaste && !busy && (
                               <div className="explain-panel">
                                 <div className="explain-note">
-                                  This file could not be read on this
-                                  device, so there is nothing to summarise
-                                  from it yet. Paste the text of the order
-                                  below and it will be explained in plain
-                                  language.
+                                  The file was not read, so there is
+                                  nothing to summarise from it yet.
+                                  Paste the text of the order below and
+                                  it will be explained in plain language.
                                 </div>
 
                                 <textarea
@@ -492,6 +580,156 @@ export default function CourtOrdersPage({
                                   }
                                 >
                                   Explain in simple words
+                                </button>
+                              </div>
+                            )}
+
+                            {/* ---- explanation of an uploaded PDF ----
+                                 Every section the document contains is
+                                 shown, and every one it does not is said
+                                 out loud — a missing Proceedings block is
+                                 a fact about the file, never a gap to
+                                 fill in. */}
+
+                            {openUpload && uploaded && !busy && (
+                              <div className="explain-panel">
+                                <p className="explain-summary">
+                                  {uploaded.summary}
+                                </p>
+
+                                <div className="order-badges">
+                                  <span className="order-badge">
+                                    📄 {uploaded.filename}
+                                  </span>
+
+                                  <span className="order-badge">
+                                    {uploaded.metadata.page_count}{" "}
+                                    {uploaded.metadata.page_count === 1
+                                      ? "page"
+                                      : "pages"}
+                                  </span>
+
+                                  {uploaded.metadata.ocr_used && (
+                                    <span className="order-badge order-badge-accent">
+                                      Text read by OCR
+                                    </span>
+                                  )}
+
+                                  <span className="order-badge">
+                                    Security scan:{" "}
+                                    {uploaded.metadata.security_scan.status}
+                                  </span>
+
+                                  {uploaded.translation?.applied && (
+                                    <span className="order-badge order-badge-accent">
+                                      Explained in{" "}
+                                      {EXPLAIN_LANGUAGES.find(
+                                        (item) =>
+                                          item.code ===
+                                          uploaded.language,
+                                      )?.label ?? uploaded.language}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="order-sections">
+                                  {uploaded.sections.map((section) => (
+                                    <section
+                                      className="order-section"
+                                      key={section.section_id}
+                                    >
+                                      <header>
+                                        <h4>{section.title}</h4>
+
+                                        {!section.available && (
+                                          <span className="order-section-missing">
+                                            Not in this document
+                                          </span>
+                                        )}
+                                      </header>
+
+                                      {!section.available ? (
+                                        <p className="order-section-absent">
+                                          Not available in the document.
+                                        </p>
+                                      ) : section.translated_text ? (
+                                        <p className="order-section-text">
+                                          {section.translated_text}
+                                        </p>
+                                      ) : section.paragraphs.length > 0 ? (
+                                        section.paragraphs.map(
+                                          (paragraph, index) => (
+                                            <p
+                                              className="order-section-text"
+                                              key={`${section.section_id}_${
+                                                paragraph.number ?? index
+                                              }`}
+                                            >
+                                              {paragraph.text}
+                                            </p>
+                                          ),
+                                        )
+                                      ) : (
+                                        <p className="order-section-text">
+                                          {section.text}
+                                        </p>
+                                      )}
+
+                                      {section.available &&
+                                        section.explanation.length > 0 && (
+                                          <ul className="order-section-points">
+                                            {section.explanation.map(
+                                              (point) => (
+                                                <li key={point.heading}>
+                                                  <strong>
+                                                    {point.heading}
+                                                  </strong>
+                                                  <span>{point.plain}</span>
+                                                </li>
+                                              ),
+                                            )}
+                                          </ul>
+                                        )}
+
+                                      {section.available &&
+                                        section.key_dates.length > 0 && (
+                                          <div className="order-section-dates">
+                                            {section.key_dates.map(
+                                              (date) => (
+                                                <em key={date}>{date}</em>
+                                              ),
+                                            )}
+                                          </div>
+                                        )}
+                                    </section>
+                                  ))}
+                                </div>
+
+                                {uploaded.terms.length > 0 && (
+                                  <div className="explain-terms">
+                                    <span>Words used, in plain terms</span>
+
+                                    <dl>
+                                      {uploaded.terms.map((term) => (
+                                        <div key={term.term}>
+                                          <dt>{term.term}</dt>
+                                          <dd>{term.plain}</dd>
+                                        </div>
+                                      ))}
+                                    </dl>
+                                  </div>
+                                )}
+
+                                <p className="explain-disclaimer">
+                                  {uploaded.disclaimer}
+                                </p>
+
+                                <button
+                                  type="button"
+                                  className="explain-clear"
+                                  onClick={() => setUploaded(null)}
+                                >
+                                  Close explanation
                                 </button>
                               </div>
                             )}

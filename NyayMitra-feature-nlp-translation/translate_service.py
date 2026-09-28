@@ -8,13 +8,27 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import torch
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Header
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from IndicTransToolkit.processor import IndicProcessor
 from test_asr import transcribe_and_discard, release_idle_model
-from upload_validation import validate_audio_upload, UploadValidationError
+from upload_validation import (
+    PDF_MAX_SIZE_BYTES,
+    UploadValidationError,
+    validate_audio_upload,
+    validate_pdf_upload,
+)
+from pdf_security_scan import PDFSecurityError, secure_validate_pdf
+from court_order_explainer import explain_text
+from court_order_explain_pipeline import (
+    CourtOrderUploadError,
+    extract_document_text,
+    process_upload,
+    safe_filename,
+)
+from fastapi.responses import JSONResponse
 from glossary_matcher import find_glossary_matches
 from next_steps_guidance_lookup import (
     find_related_glossary_terms,
@@ -440,33 +454,41 @@ async def voice_endpoint(
 # ---------------------------------------------------------------------------
 
 
-def _extract_pdf_text(data: bytes):
-    """Return (text, reason). `reason` is set only when text is empty."""
-    try:
-        import io
+def _extract_image_text(data: bytes) -> tuple[str, str]:
+    """OCR a photograph or scan of an order. Returns (text, reason).
 
-        import pdfplumber
+    `reason` is set only when the text came back empty, and words it
+    for the person who uploaded — never for whoever is debugging.
+    """
+    try:
+        import io as _io
+
+        import pytesseract
+        from PIL import Image
     except ImportError:
         return "", (
-            "Reading PDFs needs pdfplumber, which is not installed "
-            "on this host."
+            "Reading images needs OCR, which is not installed on this "
+            "host. Paste the text of the order and it will be explained."
         )
 
     try:
-        with pdfplumber.open(io.BytesIO(data)) as pdf:
-            pages = [(page.extract_text() or "") for page in pdf.pages]
-    except Exception as exc:
+        with Image.open(_io.BytesIO(data)) as image:
+            text = pytesseract.image_to_string(image, lang="eng+hin+mar")
+    except Exception as exc:  # noqa: BLE001
         logging.getLogger("nyaymitra.court_order").exception(
-            "pdf text extraction failed: %r", exc
+            "image OCR failed: %r", exc
         )
-        return "", "This PDF could not be read. It may be a scan of an image."
+        return "", (
+            "This image could not be read. Try a clearer scan, or paste "
+            "the text of the order."
+        )
 
-    text = "\n".join(page for page in pages if page.strip()).strip()
+    text = (text or "").strip()
 
     if not text:
         return "", (
-            "No text layer found in this PDF. It looks like a scan, which "
-            "this host cannot read without OCR."
+            "No text could be recognised in this image. Try a clearer "
+            "scan, or paste the text of the order."
         )
 
     return text, ""
@@ -477,138 +499,95 @@ async def court_order_extract(
     file: UploadFile = File(...),
     auth=Depends(verify_api_key),
 ):
-    """Best-effort text out of an uploaded court order."""
-    name = (file.filename or "").lower()
-    data = await file.read()
+    """Best-effort text out of an uploaded court order.
 
-    looks_like_pdf = name.endswith(".pdf") or (
-        file.content_type or ""
-    ) == "application/pdf"
+    The same checks the explain upload runs — size, type, readability,
+    then the malicious-content scan before any parser touches the
+    bytes — and the same extraction, including OCR for pages that are a
+    scan. Failures that mean "this file is not something we will read"
+    are 400s; a document we simply cannot get words out of is a normal
+    answer with a reason, because that was never an error.
+    """
+    data = await file.read(PDF_MAX_SIZE_BYTES + 1)
+    filename = safe_filename(file.filename)
+
+    if len(data) > PDF_MAX_SIZE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File too large. Maximum allowed size is "
+                f"{PDF_MAX_SIZE_BYTES // (1024 * 1024)} MB."
+            ),
+        )
+
+    looks_like_pdf = (
+        (file.filename or "").lower().endswith(".pdf")
+        or (file.content_type or "").lower() == "application/pdf"
+        or data[:5] == b"%PDF-"
+    )
+
+    ocr_used = False
+    page_count = None
 
     if looks_like_pdf:
-        text, reason = _extract_pdf_text(data)
+        try:
+            validate_pdf_upload(data)
+            secure_validate_pdf(data)
+        except (UploadValidationError, PDFSecurityError) as exc:
+            log_access(
+                "/api/court-order/extract",
+                f"filename={filename} bytes={len(data)} rejected=yes",
+            )
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        extracted = extract_document_text(data)
+        text = "\n\n".join(
+            page for page in extracted["texts"] if page
+        ).strip()
+        ocr_used = extracted["ocr_used"]
+        page_count = extracted["page_count"]
+
+        if not text:
+            reason = (
+                "No readable text could be found in this PDF, even with "
+                "OCR. Upload a clearer scan, or paste the text of the "
+                "order."
+            )
+        else:
+            reason = ""
     else:
-        text = ""
-        reason = (
-            "Images need OCR, which is not installed on this host. "
-            "Paste the text of the order and it will be explained."
-        )
+        text, reason = _extract_image_text(data)
+        ocr_used = bool(text)
 
     log_access(
         "/api/court-order/extract",
-        f"filename={file.filename} read_chars={len(text)}",
+        f"filename={filename} bytes={len(data)} read_chars={len(text)} "
+        f"ocr={ocr_used} pages={page_count if page_count is not None else '-'}",
     )
 
     if not text:
-        return {"ok": False, "text": "", "needs_text": True, "reason": reason}
+        return {
+            "ok": False,
+            "text": "",
+            "needs_text": True,
+            "reason": reason,
+            "ocr_used": ocr_used,
+            "page_count": page_count,
+        }
 
-    return {"ok": True, "text": text, "needs_text": False, "reason": ""}
-
-
-# The standing wording of an order, and what it means to the person
-# reading it. Ordered so the first point is usually the headline.
-_ORDER_RULES = [
-    (
-        r"\b(adjourn\w*|postpon\w*|defer\w*)\b",
-        "The hearing has been postponed",
-        "The court has put this hearing off. A postponement decides "
-        "nothing — the case simply returns on the next date.",
-    ),
-    (
-        r"\b(reserved|reserved for judgment)\b",
-        "Judgment is reserved",
-        "Both sides have finished arguing. The judge will pass orders "
-        "later, so the decision is not out yet.",
-    ),
-    (
-        r"\b(granted|allowed|admitted|accepted)\b",
-        "An application was allowed",
-        "What one side asked for has been accepted, subject to whatever "
-        "conditions the order sets out.",
-    ),
-    (
-        r"\b(rejected|refused|dismissed|denied)\b",
-        "An application was refused",
-        "What one side asked for has been turned down. The order will "
-        "say whether it can be challenged, and by when.",
-    ),
-    (
-        r"\b(notice|summons)\b",
-        "Notice goes to the other side",
-        "The other party has been asked to respond. They must file "
-        "their reply before the matter can be heard.",
-    ),
-    (
-        r"\b(stay(ed|ing|s)?)\b",
-        "The proceedings are stayed",
-        "The case is on hold for now. No further step is taken until "
-        "the stay is lifted.",
-    ),
-    (
-        r"\b(bail)\b",
-        "The order deals with bail",
-        "It sets whether someone may be released, and on what "
-        "conditions.",
-    ),
-    (
-        r"\b(costs?)\b",
-        "Costs are mentioned",
-        "The order says who pays the expenses of this application, or "
-        "of the case so far.",
-    ),
-    (
-        r"\b(directed to\b|\bshall\s+(?:file|appear|produce|submit))\b",
-        "The court gave a direction",
-        "A party has been told to do something — file paper, appear, "
-        "or produce a document — by a date.",
-    ),
-    (
-        r"\b(interim|temporary)\b",
-        "This looks like an interim order",
-        "It is a direction given while the case is still running, not "
-        "the final outcome.",
-    ),
-    (
-        r"\b(final (?:order|judgment|decision)|judgment is pronounced"
-        r"|decree)\b",
-        "This looks like the final order",
-        "The court has recorded its decision on the matter.",
-    ),
-]
-
-_DATE_PATTERNS = [
-    r"\b\d{1,2}(?:st|nd|rd|th)?\s+"
-    r"(?:January|February|March|April|May|June|July|August|September"
-    r"|October|November|December)\s+\d{4}\b",
-    r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
-]
+    return {
+        "ok": True,
+        "text": text,
+        "needs_text": False,
+        "reason": "",
+        "ocr_used": ocr_used,
+        "page_count": page_count,
+    }
 
 
-def _order_dates(text: str):
-    """Every date the order mentions, in first-seen order, capped."""
-    found = []
-
-    for pattern in _DATE_PATTERNS:
-        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-            value = match.group(0)
-            if value not in found:
-                found.append(value)
-
-    return found[:6]
-
-
-def _first_sentence(text: str, limit: int = 340) -> str:
-    compact = re.sub(r"\s+", " ", text).strip()
-    if not compact:
-        return ""
-
-    boundary = re.search(r"(?<=[.!?])\s", compact)
-    head = compact[: boundary.start()] if boundary else compact
-
-    if len(head) > limit:
-        head = head[: limit - 1].rstrip() + "…"
-
-    return head
+# The order-reading rules (standing wording, dates, glossary terms)
+# live in court_order_explainer.py, so the pasted-text path below and
+# the uploaded-PDF path read a document through exactly the same rules.
 
 
 class CourtOrderExplainRequest(BaseModel):
@@ -616,66 +595,165 @@ class CourtOrderExplainRequest(BaseModel):
     filename: str = ""
 
 
-@app.post("/api/court-order/explain")
-def court_order_explain(
-    req: CourtOrderExplainRequest,
-    auth=Depends(verify_api_key),
-):
-    """Explain a court order in plain English.
+def _translator_for(language: str):
+    """A translator bound to one target language.
 
-    Built by recognising the standing language orders use and restating
-    it, plus the glossary's own plain reading of any legal term that
-    appears. Nothing is asserted that was not in the text: if the order
-    does not use recognisable wording, the response says so instead of
-    summarising a file it did not understand.
+    The checkpoint loads on first use rather than at import, so a
+    request that never asks for a translation never costs a model
+    load, and the service's reaper releases it when it goes idle.
     """
-    text = req.text.strip()
+    target = LANG_CODE_MAP[language]
+
+    def _translate(text: str) -> str:
+        if not text or not text.strip():
+            return text
+
+        with _loaded("en_indic"):
+            return translate(text, target)
+
+    return _translate
+
+
+async def _explain_uploaded_document(request: Request) -> dict:
+    """Validate, scan, read and explain an uploaded court order PDF."""
+    try:
+        form = await request.form()
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("nyaymitra.court_order").exception(
+            "explain upload could not be read: %r", exc
+        )
+        raise HTTPException(
+            status_code=400, detail="The uploaded file could not be read."
+        ) from exc
+
+    upload = form.get("file")
+
+    if upload is None or not hasattr(upload, "read"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No file was uploaded. Send the court order as a PDF "
+                "in the `file` field."
+            ),
+        )
+
+    # One byte past the limit: an oversized upload is refused while it
+    # is being read rather than after it is all in memory.
+    data = await upload.read(PDF_MAX_SIZE_BYTES + 1)
+    filename = safe_filename(upload.filename)
+
+    if len(data) > PDF_MAX_SIZE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File too large. Maximum allowed size is "
+                f"{PDF_MAX_SIZE_BYTES // (1024 * 1024)} MB."
+            ),
+        )
+
+    language = str(
+        request.query_params.get("language") or form.get("language") or "en"
+    ).strip().lower()
+
+    translator = _translator_for(language) if language in {"hi", "mr"} else None
+
+    try:
+        result = process_upload(
+            data, filename, language=language, translate=translator
+        )
+    except CourtOrderUploadError as exc:
+        # The message is the pipeline's: validation and security
+        # wording written for the person uploading, never the
+        # scanner's internal findings.
+        log_access(
+            "/api/court-order/explain",
+            f"mode=upload filename={filename} bytes={len(data)} rejected=yes",
+        )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("nyaymitra.court_order").exception(
+            "court order upload failed: %r", exc
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="The court order could not be processed. Please try again.",
+        ) from exc
+
+    metadata = result.get("metadata", {})
+    log_access(
+        "/api/court-order/explain",
+        f"mode=upload filename={filename} bytes={len(data)} "
+        f"pages={metadata.get('page_count')} ocr={metadata.get('ocr_used')} "
+        f"sections={metadata.get('sections_found')} lang={language}",
+    )
+
+    return result
+
+
+async def _explain_pasted_text(request: Request) -> dict:
+    """Explain text somebody pasted — the body this endpoint always had."""
+    try:
+        raw = await request.json()
+    except Exception:  # noqa: BLE001
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Expected JSON with a non-empty `text` field, or a PDF "
+                "sent as multipart/form-data."
+            ),
+        ) from None
+
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Expected a JSON object body.")
+
+    try:
+        payload = CourtOrderExplainRequest.model_validate(raw)
+    except ValidationError:
+        raise HTTPException(
+            status_code=400,
+            detail="Expected JSON with a non-empty `text` field.",
+        ) from None
+
+    text = payload.text.strip()
+
     if not text:
         raise HTTPException(status_code=400, detail="No text to explain.")
 
-    lowered = text.lower()
-
-    points = [
-        {"heading": heading, "plain": plain}
-        for pattern, heading, plain in _ORDER_RULES
-        if re.search(pattern, lowered)
-    ]
-
-    if not points:
-        points = [
-            {
-                "heading": "No standard order wording was recognised",
-                "plain": (
-                    "This order does not use the usual phrasing, so "
-                    "nothing has been summarised for you. Read it with "
-                    "your advocate before acting on it."
-                ),
-            }
-        ]
-
-    terms = [
-        {"term": item["formal_term"], "plain": item["plain_explanation_en"]}
-        for item in find_glossary_matches(text)
-    ]
+    explained = explain_text(text)
 
     log_access(
         "/api/court-order/explain",
-        f"filename={req.filename or '-'} chars={len(text)} "
-        f"points={len(points)} terms={len(terms)}",
+        f"mode=text filename={payload.filename or '-'} chars={len(text)} "
+        f"points={len(explained['points'])} terms={len(explained['terms'])}",
     )
 
-    return {
-        "filename": req.filename,
-        "summary": _first_sentence(text) or "Court order",
-        "points": points,
-        "key_dates": _order_dates(text),
-        "terms": terms,
-        "disclaimer": (
-            "This is a plain-language reading of the words in the file. "
-            "It is not legal advice, and the original order is what "
-            "governs the case."
-        ),
-    }
+    return {"filename": payload.filename, **explained}
+
+
+@app.post("/api/court-order/explain")
+async def court_order_explain(request: Request, auth=Depends(verify_api_key)):
+    """Explain a court order in plain English.
+
+    Two bodies, one set of fields that matter:
+
+    * ``multipart/form-data`` with the order as a PDF — validated,
+      security scanned, text extracted (OCR for pages that are a scan),
+      split into Case Details / Proceedings / Order / Signatures /
+      Document Certification, every section explained, and optionally
+      translated to Hindi or Marathi;
+    * ``application/json`` with ``{text, filename}`` — the pasted-text
+      path, unchanged.
+
+    Nothing is asserted that was not in the document: if the order does
+    not use recognisable wording, the response says so instead of
+    summarising a file it did not understand.
+    """
+    content_type = (request.headers.get("content-type") or "").lower()
+
+    if content_type.startswith("multipart/form-data"):
+        return await _explain_uploaded_document(request)
+
+    return await _explain_pasted_text(request)
 
 
 # ---------------------------------------------------------------------------
@@ -900,3 +978,27 @@ def guidance_endpoint(
 @app.get("/health")
 def health_check():
     return {"status": "ok", "model_loaded": model is not None}
+
+
+# ---------------------------------------------------------------------------
+# Nothing that escapes a route reaches the caller as a traceback. The
+# traceback is logged here, where it is useful; the client gets one
+# stable sentence. (Route-level handlers above still answer with their
+# own specific, safe messages — this only catches what they do not.)
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc):  # noqa: ANN001
+    logging.getLogger("nyaymitra").exception(
+        "unhandled error on %s %s: %r",
+        request.method,
+        request.url.path,
+        exc,
+    )
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Something went wrong on the server. Please try again."
+        },
+    )
