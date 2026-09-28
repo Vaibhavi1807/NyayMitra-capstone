@@ -14,6 +14,7 @@ import {
    --------
    POST /api/translate                  EN ↔ HI / MR
    POST /api/translate/indic-to-indic   HI ↔ MR
+   POST /api/legal-simplify             legal → plain English → HI / MR
    POST /api/voice                      voice → transcript
    GET  /health                         service health
 
@@ -57,6 +58,42 @@ export interface IndicToIndicResponse {
   source_lang?: LanguageCode;
   target_lang?: LanguageCode;
   note?: string;
+}
+
+/* =========================================================
+   LEGAL SIMPLIFICATION  (legal → plain English → HI / MR)
+
+   One request, three layers back:
+
+       original_text      the order as the court wrote it
+       simple_english     the same words, in everyday English
+       translated_text    that plain English, in the target
+
+   `target_lang` is an internal IndicTrans2 code (`mar_Deva`,
+   `hin_Deva`) or `eng_Latn`, which asks for the plain English
+   layer alone. `glossary_terms_used` names the entries of the
+   legal glossary the text matched, and `warnings` carries
+   anything the service could not promise — a passage kept in
+   its original wording, an ambiguity left unresolved.
+   ========================================================= */
+
+export type SimplifyTargetLang =
+  | "mar_Deva"
+  | "hin_Deva"
+  | "eng_Latn";
+
+export interface LegalSimplifyRequest {
+  text: string;
+  target_lang: SimplifyTargetLang;
+}
+
+export interface LegalSimplifyResponse {
+  original_text: string;
+  simple_english: string;
+  translated_text: string;
+  target_lang: string;
+  glossary_terms_used: string[];
+  warnings: string[];
 }
 
 export interface VoiceResponse {
@@ -107,6 +144,31 @@ export async function translateIndicToIndic(
   return apiRequest<IndicToIndicResponse>(
     TRANSLATION_API_BASE_URL,
     "/api/translate/indic-to-indic",
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(request),
+    },
+  );
+}
+
+/* =========================================================
+   LEGAL SIMPLIFICATION  (the three layers in one call)
+
+   POST /api/legal-simplify
+
+   The service runs its rule-based simplifier over the text,
+   hands the plain English to IndicTrans2, and puts back every
+   date, case number, CNR, section number and name it held
+   aside while the model ran.
+   ========================================================= */
+
+export async function simplifyAndTranslate(
+  request: LegalSimplifyRequest,
+): Promise<LegalSimplifyResponse> {
+  return apiRequest<LegalSimplifyResponse>(
+    TRANSLATION_API_BASE_URL,
+    "/api/legal-simplify",
     {
       method: "POST",
       headers: authHeaders(),

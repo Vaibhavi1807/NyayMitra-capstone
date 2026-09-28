@@ -4287,6 +4287,106 @@ select {
   line-height: 1.6;
 }
 
+/* ---- two ways to read the same box ------------------------ */
+
+.translation-mode-switch {
+  display: flex;
+  gap: 6px;
+
+  margin-bottom: 16px;
+  padding: 5px;
+
+  background: #f4f5fb;
+  border: 1px solid #e6e8f1;
+  border-radius: 12px;
+}
+
+.translation-mode {
+  flex: 1 1 auto;
+
+  padding: 10px 14px;
+
+  color: #6b7183;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.translation-mode:hover {
+  color: #4338ca;
+}
+
+.translation-mode.is-active {
+  color: #fff;
+  background: #4338ca;
+  border-color: #4338ca;
+  box-shadow: 0 6px 16px rgba(67, 56, 202, 0.22);
+}
+
+/* ---- the four development cases --------------------------- */
+
+.translation-demo-section {
+  margin-top: 26px;
+}
+
+.translation-demo-note {
+  max-width: 460px;
+  margin: 0;
+
+  color: #8a5300;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.translation-demo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+
+  margin-top: 16px;
+}
+
+.translation-demo-grid button {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  padding: 14px 15px;
+
+  text-align: left;
+
+  background: #fff;
+  border: 1px dashed #e0b45a;
+  border-radius: 13px;
+
+  cursor: pointer;
+}
+
+.translation-demo-grid button:hover {
+  background: #fffaf0;
+}
+
+.translation-demo-grid strong {
+  color: #8a5300;
+  font-size: 13px;
+}
+
+.translation-demo-grid small {
+  color: #9aa0b3;
+  font-size: 11.5px;
+}
+
+.translation-demo-grid code {
+  color: #2a3145;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: normal;
+}
+
 /* RESPONSIVE */
 
 @media (max-width: 800px) {
@@ -9427,6 +9527,238 @@ select {
 }
 
 /* =========================================================
+   SIMPLIFY & TRANSLATE — the control that asks for the
+   three layers
+
+   One bar does two jobs: it sits above the whole document
+   ("Understand this order") and inside a single section
+   ("Simplify & Translate"). The language chooser comes
+   first because step three is the only step that differs
+   between runs; the button states plainly what pressing it
+   will produce.
+   ========================================================= */
+
+.order-simplify-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-top: 14px;
+  padding: 12px 14px;
+
+  background: #f7f8fd;
+  border: 1px dashed #c9cdf5;
+  border-radius: 13px;
+}
+
+.order-simplify-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  min-width: 220px;
+}
+
+.order-simplify-intro strong {
+  color: #1f2340;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.order-simplify-intro span {
+  color: #6b7183;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.order-simplify-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+
+.order-simplify-lang {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  color: #4b5170;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.order-simplify-lang select {
+  padding: 8px 10px;
+
+  background: #fff;
+  border: 1px solid #d5d8ea;
+  border-radius: 9px;
+
+  color: #1f2340;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.order-simplify-run {
+  padding: 9px 15px;
+
+  background: #4338ca;
+  border: 1px solid #4338ca;
+  border-radius: 9px;
+
+  color: #fff;
+  font-size: 12.5px;
+  font-family: inherit;
+  font-weight: 650;
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.order-simplify-run:hover:not(:disabled) {
+  background: #3730a3;
+  transform: translateY(-1px);
+}
+
+.order-simplify-run:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.order-simplify-error {
+  margin: 10px 0 0;
+
+  padding: 9px 12px;
+
+  background: #fdecec;
+  border: 1px solid #f5c6c6;
+  border-radius: 9px;
+
+  color: #a01b1b;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Inside one section the bar is quieter — the section already
+   has a heading of its own, so the control only needs to sit
+   below the text it acts on. */
+.order-section-simplify {
+  margin-top: 13px;
+  padding-top: 13px;
+
+  border-top: 1px dashed #e6e8f1;
+}
+
+.order-section-simplify .order-simplify-bar {
+  margin-top: 0;
+}
+
+/* =========================================================
+   THREE LAYERS — legal text → simple English → translation
+
+   Three panels and two arrows: the reader steps down from what
+   the court wrote to what it means to what that means in their
+   own language. Layer one is set apart as a quotation, layer two
+   carries the accent because it is the layer this feature adds,
+   and layer three appears only when a language was asked for.
+   ========================================================= */
+
+.order-layers {
+  display: flex;
+  flex-direction: column;
+}
+
+.order-layer {
+  padding: 13px 15px;
+
+  background: #fff;
+  border: 1px solid #e6e8f1;
+  border-radius: 13px;
+}
+
+.order-layer-tag {
+  display: block;
+  margin-bottom: 7px;
+
+  color: #6b7183;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.order-layer p {
+  margin: 0;
+
+  color: #2a3145;
+  font-size: 13.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* Said out loud when step one and step two are the same text: the
+   passage was left alone on purpose, not skipped. */
+.order-layer-note {
+  display: block;
+  margin-top: 7px;
+
+  color: #9aa0b3;
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.55;
+}
+
+.order-layer-down {
+  align-self: center;
+
+  padding: 5px 0;
+  color: #9aa0b3;
+  font-size: 17px;
+  line-height: 1;
+}
+
+/* Layer one is the court's own wording — quoted, not rewritten. */
+.order-layer-legal {
+  background: #f7f8fc;
+  border-color: #e9ebf3;
+}
+
+.order-layer-legal p {
+  color: #5b6175;
+}
+
+/* Layer two is the point of the exercise: the same text, readable. */
+.order-layer-simple {
+  background: #eef0ff;
+  border-color: #d9dcff;
+}
+
+.order-layer-simple .order-layer-tag,
+.order-layer-simple p {
+  color: #4338ca;
+}
+
+/* Layer three is the model's, and only exists on request. */
+.order-layer-translated {
+  background: #e8f6ee;
+  border-color: #c9e9d6;
+}
+
+.order-layer-translated .order-layer-tag {
+  color: #1c7a4b;
+}
+
+.order-layer-translated p {
+  color: #1f3d2e;
+}
+
+/* =========================================================
    SMALL SCREENS
    ========================================================= */
 
@@ -9435,5 +9767,9 @@ select {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  .order-layer {
+    padding: 11px 12px;
   }
 }

@@ -12,9 +12,16 @@ import {
   explainOrderText,
   explainOrderUpload,
   extractOrderText,
+  type CourtOrderLayers,
   type ExplainResult,
   type UploadExplainResult,
 } from "../../api/courtOrderApi";
+import {
+  simplifyAndTranslate,
+  type LegalSimplifyResponse,
+  type SimplifyTargetLang,
+} from "../../api/translationApi";
+import LegalOrderExplainer from "../../components/LegalOrderExplainer";
 
 /* =========================================================
    COURT ORDERS
@@ -33,9 +40,13 @@ import {
    service, which validates it, reads it (OCR where the page
    is a scan), splits it into the five sections a court order
    is written in and explains each — in English, Hindi or
-   Marathi, whichever is selected. An image still goes
-   through the older read-then-explain path, and anything
-   the service refuses opens a text box rather than a dead
+   Marathi, whichever is selected. Every answer is offered in
+   three steps: the order as written, the same words in simple
+   English, and that simple English translated, with an arrow
+   from one to the next so the reader can see exactly what
+   changed at each step. An image still goes through the
+   older read-then-explain path, and anything the service
+   refuses opens a text box rather than a dead
    end: the text of the order explains itself just as well.
    ========================================================= */
 
@@ -50,14 +61,151 @@ type Explained = ExplainResult & { docId: string };
    above, plus the document's five sections and how it was read. */
 type Uploaded = UploadExplainResult & { docId: string };
 
-/* The languages the service will explain an uploaded order in.
-   The pasted-text path below is English-only, so the selector
-   labels itself as applying to the uploaded document. */
+/* The languages the service will explain an order in — an uploaded
+   PDF and a pasted text alike. English keeps two layers; the other
+   two add the third. */
 const EXPLAIN_LANGUAGES: { code: string; label: string }[] = [
   { code: "en", label: "English" },
   { code: "hi", label: "हिंदी (Hindi)" },
   { code: "mr", label: "मराठी (Marathi)" },
 ];
+
+/* Step three of the explainer is asked for separately from the
+   explanation: Marathi, Hindi, or plain English — which stops the
+   pipeline at layer two and only takes the wording apart. The `api`
+   values are IndicTrans2's own language codes. */
+const SIMPLIFY_LANGUAGES: {
+  code: string;
+  label: string;
+  api: SimplifyTargetLang;
+}[] = [
+  { code: "mr", label: "मराठी (Marathi)", api: "mar_Deva" },
+  { code: "hi", label: "हिंदी (Hindi)", api: "hin_Deva" },
+  { code: "en", label: "English", api: "eng_Latn" },
+];
+
+/* The three steps, labelled for whatever language is in play. Step
+   three exists only when a language other than English was picked,
+   and it is always the *simple* layer that was translated. */
+function layerLabels(language: string) {
+  const target =
+    EXPLAIN_LANGUAGES.find((item) => item.code === language)?.label ??
+    language;
+
+  return {
+    legal: "1 · Original legal text",
+    simple: "2 · Simple English",
+    translated: `3 · ${target}, from the simple English`,
+  };
+}
+
+/* One piece of text, shown as the three steps it arrives in. The
+   arrows are the whole point: each panel is the one above it, made
+   readable. Nothing here is composed — layer one is the document's
+   own wording, taken straight from the answer. */
+function OrderLayers({
+  layers,
+  language,
+}: {
+  layers: CourtOrderLayers;
+  language: string;
+}) {
+  const labels = layerLabels(language);
+
+  /* A passage with no plain equivalent — headings, dates, a
+     signature — comes back unchanged, and that is worth stating
+     rather than repeating the same text twice under a heading
+     promising something different. */
+  const needsNoRewording =
+    Boolean(layers.legal) && layers.legal === layers.simple;
+
+  return (
+    <div className="order-layers">
+      <div className="order-layer order-layer-legal">
+        <span className="order-layer-tag">{labels.legal}</span>
+        <p>{layers.legal}</p>
+      </div>
+
+      <span className="order-layer-down" aria-hidden="true">
+        ↓
+      </span>
+
+      <div className="order-layer order-layer-simple">
+        <span className="order-layer-tag">{labels.simple}</span>
+        <p>{layers.simple}</p>
+
+        {needsNoRewording && (
+          <em className="order-layer-note">
+            No plainer wording was found for this passage, so it is
+            shown exactly as written.
+          </em>
+        )}
+      </div>
+
+      {layers.translated && (
+        <>
+          <span className="order-layer-down" aria-hidden="true">
+            ↓
+          </span>
+
+          <div className="order-layer order-layer-translated">
+            <span className="order-layer-tag">{labels.translated}</span>
+            <p>{layers.translated}</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* The language chooser and the run button for the three-layer
+   answer. It sits above the document as a whole ("Understand this
+   order") and inside a single section ("Simplify & Translate") —
+   same control, same behaviour, only the wording differs. */
+function SimplifyControls({
+  value,
+  onChange,
+  busy,
+  running,
+  label,
+  onRun,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  busy: boolean;
+  running: boolean;
+  label: string;
+  onRun: () => void;
+}) {
+  return (
+    <div className="order-simplify-controls">
+      <label className="order-simplify-lang">
+        <span>Step 3 in</span>
+
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={busy}
+        >
+          {SIMPLIFY_LANGUAGES.map((item) => (
+            <option key={item.code} value={item.code}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        type="button"
+        className="order-simplify-run"
+        disabled={busy}
+        onClick={onRun}
+      >
+        {running ? "Working out the three layers…" : label}
+      </button>
+    </div>
+  );
+}
 
 function formatDate(iso: string): string {
   if (!iso) return "—";
@@ -121,6 +269,20 @@ export default function CourtOrdersPage({
   /* Language for the next explanation of an uploaded PDF. */
   const [language, setLanguage] = useState("en");
 
+  /* ---- "Simplify & Translate": one call, three layers ----
+     `simplifyLanguage` is the language chooser for step three, and
+     the answers are kept per section so opening one section's
+     explanation never overwrites another's. `simplifyBusy` names
+     whichever run is in flight ("document" or a section id). */
+  const [simplifyLanguage, setSimplifyLanguage] = useState("mr");
+  const [docSimplify, setDocSimplify] =
+    useState<LegalSimplifyResponse | null>(null);
+  const [sectionSimplify, setSectionSimplify] = useState<
+    Record<string, LegalSimplifyResponse | null>
+  >({});
+  const [simplifyBusy, setSimplifyBusy] = useState<string | null>(null);
+  const [simplifyError, setSimplifyError] = useState<string | null>(null);
+
   const [workingDoc, setWorkingDoc] = useState<string | null>(null);
   const [explained, setExplained] = useState<Explained | null>(null);
   const [uploaded, setUploaded] = useState<Uploaded | null>(null);
@@ -148,6 +310,9 @@ export default function CourtOrdersPage({
     setUploaded(null);
     setNeedsTextDoc(null);
     setCardError(null);
+    setDocSimplify(null);
+    setSectionSimplify({});
+    setSimplifyError(null);
 
     try {
       if (file) {
@@ -172,6 +337,7 @@ export default function CourtOrdersPage({
           const result = await explainOrderText(
             extracted.text,
             document.name,
+            language,
           );
 
           setExplained({ ...result, docId: document.id });
@@ -213,9 +379,12 @@ export default function CourtOrdersPage({
     setWorkingDoc(document.id);
     setError(null);
     setCardError(null);
+    setDocSimplify(null);
+    setSectionSimplify({});
+    setSimplifyError(null);
 
     try {
-      const result = await explainOrderText(paste, document.name);
+      const result = await explainOrderText(paste, document.name, language);
 
       setExplained({ ...result, docId: document.id });
       setUploaded(null);
@@ -233,6 +402,57 @@ export default function CourtOrdersPage({
       setWorkingDoc(null);
     }
   };
+
+  /* ---- one request, three layers ----
+
+     Used twice: for the document as a whole ("Understand this
+     order") and for a single section ("Simplify & Translate").
+     `key` is "document" or the section id — the spinner and the
+     answer both hang off it, so starting one never clears another. */
+  async function runSimplify(key: string, text: string | null) {
+    const body = (text || "").trim();
+
+    if (!body || simplifyBusy) return;
+
+    const target = SIMPLIFY_LANGUAGES.find(
+      (item) => item.code === simplifyLanguage,
+    );
+
+    if (!target) {
+      setSimplifyError("Unsupported language selected.");
+      return;
+    }
+
+    setSimplifyBusy(key);
+    setSimplifyError(null);
+
+    if (key === "document") {
+      setDocSimplify(null);
+    } else {
+      setSectionSimplify((previous) => ({ ...previous, [key]: null }));
+    }
+
+    try {
+      const answer = await simplifyAndTranslate({
+        text: body,
+        target_lang: target.api,
+      });
+
+      if (key === "document") {
+        setDocSimplify(answer);
+      } else {
+        setSectionSimplify((previous) => ({ ...previous, [key]: answer }));
+      }
+    } catch (err) {
+      setSimplifyError(
+        err instanceof Error && err.message
+          ? err.message
+          : "The text could not be simplified and translated.",
+      );
+    } finally {
+      setSimplifyBusy(null);
+    }
+  }
 
   /* ---- filing an order ---- */
 
@@ -315,7 +535,9 @@ export default function CourtOrdersPage({
             <p>
               Choose the case this order belongs to, then the file — a
               PDF or an image. It is saved to that case and explained
-              straight away, in the language picked below.
+              in three steps: the order exactly as written, the same
+              words in simple English, and that plain English in
+              Hindi or Marathi — whichever language is picked below.
             </p>
 
             <div className="upload-fields">
@@ -559,7 +781,9 @@ export default function CourtOrdersPage({
                                   The file was not read, so there is
                                   nothing to summarise from it yet.
                                   Paste the text of the order below and
-                                  it will be explained in plain language.
+                                  it will be shown in three steps: as
+                                  written, in simple English, and in the
+                                  language picked above.
                                 </div>
 
                                 <textarea
@@ -593,9 +817,16 @@ export default function CourtOrdersPage({
 
                             {openUpload && uploaded && !busy && (
                               <div className="explain-panel">
-                                <p className="explain-summary">
-                                  {uploaded.summary}
-                                </p>
+                                {uploaded.layers?.legal ? (
+                                  <OrderLayers
+                                    layers={uploaded.layers}
+                                    language={uploaded.language}
+                                  />
+                                ) : (
+                                  <p className="explain-summary">
+                                    {uploaded.summary}
+                                  </p>
+                                )}
 
                                 <div className="order-badges">
                                   <span className="order-badge">
@@ -632,6 +863,53 @@ export default function CourtOrdersPage({
                                   )}
                                 </div>
 
+                                <div className="order-simplify-bar">
+                                  <div className="order-simplify-intro">
+                                    <strong>Understand this order</strong>
+                                    <span>
+                                      Original wording → simple English →
+                                      that plain English in the language
+                                      picked below.
+                                    </span>
+                                  </div>
+
+                                  <SimplifyControls
+                                    value={simplifyLanguage}
+                                    onChange={setSimplifyLanguage}
+                                    busy={Boolean(simplifyBusy)}
+                                    running={simplifyBusy === "document"}
+                                    label={
+                                      simplifyBusy === "document"
+                                        ? "Working…"
+                                        : docSimplify
+                                          ? "Run again"
+                                          : "Understand this order"
+                                    }
+                                    onRun={() =>
+                                      void runSimplify(
+                                        "document",
+                                        uploaded.layers?.legal ??
+                                          uploaded.summary,
+                                      )
+                                    }
+                                  />
+                                </div>
+
+                                {simplifyError && (
+                                  <p
+                                    className="order-simplify-error"
+                                    role="alert"
+                                  >
+                                    {simplifyError}
+                                  </p>
+                                )}
+
+                                {docSimplify && (
+                                  <LegalOrderExplainer
+                                    result={docSimplify}
+                                  />
+                                )}
+
                                 <div className="order-sections">
                                   {uploaded.sections.map((section) => (
                                     <section
@@ -652,6 +930,11 @@ export default function CourtOrdersPage({
                                         <p className="order-section-absent">
                                           Not available in the document.
                                         </p>
+                                      ) : section.layers?.legal ? (
+                                        <OrderLayers
+                                          layers={section.layers}
+                                          language={uploaded.language}
+                                        />
                                       ) : section.translated_text ? (
                                         <p className="order-section-text">
                                           {section.translated_text}
@@ -701,6 +984,52 @@ export default function CourtOrdersPage({
                                             )}
                                           </div>
                                         )}
+
+                                      {/* ---- this section, in three
+                                           layers ---- */}
+
+                                      {section.available && (
+                                        <div className="order-section-simplify">
+                                          <SimplifyControls
+                                            value={simplifyLanguage}
+                                            onChange={setSimplifyLanguage}
+                                            busy={Boolean(simplifyBusy)}
+                                            running={
+                                              simplifyBusy ===
+                                              section.section_id
+                                            }
+                                            label={
+                                              simplifyBusy ===
+                                              section.section_id
+                                                ? "Working…"
+                                                : sectionSimplify[
+                                                      section.section_id
+                                                    ]
+                                                  ? "Run again"
+                                                  : "Simplify & Translate"
+                                            }
+                                            onRun={() =>
+                                              void runSimplify(
+                                                section.section_id,
+                                                section.layers?.legal ??
+                                                  section.text,
+                                              )
+                                            }
+                                          />
+
+                                          {sectionSimplify[
+                                            section.section_id
+                                          ] && (
+                                            <LegalOrderExplainer
+                                              result={
+                                                sectionSimplify[
+                                                  section.section_id
+                                                ] as LegalSimplifyResponse
+                                              }
+                                            />
+                                          )}
+                                        </div>
+                                      )}
                                     </section>
                                   ))}
                                 </div>
@@ -738,9 +1067,63 @@ export default function CourtOrdersPage({
 
                             {openExplanation && explained && (
                               <div className="explain-panel">
-                                <p className="explain-summary">
-                                  {explained.summary}
-                                </p>
+                                {explained.layers?.legal ? (
+                                  <OrderLayers
+                                    layers={explained.layers}
+                                    language={explained.language ?? "en"}
+                                  />
+                                ) : (
+                                  <p className="explain-summary">
+                                    {explained.summary}
+                                  </p>
+                                )}
+
+                                <div className="order-simplify-bar">
+                                  <div className="order-simplify-intro">
+                                    <strong>Understand this order</strong>
+                                    <span>
+                                      Original wording → simple English →
+                                      that plain English in the language
+                                      picked below.
+                                    </span>
+                                  </div>
+
+                                  <SimplifyControls
+                                    value={simplifyLanguage}
+                                    onChange={setSimplifyLanguage}
+                                    busy={Boolean(simplifyBusy)}
+                                    running={simplifyBusy === "document"}
+                                    label={
+                                      simplifyBusy === "document"
+                                        ? "Working…"
+                                        : docSimplify
+                                          ? "Run again"
+                                          : "Understand this order"
+                                    }
+                                    onRun={() =>
+                                      void runSimplify(
+                                        "document",
+                                        explained.layers?.legal ??
+                                          explained.summary,
+                                      )
+                                    }
+                                  />
+                                </div>
+
+                                {simplifyError && (
+                                  <p
+                                    className="order-simplify-error"
+                                    role="alert"
+                                  >
+                                    {simplifyError}
+                                  </p>
+                                )}
+
+                                {docSimplify && (
+                                  <LegalOrderExplainer
+                                    result={docSimplify}
+                                  />
+                                )}
 
                                 <ol className="explain-points">
                                   {explained.points.map((point) => (

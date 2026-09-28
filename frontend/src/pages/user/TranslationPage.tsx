@@ -1,7 +1,12 @@
 import { useState } from "react";
 
-import { translateText } from "../../api/translationApi";
+import {
+  simplifyAndTranslate,
+  translateText,
+  type LegalSimplifyResponse,
+} from "../../api/translationApi";
 
+import LegalOrderExplainer from "../../components/LegalOrderExplainer";
 import ServiceStatus from "../../components/ServiceStatus";
 
 type TranslationPageProps = {
@@ -32,6 +37,56 @@ const languages: Language[] = [
   },
 ];
 
+/* =========================================================
+   TWO WAYS TO READ THE SAME BOX
+
+   Direct Translation   the text you paste, translated
+                        word for word.
+
+   Legal Simplification the pipeline this project added:
+                        legal English → plain English →
+                        Marathi or Hindi, in three layers
+                        you can check against each other.
+
+   The second mode needs its own target, because it can also
+   stop at plain English (`eng_Latn`) when the reader only
+   wants the wording taken apart.
+   ========================================================= */
+
+type Mode = "direct" | "simplify";
+
+const SIMPLIFY_TARGETS: Language[] = [
+  { code: "mr", name: "मराठी (Marathi)", apiCode: "mar_Deva" },
+  { code: "hi", name: "हिंदी (Hindi)", apiCode: "hin_Deva" },
+  { code: "en", name: "English", apiCode: "eng_Latn" },
+];
+
+/* The four development cases. Written out here rather than fetched,
+   and labelled as such wherever they are shown: they exercise the
+   pipeline, they are not orders from any real case. */
+const DEMO_LINES: { label: string; note: string; text: string }[] = [
+  {
+    label: "Adjourned",
+    note: "hearing put off",
+    text: "The matter is adjourned.",
+  },
+  {
+    label: "Reply directed",
+    note: "petitioner told to file",
+    text: "The petitioner is directed to file the reply.",
+  },
+  {
+    label: "Disposed of",
+    note: "application finished",
+    text: "The application stands disposed of.",
+  },
+  {
+    label: "Listed for hearing",
+    note: "date fixed",
+    text: "The matter is listed for hearing on 15.10.2026.",
+  },
+];
+
 export default function TranslationPage({
   onBack,
 }: TranslationPageProps) {
@@ -54,6 +109,64 @@ export default function TranslationPage({
 
   const [error, setError] =
     useState("");
+
+  const [mode, setMode] = useState<Mode>("direct");
+
+  const [simplifyTarget, setSimplifyTarget] =
+    useState<"en" | "hi" | "mr">("mr");
+
+  const [simplifyResult, setSimplifyResult] =
+    useState<LegalSimplifyResponse | null>(null);
+
+  /* Switching modes must not leave the other mode's answer on
+     screen — the two produce different things and a stale result
+     would be read as belonging to the mode you just picked. */
+  const switchMode = (next: Mode) => {
+    if (next === mode) return;
+
+    setMode(next);
+    setTranslatedText("");
+    setSimplifyResult(null);
+    setError("");
+    setCopied(false);
+  };
+
+  const handleSimplify = async () => {
+    if (!text.trim()) return;
+
+    const target = SIMPLIFY_TARGETS.find(
+      (language) => language.code === simplifyTarget
+    );
+
+    if (!target) {
+      setError("Unsupported language selected.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSimplifyResult(null);
+    setCopied(false);
+
+    try {
+      setSimplifyResult(
+        await simplifyAndTranslate({
+          text,
+          target_lang: target.apiCode,
+        })
+      );
+    } catch (caught) {
+      console.error("Simplification error:", caught);
+
+      setError(
+        caught instanceof Error && caught.message
+          ? caught.message
+          : "Unable to simplify and translate. Please make sure the NyayMitra translation service is running."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTranslate = async () => {
     if (!text.trim()) return;
@@ -138,6 +251,7 @@ export default function TranslationPage({
   const handleClear = () => {
     setText("");
     setTranslatedText("");
+    setSimplifyResult(null);
     setCopied(false);
     setError("");
   };
@@ -170,6 +284,11 @@ export default function TranslationPage({
     languages.find(
       (language) =>
         language.code === targetLanguage
+    )?.name || "Marathi";
+
+  const simplifyTargetName =
+    SIMPLIFY_TARGETS.find(
+      (language) => language.code === simplifyTarget
     )?.name || "Marathi";
 
   return (
@@ -225,92 +344,60 @@ export default function TranslationPage({
         {/* NLP SERVICE STATUS */}
         <ServiceStatus />
 
-        {/* LANGUAGE SELECTOR */}
-        <div className="translation-language-card">
-
-          <div className="translation-language-side">
-
-            <span className="translation-small-label">
-              SOURCE LANGUAGE
-            </span>
-
-            <select
-              value={sourceLanguage}
-              onChange={(event) => {
-                const value =
-                  event.target.value as
-                    | "en"
-                    | "hi"
-                    | "mr";
-
-                setSourceLanguage(value);
-
-                if (value === "hi") {
-                  setTargetLanguage("mr");
-                } else if (value === "mr") {
-                  setTargetLanguage("hi");
-                } else {
-                  setTargetLanguage("mr");
-                }
-
-                setTranslatedText("");
-                setError("");
-              }}
-            >
-              {languages.map((language) => (
-                <option
-                  key={language.code}
-                  value={language.code}
-                >
-                  {language.name}
-                </option>
-              ))}
-            </select>
-
-          </div>
+        {/* MODE: translate as-is, or run the three layers */}
+        <div className="translation-mode-switch" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "direct"}
+            className={
+              mode === "direct"
+                ? "translation-mode is-active"
+                : "translation-mode"
+            }
+            onClick={() => switchMode("direct")}
+          >
+            Direct Translation
+          </button>
 
           <button
             type="button"
-            className="translation-swap-button"
-            onClick={handleSwap}
-            disabled={!canSwap}
-            title={
-              canSwap
-                ? "Swap languages"
-                : "English can only be the source language — this service translates into Hindi or Marathi."
+            role="tab"
+            aria-selected={mode === "simplify"}
+            className={
+              mode === "simplify"
+                ? "translation-mode is-active"
+                : "translation-mode"
             }
-            aria-label="Swap languages"
+            onClick={() => switchMode("simplify")}
           >
-            ⇄
+            Legal Simplification
           </button>
+        </div>
 
-          <div className="translation-language-side">
+        {/* LANGUAGE SELECTOR */}
+        <div className="translation-language-card">
 
-            <span className="translation-small-label">
-              TRANSLATE TO
-            </span>
+          {mode === "simplify" ? (
+            /* Simplification always reads legal English, so there is
+               no source to choose — only where step three lands. */
+            <div className="translation-language-side">
+              <span className="translation-small-label">
+                STEP 3 IN
+              </span>
 
-            <select
-              value={targetLanguage}
-              onChange={(event) =>
-                setTargetLanguage(
-                  event.target.value as
-                    | "hi"
-                    | "mr"
-                )
-              }
-            >
-              {languages
-                .filter(
-                  (language) =>
-                    language.code !==
-                    sourceLanguage
-                )
-                .filter(
-                  (language) =>
-                    language.code !== "en"
-                )
-                .map((language) => (
+              <select
+                value={simplifyTarget}
+                onChange={(event) =>
+                  setSimplifyTarget(
+                    event.target.value as
+                      | "en"
+                      | "hi"
+                      | "mr"
+                  )
+                }
+              >
+                {SIMPLIFY_TARGETS.map((language) => (
                   <option
                     key={language.code}
                     value={language.code}
@@ -318,9 +405,105 @@ export default function TranslationPage({
                     {language.name}
                   </option>
                 ))}
-            </select>
+              </select>
+            </div>
+          ) : (
+            <>
+              <div className="translation-language-side">
 
-          </div>
+                <span className="translation-small-label">
+                  SOURCE LANGUAGE
+                </span>
+
+                <select
+                  value={sourceLanguage}
+                  onChange={(event) => {
+                    const value =
+                      event.target.value as
+                        | "en"
+                        | "hi"
+                        | "mr";
+
+                    setSourceLanguage(value);
+
+                    if (value === "hi") {
+                      setTargetLanguage("mr");
+                    } else if (value === "mr") {
+                      setTargetLanguage("hi");
+                    } else {
+                      setTargetLanguage("mr");
+                    }
+
+                    setTranslatedText("");
+                    setError("");
+                  }}
+                >
+                  {languages.map((language) => (
+                    <option
+                      key={language.code}
+                      value={language.code}
+                    >
+                      {language.name}
+                    </option>
+                  ))}
+                </select>
+
+              </div>
+
+              <button
+                type="button"
+                className="translation-swap-button"
+                onClick={handleSwap}
+                disabled={!canSwap}
+                title={
+                  canSwap
+                    ? "Swap languages"
+                    : "English can only be the source language — this service translates into Hindi or Marathi."
+                }
+                aria-label="Swap languages"
+              >
+                ⇄
+              </button>
+
+              <div className="translation-language-side">
+
+                <span className="translation-small-label">
+                  TRANSLATE TO
+                </span>
+
+                <select
+                  value={targetLanguage}
+                  onChange={(event) =>
+                    setTargetLanguage(
+                      event.target.value as
+                        | "hi"
+                        | "mr"
+                    )
+                  }
+                >
+                  {languages
+                    .filter(
+                      (language) =>
+                        language.code !==
+                        sourceLanguage
+                    )
+                    .filter(
+                      (language) =>
+                        language.code !== "en"
+                    )
+                    .map((language) => (
+                      <option
+                        key={language.code}
+                        value={language.code}
+                      >
+                        {language.name}
+                      </option>
+                    ))}
+                </select>
+
+              </div>
+            </>
+          )}
 
         </div>
 
@@ -385,15 +568,19 @@ export default function TranslationPage({
 
               <div>
                 <span className="translation-editor-label">
-                  TRANSLATED TEXT
+                  {mode === "simplify"
+                    ? "ORIGINAL · SIMPLE · TRANSLATED"
+                    : "TRANSLATED TEXT"}
                 </span>
 
                 <strong>
-                  {targetName}
+                  {mode === "simplify"
+                    ? simplifyTargetName
+                    : targetName}
                 </strong>
               </div>
 
-              {translatedText && (
+              {mode === "direct" && translatedText && (
                 <button
                   type="button"
                   className="translation-text-action"
@@ -409,7 +596,7 @@ export default function TranslationPage({
 
             <div
               className={
-                translatedText
+                translatedText || simplifyResult
                   ? "translation-output-text"
                   : "translation-output-text empty"
               }
@@ -422,7 +609,9 @@ export default function TranslationPage({
                   </span>
 
                   <span>
-                    Translating...
+                    {mode === "simplify"
+                      ? "Simplifying and translating..."
+                      : "Translating..."}
                   </span>
 
                   <small>
@@ -430,6 +619,27 @@ export default function TranslationPage({
                     processes the legal text.
                   </small>
                 </>
+              ) : mode === "simplify" ? (
+                simplifyResult ? (
+                  <LegalOrderExplainer
+                    result={simplifyResult}
+                  />
+                ) : (
+                  <>
+                    <span className="translation-output-icon">
+                      文
+                    </span>
+
+                    <span>
+                      Your three layers will appear here
+                    </span>
+
+                    <small>
+                      Enter legal text on the left and
+                      click “Simplify &amp; Translate”.
+                    </small>
+                  </>
+                )
               ) : translatedText ? (
                 translatedText
               ) : (
@@ -454,7 +664,10 @@ export default function TranslationPage({
             <div className="translation-editor-footer">
 
               <span>
-                {translatedText.length} characters
+                {(mode === "simplify"
+                  ? simplifyResult?.translated_text ?? ""
+                  : translatedText
+                ).length} characters
               </span>
 
               <span>
@@ -483,7 +696,11 @@ export default function TranslationPage({
           <button
             type="button"
             className="translation-primary-button"
-            onClick={handleTranslate}
+            onClick={
+              mode === "simplify"
+                ? handleSimplify
+                : handleTranslate
+            }
             disabled={
               !text.trim() || loading
             }
@@ -491,8 +708,12 @@ export default function TranslationPage({
             <span>文</span>
 
             {loading
-              ? "Translating..."
-              : "Translate Text"}
+              ? mode === "simplify"
+                ? "Working..."
+                : "Translating..."
+              : mode === "simplify"
+                ? "Simplify & Translate"
+                : "Translate Text"}
 
             <strong>→</strong>
           </button>
@@ -506,6 +727,52 @@ export default function TranslationPage({
           </button>
 
         </div>
+
+        {/* DEMO EXAMPLES — the four development cases */}
+        {mode === "simplify" && (
+          <div className="translation-demo-section">
+
+            <div className="translation-section-heading">
+
+              <div>
+                <span className="section-label">
+                  DEMO EXAMPLES · NOT REAL ORDERS
+                </span>
+
+                <h2>
+                  Four lines written for development
+                </h2>
+              </div>
+
+              <p className="translation-demo-note">
+                These are sample sentences invented to test
+                the simplification pipeline. They are not
+                excerpts from any real case, and no real
+                party, date or order is represented by them.
+              </p>
+
+            </div>
+
+            <div className="translation-demo-grid">
+              {DEMO_LINES.map((line) => (
+                <button
+                  type="button"
+                  key={line.label}
+                  onClick={() => {
+                    setText(line.text);
+                    setSimplifyResult(null);
+                    setError("");
+                  }}
+                >
+                  <strong>{line.label}</strong>
+                  <small>{line.note}</small>
+                  <code>{line.text}</code>
+                </button>
+              ))}
+            </div>
+
+          </div>
+        )}
 
         {/* QUICK EXAMPLES */}
         <div className="translation-example-section">

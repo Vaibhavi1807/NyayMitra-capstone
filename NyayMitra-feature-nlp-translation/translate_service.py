@@ -28,6 +28,21 @@ from court_order_explain_pipeline import (
     process_upload,
     safe_filename,
 )
+from court_order_simple_english import build_layers, plain_summary
+from functools import lru_cache
+from legal_simplification import (
+    MAX_INPUT_CHARS,
+    SUPPORTED_TARGET_LANGS,
+    UNPRESERVED_WARNING,
+    cut_after_marker,
+    cut_before_marker,
+    mask_for_translation,
+    restore_translation,
+    simplify_legal_text,
+    unpreserved_references,
+    with_lead_in,
+    with_trail_in,
+)
 from fastapi.responses import JSONResponse
 from glossary_matcher import find_glossary_matches
 from next_steps_guidance_lookup import (
@@ -67,7 +82,10 @@ LANG_CODE_MAP = {
 }
 SOURCE_LANG = "eng_Latn"
 
-API_KEY = "nyaymitra-local-test-2026"  # TODO: move to an environment variable before final submission
+# A local development key, read from the environment so nothing has to
+# be edited to change it. The default is not a secret — the same string
+# ships in the frontend config and in this service's own tests.
+API_KEY = os.environ.get("NYAYMITRA_NLP_KEY", "nyaymitra-local-test-2026")
 
 ip = IndicProcessor(inference=True)
 tokenizer = None
@@ -593,6 +611,10 @@ async def court_order_extract(
 class CourtOrderExplainRequest(BaseModel):
     text: str = Field(..., min_length=1)
     filename: str = ""
+    # Optional: which language the third layer should be in. English
+    # by default, so a client that only ever sends {text, filename}
+    # gets the response it has always got.
+    language: str = "en"
 
 
 def _translator_for(language: str):
@@ -719,12 +741,62 @@ async def _explain_pasted_text(request: Request) -> dict:
     if not text:
         raise HTTPException(status_code=400, detail="No text to explain.")
 
+    language = (payload.language or "en").strip().lower()
+    if language not in {"en", "hi", "mr"}:
+        language = "en"
+
     explained = explain_text(text)
+
+    # The same three layers the uploaded-PDF path returns: what the
+    # court wrote, what it says in plain words, and — when asked for —
+    # that plain English in Hindi or Marathi.
+    layers = build_layers(
+        explained["summary"], plain=plain_summary(explained["points"])
+    )
+
+    if language != "en":
+        translator = _translator_for(language)
+        translated = None
+        headline = None
+
+        try:
+            translated = translator(layers["simple"] or "") or None
+            headline = translator(explained["summary"]) or None
+        except Exception as exc:  # noqa: BLE001 - English stays complete
+            logging.getLogger("nyaymitra.court_order").warning(
+                "pasted-text translation failed: %r", exc
+            )
+            translated = None
+            headline = None
+
+        layers["translated"] = translated
+
+        if translated:
+            explained["summary"] = headline or explained["summary"]
+            explained["translation"] = {
+                "requested": language,
+                "applied": True,
+                "reason": "",
+                "layer": "simple",
+            }
+        else:
+            explained["translation"] = {
+                "requested": language,
+                "applied": False,
+                "reason": (
+                    "Translation could not be completed. "
+                    "The English text above is complete."
+                ),
+            }
+
+    explained["layers"] = layers
+    explained["language"] = language
 
     log_access(
         "/api/court-order/explain",
         f"mode=text filename={payload.filename or '-'} chars={len(text)} "
-        f"points={len(explained['points'])} terms={len(explained['terms'])}",
+        f"points={len(explained['points'])} terms={len(explained['terms'])} "
+        f"lang={language}",
     )
 
     return {"filename": payload.filename, **explained}
@@ -741,8 +813,18 @@ async def court_order_explain(request: Request, auth=Depends(verify_api_key)):
       split into Case Details / Proceedings / Order / Signatures /
       Document Certification, every section explained, and optionally
       translated to Hindi or Marathi;
-    * ``application/json`` with ``{text, filename}`` — the pasted-text
-      path, unchanged.
+    * ``application/json`` with ``{text, filename, language?}`` — the
+      pasted-text path, English-only unless a language is named.
+
+    Both answer with the same three layers, on the document and on
+    every section it contains::
+
+        layers.legal       the order as the court wrote it
+        layers.simple      the same words, in everyday English
+        layers.translated  that plain English in Hindi or Marathi
+
+    The model is given the middle layer, never the legalese, so the
+    last step reads the way a person would say it.
 
     Nothing is asserted that was not in the document: if the order does
     not use recognisable wording, the response says so instead of
@@ -973,6 +1055,259 @@ def guidance_endpoint(
         "candidates": [],
         "disclaimer": data["disclaimer"],
     }
+
+
+# ---------------------------------------------------------------------------
+# LEGAL LANGUAGE -> SIMPLE LANGUAGE -> MARATHI / HINDI
+#
+# One request, three layers back:
+#
+#     original_text      the words exactly as they were filed
+#     simple_english     the same words, in everyday English
+#     translated_text    that plain English, in the target
+#
+# Layers one and two are pure Python -- the phrase rules in
+# legal_simplification_rules.json, no model, no network -- so a request
+# for English alone costs nothing but the rules. Only layer three reaches
+# IndicTrans2, and it is the *same* en->indic checkpoint that /api/translate
+# and /api/court-order/explain already load, guarded by the same lock and
+# released by the same reaper. This endpoint therefore adds no model to
+# the service's memory and no second FastAPI app to the process.
+#
+# The answer is deliberately six keys and no more. The frontend renders
+# those six and shows the legal-aid disclaimer itself; a seventh field
+# here would become a seventh thing to maintain on both sides.
+# ---------------------------------------------------------------------------
+
+# IndicTrans2 may hand `2026` back as `२०२६`. A date written that way is
+# preserved, and a check that only knew ASCII digits would report a loss
+# that never happened.
+_DIGIT_TRANSLATION = str.maketrans("०१२३४५६७८९", "0123456789")
+
+
+def _value_survives(text: str, value: str) -> bool:
+    """Is `value` still findable in `text`, in whichever script it arrived?"""
+    if value in text:
+        return True
+
+    if not any(char.isdigit() for char in value):
+        return False  # a name or a court heading has to appear literally
+
+    return value.translate(_DIGIT_TRANSLATION) in text.translate(
+        _DIGIT_TRANSLATION
+    )
+
+
+@lru_cache(maxsize=128)
+def _translate_simple_layer(
+    simple_english: str,
+    target_lang: str,
+) -> tuple[str, tuple[str, ...]]:
+    """Plain English in, that same text in `target_lang` out.
+
+    Everything a translation must not be allowed to alter -- CNR and case
+    numbers, sums of money, section numbers, dates, the court's own
+    heading and the names of the people in it -- is lifted out first and
+    put back byte for byte afterwards.
+
+    IndicTrans2 does not keep every placeholder it is given, so the first
+    pass is followed by two *shaped* retries: one puts a short sentence in
+    front of the text, one puts it after, and each is cut back off at a
+    marker before the result is accepted. A placeholder run that opens the
+    input is dropped by the model unless something real precedes it; a
+    placeholder that closes it is dropped unless something follows. A
+    shaped attempt is only taken when it brings back something the pass
+    before it lost.
+
+    If that still leaves a value missing, the text is translated once more
+    with no mask at all, and the retry is accepted only when it
+    demonstrably carries every dropped value. Otherwise the best masked
+    answer stands and the caller is told which references could not be
+    confirmed: a warning, never a page that quietly loses a deadline.
+
+    Cached on (text, language), so asking for the same section twice --
+    the document first, then one of its sections -- costs one model call
+    rather than two. The cache is bounded, so a reader who opens fifty
+    sections cannot grow it without end.
+    """
+    masked, slots = mask_for_translation(simple_english)
+
+    with _loaded("en_indic"):
+        translated = translate(masked, target_lang)
+
+    restored, missing = restore_translation(translated, slots)
+    pending = list(missing)
+
+    for build, cut in (
+        (with_lead_in, cut_after_marker),
+        (with_trail_in, cut_before_marker),
+    ):
+        if not pending:
+            break
+
+        shaped = build(masked, slots)
+        if shaped is None:
+            continue
+
+        payload, marker = shaped
+        try:
+            with _loaded("en_indic"):
+                raw = translate(payload, target_lang)
+        except Exception:  # noqa: BLE001 - the pass before it still stands
+            continue
+
+        body = cut(raw, marker)
+        if body is None:
+            continue  # the marker went the way of the placeholders
+
+        candidate, still = restore_translation(body, slots)
+        if len(still) < len(pending):
+            restored, pending = candidate, list(still)
+
+    if pending:
+        # Last resort: no mask at all. A literal value sitting in free
+        # text survives translation far more often than a `{0}` token
+        # does -- but it also comes back transliterated more often, so
+        # the retry has to be *proved* to carry every value before it is
+        # allowed to replace an answer that kept them all verbatim.
+        try:
+            with _loaded("en_indic"):
+                retry = translate(simple_english, target_lang)
+        except Exception:  # noqa: BLE001 - the masked answer still stands
+            retry = ""
+
+        if retry and all(_value_survives(retry, value) for value in pending):
+            restored, pending = retry, []
+
+    if not (restored or "").strip():
+        # The model produced nothing usable at any point. Saying so is
+        # better than returning an empty layer three.
+        raise RuntimeError("the model returned no text")
+
+    return restored, tuple(pending)
+
+
+class LegalSimplifyRequest(BaseModel):
+    # Defaults mean a client that posts only `text` still gets Marathi,
+    # which is what the frontend's language chooser starts on.
+    text: str = ""
+    # IndicTrans2's own codes rather than the frontend's "hi"/"mr": this
+    # endpoint names the target the way the model names it, because that
+    # is what it is being asked to produce.
+    target_lang: str = "mar_Deva"
+
+
+class LegalSimplifyResponse(BaseModel):
+    original_text: str
+    simple_english: str
+    translated_text: str
+    target_lang: str
+    glossary_terms_used: list[str]
+    warnings: list[str]
+
+
+@app.post("/api/legal-simplify", response_model=LegalSimplifyResponse)
+def legal_simplify_endpoint(
+    req: LegalSimplifyRequest,
+    auth=Depends(verify_api_key),
+):
+    """Legal wording in; the original, the plain English and the
+    translation back -- with everything the service could not promise
+    said out loud in `warnings`."""
+    text = (req.text or "").strip()
+
+    if not text:
+        raise HTTPException(status_code=400, detail="Nothing to simplify.")
+
+    if len(req.text) > MAX_INPUT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"That text is too long to simplify in one go "
+                f"({len(req.text)} characters; the limit is "
+                f"{MAX_INPUT_CHARS}). Send it one section at a time."
+            ),
+        )
+
+    if req.target_lang not in SUPPORTED_TARGET_LANGS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported target_lang. Supported: "
+                + ", ".join(SUPPORTED_TARGET_LANGS)
+                + "."
+            ),
+        )
+
+    simplified = simplify_legal_text(req.text)
+    warnings = list(simplified.warnings)
+
+    # Glossary terms come from the existing matcher, so the terms
+    # reported here are the same ones /api/translate reports. Both
+    # layers are searched: the plain-English rewrite sometimes names a
+    # formal term that the original phrased differently.
+    glossary_terms_used: list[str] = []
+    for source in (req.text, simplified.simple_english):
+        for match in find_glossary_matches(source):
+            term = match.get("formal_term", "")
+            if term and term not in glossary_terms_used:
+                glossary_terms_used.append(term)
+
+    # English as the target asks for the plain layer and nothing else --
+    # no model call at all, so `translated_text` is that same layer.
+    if req.target_lang == "eng_Latn":
+        translated_text = simplified.simple_english
+        dropped: tuple[str, ...] = ()
+    else:
+        try:
+            translated_text, dropped = _translate_simple_layer(
+                simplified.simple_english,
+                req.target_lang,
+            )
+        except Exception:  # noqa: BLE001
+            logging.getLogger("nyaymitra.simplify").exception(
+                "legal-simplify translation failed (%d chars -> %s)",
+                len(simplified.simple_english),
+                req.target_lang,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Translation failed. Please try again.",
+            ) from None
+
+    # Two independent checks, one message. `dropped` covers the values
+    # that were masked and came back without their token; the second
+    # catches a date the model rewrote in passing. Either way the
+    # reader is told which reference to go and look for, not left to
+    # notice a missing date on their own.
+    lost = list(dropped)
+    for value in unpreserved_references(simplified.simple_english, translated_text):
+        if value not in lost:
+            lost.append(value)
+
+    if lost:
+        warnings.append(UNPRESERVED_WARNING.format(items=", ".join(lost)))
+
+    seen: list[str] = []
+    for warning in warnings:
+        if warning not in seen:
+            seen.append(warning)
+
+    log_access(
+        "/api/legal-simplify",
+        f"chars={len(req.text)} target={req.target_lang} "
+        f"rules={len(simplified.rules_applied)} "
+        f"glossary={len(glossary_terms_used)} warnings={len(seen)}",
+    )
+
+    return LegalSimplifyResponse(
+        original_text=simplified.original_text,
+        simple_english=simplified.simple_english,
+        translated_text=translated_text,
+        target_lang=req.target_lang,
+        glossary_terms_used=glossary_terms_used,
+        warnings=seen,
+    )
 
 
 @app.get("/health")
