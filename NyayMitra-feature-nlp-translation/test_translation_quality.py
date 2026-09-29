@@ -1,7 +1,14 @@
+import os
+
 import requests
 import json
 
 URL = "http://localhost:8001/api/translate"
+
+# /api/translate is behind the same key as every other endpoint:
+# without it the answer is a 401 and no translation ever runs.
+API_KEY = os.environ.get("NYAYMITRA_NLP_KEY", "nyaymitra-local-test-2026")
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 test_cases = [
     {"case_id": "demo", "source_text": "The present writ petition is disposed of.", "target_lang": "hi"},
@@ -13,7 +20,10 @@ test_cases = [
 output_lines = []
 
 for i, case in enumerate(test_cases, start=1):
-    response = requests.post(URL, json=case)
+    # /api/translate names the source language explicitly; everything
+    # below is written in English.
+    payload = {"source_lang": "en", **case}
+    response = requests.post(URL, json=payload, headers=HEADERS)
     data = response.json()
 
     line = (

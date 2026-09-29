@@ -406,6 +406,109 @@ def test_explain_marathi_translation(fixtures, live_service):
 
 
 # ---------------------------------------------------------------------------
+# THE THREE LAYERS — legal text → simple English → translation
+# ---------------------------------------------------------------------------
+
+def test_simple_english_rewrites_the_legalese_not_the_content():
+    """The middle layer is a rewrite of *wording* — no service needed."""
+    from court_order_simple_english import simplify_text
+
+    plain = simplify_text(
+        "The matter is adjourned to 15-05-2026. The learned counsel "
+        "for the petitioner may prefer an appeal."
+    )
+
+    assert "The hearing has been postponed to 15-05-2026." in plain
+    assert "The lawyer for the petitioner may file an appeal." in plain
+    assert "adjourned" not in plain
+
+    # Dates, case numbers and party names pass through byte for byte.
+    untouched = (
+        "Petitioner: RAMESH KUMAR versus Respondent: STATE OF MAHARASHTRA"
+    )
+    assert simplify_text(untouched) == untouched
+
+    # Nothing with no plain equivalent is guessed at.
+    assert simplify_text("Nothing here is legalese.") == (
+        "Nothing here is legalese."
+    )
+
+    assert simplify_text("") == ""
+    assert simplify_text(None) == ""
+
+
+def test_explain_three_layers_english(fixtures, live_service):
+    response = _upload(fixtures["short"])
+    assert response.status_code == 200, _describe(response)
+
+    body = response.json()
+    layers = body["layers"]
+
+    assert layers["legal"], layers
+    assert layers["simple"], layers
+    assert layers["translated"] is None, "English asks for no third layer"
+
+    # The document's own middle layer is the plain reading.
+    assert "postponed" in layers["simple"]
+
+    for section in body["sections"]:
+        if not section["available"]:
+            assert section["layers"] == {
+                "legal": None,
+                "simple": None,
+                "translated": None,
+            }
+            assert section["simple_text"] is None
+            continue
+
+        assert section["layers"]["legal"] == section["text"]
+        assert section["simple_text"] == section["layers"]["simple"]
+        assert section["layers"]["translated"] is None
+
+    # The postponement, wherever the splitter put it: written one way
+    # in step one and the plain way in step two.
+    legal = " ".join(
+        section["layers"]["legal"] or "" for section in body["sections"]
+    )
+    simple = " ".join(
+        section["layers"]["simple"] or "" for section in body["sections"]
+    )
+
+    assert "adjourned" in legal
+    assert "postponed" in simple
+    assert "adjourned" not in simple
+    assert "next hearing date" in simple, simple
+
+
+def test_explain_three_layers_marathi(fixtures, live_service):
+    response = _upload(fixtures["short"], language="mr")
+    assert response.status_code == 200, _describe(response)
+
+    body = response.json()
+    assert body["language"] == "mr"
+
+    layers = body["layers"]
+    assert layers["legal"] and layers["simple"] and layers["translated"]
+    assert _has_devanagari(layers["translated"])
+
+    # Steps one and two stay in English — the model only ever sees
+    # the simple layer, never the legalese.
+    assert not _has_devanagari(layers["legal"])
+    assert not _has_devanagari(layers["simple"])
+    assert (body.get("translation") or {}).get("layer") == "simple"
+
+    for section in body["sections"]:
+        if not section["available"]:
+            continue
+
+        assert section["layers"]["legal"] == section["text"]
+        assert section["simple_text"] == section["layers"]["simple"]
+        assert _has_devanagari(section["layers"]["translated"] or "")
+        # The section body the screen has always shown is step three.
+        assert section["translated_text"] == section["layers"]["translated"]
+
+
+# ---------------------------------------------------------------------------
 # THE PASTED-TEXT PATH (regression — this is what shipped before)
 # ---------------------------------------------------------------------------
 
@@ -424,6 +527,9 @@ def test_explain_pasted_text_shape(fixtures, live_service):
     assert response.status_code == 200, _describe(response)
     body = response.json()
 
+    # Two fields were added to this answer on purpose — `language` and
+    # `layers` — so a pasted order is shown in the same three steps an
+    # uploaded one is. Everything else the shipped shape had is here.
     assert set(body) == {
         "filename",
         "summary",
@@ -431,12 +537,25 @@ def test_explain_pasted_text_shape(fixtures, live_service):
         "key_dates",
         "terms",
         "disclaimer",
+        "language",
+        "layers",
     }
     assert body["filename"] == "pasted.txt"
     assert body["summary"]
     assert body["points"][0]["heading"]
     assert body["key_dates"] == []
     assert "not legal advice" in body["disclaimer"]
+
+    assert body["language"] == "en"
+    assert body["layers"]["legal"]
+    assert body["layers"]["simple"]
+    assert body["layers"]["translated"] is None
+
+    # Step two is the plain reading of the order: no legalese, same
+    # meaning — the rules call the rejection "was refused".
+    assert "hereby" in body["layers"]["legal"]
+    assert "hereby" not in body["layers"]["simple"]
+    assert "refused" in body["layers"]["simple"]
 
 
 def test_explain_pasted_text_requires_words(fixtures, live_service):
@@ -447,6 +566,58 @@ def test_explain_pasted_text_requires_words(fixtures, live_service):
         timeout=TIMEOUT,
     )
     assert response.status_code == 400, _describe(response)
+
+
+def test_explain_pasted_text_three_layers_marathi(fixtures, live_service):
+    response = requests.post(
+        f"{BASE}/api/court-order/explain",
+        json={
+            "text": (
+                "The matter is adjourned to the next date of hearing. "
+                "The petitioner may prefer an appeal."
+            ),
+            "filename": "pasted.txt",
+            "language": "mr",
+        },
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
+
+    assert response.status_code == 200, _describe(response)
+    body = response.json()
+
+    assert body["language"] == "mr"
+    assert body["layers"]["legal"]
+    assert body["layers"]["simple"]
+    assert "adjourned" in body["layers"]["legal"]
+    assert "postponed" in body["layers"]["simple"]
+
+    assert _has_devanagari(body["layers"]["translated"] or "")
+    assert _has_devanagari(body["summary"])
+    assert (body.get("translation") or {}).get("applied") is True
+
+
+def test_explain_pasted_text_unknown_language_stays_english(
+    fixtures, live_service,
+):
+    response = requests.post(
+        f"{BASE}/api/court-order/explain",
+        json={
+            "text": "The application for bail is hereby rejected.",
+            "filename": "pasted.txt",
+            "language": "klingon",
+        },
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
+
+    assert response.status_code == 200, _describe(response)
+    body = response.json()
+
+    assert body["language"] == "en"
+    assert body["layers"]["translated"] is None
+    assert "translation" not in body
+    assert "hereby" not in body["layers"]["simple"]
 
 
 def test_explain_rejects_garbage_body(fixtures, live_service):

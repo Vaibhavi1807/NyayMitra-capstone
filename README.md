@@ -137,6 +137,7 @@ be set for the app to run.
 | `VITE_API_BASE_URL` | `http://127.0.0.1:8000` | Lawyer service |
 | `VITE_TRANSLATION_API_URL` | `http://127.0.0.1:8001` | NLP service |
 | `VITE_TRANSLATION_API_KEY` | `nyaymitra-local-test-2026` | Bearer key the NLP service expects |
+| `NYAYMITRA_NLP_KEY` | `nyaymitra-local-test-2026` | The service-side half of that key — the NLP service reads it, so the two must be set together |
 | `VITE_LAWYER_ID` | `LAWYER_0003` | Profile opened during development; the session overrides it after login |
 | `VITE_AUTH_MODE` | `mock` | `mock` works today; `api` expects `POST /api/auth/login` |
 | `VITE_CHAT_MODE` | `mock` | Conversations kept in `localStorage` until chat endpoints land |
@@ -272,7 +273,28 @@ Order, Signatures, Document Certification — with `metadata.ocr_used`,
 (PDF only, size cap), scanned for active content, extracted to a temp
 file that is always deleted, and never executed; sections the document
 does not contain come back as `"Not available in the document."` rather
-than as invented text. `/api/guidance` is the rule scorer behind **Voice NyayMitra**. A rule
+than as invented text.
+
+Every answer — the document and each of its sections — arrives in three
+layers:
+
+```text
+layers.legal       the order exactly as the court wrote it
+layers.simple      the same words, in everyday English
+layers.translated  that plain English in हिंदी / मराठी
+```
+
+The middle layer is a deterministic rewrite of *wording* only
+(`court_order_simple_english.py`): "the matter is adjourned" becomes
+"the hearing has been postponed", while names, dates, case numbers and
+citations pass through untouched, and a passage with no plain
+equivalent is left exactly as written. The translation model is given
+that layer rather than the legalese, so step three reads the way a
+person would say it. Ask for `language=hi` or `language=mr` (form field
+on an upload, `language` in a JSON body for pasted text) to get step
+three; English answers with two layers.
+
+`/api/guidance` is the rule scorer behind **Voice NyayMitra**. A rule
 matches on *coverage* — how much of the rule's own phrasing the question
 actually covers — rather than on the raw score, because a near-miss can
 out-score a genuine match.

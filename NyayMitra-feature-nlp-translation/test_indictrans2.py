@@ -6,9 +6,30 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 EN_INDIC_MODEL = "ai4bharat/indictrans2-en-indic-dist-200M"
 ip = IndicProcessor(inference=True)
 
+
+def use_legacy_cache(model):
+    """The shim translate_service applies — see _use_legacy_cache there.
+
+    IndicTrans2's remote modelling code predates transformers' dynamic
+    cache and reads `past_key_values[0][0]` on the first decode step,
+    when the layers are still None. Reporting the model as not
+    supporting the default cache leaves `past_key_values=None` so the
+    model manages the legacy tuple cache itself. Without it generate()
+    raises AttributeError.
+    """
+    model.__class__._supports_default_dynamic_cache = classmethod(
+        lambda cls: False
+    )
+    return model
+
+
 def load(model_name):
     tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name, trust_remote_code=True).to(DEVICE)
+    model = use_legacy_cache(
+        AutoModelForSeq2SeqLM.from_pretrained(
+            model_name, trust_remote_code=True
+        ).to(DEVICE)
+    )
     model.eval()
     return tok, model
 

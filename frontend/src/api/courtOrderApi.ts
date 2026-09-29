@@ -1,9 +1,15 @@
 /* =========================================================
    NYAYMITRA — COURT ORDER EXPLANATION
 
-   Two calls to the NLP service, and no model behind either:
-   the service recognises the standing language an order is
-   written in and restates it plainly.
+   Two calls to the NLP service. The service recognises the
+   standing language an order is written in and restates it
+   plainly, and every answer arrives in three layers:
+
+       Original legal text  →  Simple English  →  मराठी / हिंदी
+
+   The third layer only exists when a language was asked for, and
+   it is the *plain* layer that gets translated — legalese does
+   not survive a translation model, everyday words do.
 
    Extraction is allowed to fail — a scanned image on a host
    without OCR simply cannot be read — and that failure comes
@@ -34,6 +40,31 @@ export interface ExplainTerm {
   plain: string;
 }
 
+/** What a translation did, when one was asked for. */
+export interface ExplainTranslation {
+  requested: string;
+  applied: boolean;
+  reason: string;
+  /** Which layer the model was given — always the simple one. */
+  layer?: string;
+}
+
+/**
+ * The three layers one piece of text is offered in:
+ *
+ *     legal       the order as the court wrote it
+ *     simple      the same words, in everyday English
+ *     translated  that plain English in the requested language
+ *
+ * `translated` is null until a language other than English is asked
+ * for, and every field is null for a section the document lacks.
+ */
+export interface CourtOrderLayers {
+  legal: string | null;
+  simple: string | null;
+  translated: string | null;
+}
+
 export interface ExplainResult {
   filename: string;
   summary: string;
@@ -41,6 +72,9 @@ export interface ExplainResult {
   key_dates: string[];
   terms: ExplainTerm[];
   disclaimer: string;
+  language?: string;
+  layers?: CourtOrderLayers;
+  translation?: ExplainTranslation;
 }
 
 async function readDetail(
@@ -90,10 +124,11 @@ export async function extractOrderText(
   return (await response.json()) as ExtractResult;
 }
 
-/** Plain-language reading of an order's text. */
+/** Plain-language reading of an order's text, in three layers. */
 export async function explainOrderText(
   text: string,
   filename: string,
+  language = "en",
 ): Promise<ExplainResult> {
   const response = await fetch(
     `${TRANSLATION_API_BASE_URL}/api/court-order/explain`,
@@ -103,7 +138,7 @@ export async function explainOrderText(
         Authorization: `Bearer ${TRANSLATION_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ text, filename }),
+      body: JSON.stringify({ text, filename, language }),
     },
   );
 
@@ -137,6 +172,9 @@ export interface CourtOrderSection {
   title: string;
   available: boolean;
   text: string | null;
+  /** The middle layer, also carried inside `layers`. */
+  simple_text?: string | null;
+  layers?: CourtOrderLayers;
   paragraphs: CourtOrderParagraph[];
   page_start: number | null;
   page_end: number | null;
@@ -160,17 +198,15 @@ export interface UploadExplainResult {
   filename: string;
   language: string;
   summary: string;
+  /** The document's three layers: legal → simple English → translated. */
+  layers?: CourtOrderLayers;
   sections: CourtOrderSection[];
   metadata: CourtOrderMetadata;
   points: ExplainPoint[];
   key_dates: string[];
   terms: ExplainTerm[];
   disclaimer: string;
-  translation?: {
-    requested: string;
-    applied: boolean;
-    reason: string;
-  };
+  translation?: ExplainTranslation;
 }
 
 /** Read a court order PDF and explain it, in one request. */

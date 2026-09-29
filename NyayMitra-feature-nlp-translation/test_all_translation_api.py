@@ -1,6 +1,12 @@
+import os
+
 import requests
 
 URL = "http://localhost:8001/api/translate"
+
+# Same key the service checks — see translate_service.verify_api_key.
+API_KEY = os.environ.get("NYAYMITRA_NLP_KEY", "nyaymitra-local-test-2026")
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 test_cases = [
     {"case_id": "12345", "source_text": "Matter adjourned sine die", "target_lang": "hi"},
@@ -13,7 +19,10 @@ test_cases = [
 output_lines = []
 
 for i, case in enumerate(test_cases, start=1):
-    response = requests.post(URL, json=case)
+    # /api/translate names the source language explicitly; everything
+    # below is written in English.
+    payload = {"source_lang": "en", **case}
+    response = requests.post(URL, json=payload, headers=HEADERS)
 
     if response.status_code == 200:
         data = response.json()

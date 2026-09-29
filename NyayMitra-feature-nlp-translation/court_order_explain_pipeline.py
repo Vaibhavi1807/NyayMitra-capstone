@@ -15,8 +15,14 @@ Order of operations, and why:
    Details, Proceedings, Order, Signatures, Document Certification.
 5. **Explanation** (``court_order_explainer``) — the same rules the
    pasted-text path uses.
-6. **Optional translation** to Hindi or Marathi, passed in as a
-   callable by the service so the model lifecycle stays there.
+6. **The three layers** (``court_order_simple_english``) — every
+   section and the document itself come back as *original legal
+   text* → *simple English*, the middle layer being the order's own
+   wording with only its legalese replaced.
+7. **Optional translation** to Hindi or Marathi, passed in as a
+   callable by the service so the model lifecycle stays there. The
+   model is given the simple layer, not the legalese, so step three
+   reads the way a person would say it.
 
 The PDF itself is only ever read as bytes: it is written to a private
 temporary file so the page renderer can seek it, and that file is
@@ -34,6 +40,7 @@ from typing import Any, Callable
 
 from court_order_explainer import EXPLAIN_DISCLAIMER, explain_text, first_sentence
 from court_order_section_splitter import split_court_order
+from court_order_simple_english import build_layers, plain_summary
 from court_order_translation_pipeline import build_splitter_input
 from pdf_security_scan import PDFSecurityError, secure_validate_pdf
 from upload_validation import PDF_MAX_SIZE_BYTES, UploadValidationError, validate_pdf_upload
@@ -234,6 +241,8 @@ def _build_sections(split_result: dict[str, Any]) -> list[dict[str, Any]]:
                     "title": title,
                     "available": False,
                     "text": None,
+                    "simple_text": None,
+                    "layers": build_layers(None),
                     "paragraphs": [],
                     "page_start": None,
                     "page_end": None,
@@ -246,12 +255,18 @@ def _build_sections(split_result: dict[str, Any]) -> list[dict[str, Any]]:
 
         explained = explain_text(body, fallback_summary=title)
 
+        # The middle layer of the three shown for this section: the
+        # section's own wording, rewritten in plain words.
+        layers = build_layers(body)
+
         sections.append(
             {
                 "section_id": section_id,
                 "title": title,
                 "available": True,
                 "text": body,
+                "simple_text": layers["simple"],
+                "layers": layers,
                 "paragraphs": paragraphs,
                 "page_start": section.get("page_start"),
                 "page_end": section.get("page_end"),
@@ -330,6 +345,12 @@ def process_upload(
         "filename": filename,
         "language": language,
         "summary": explained["summary"],
+        # The three layers the reader is shown, in order: the order as
+        # it is written, what it says in plain English, and — when a
+        # language was asked for — that plain English translated.
+        "layers": build_layers(
+            explained["summary"], plain=plain_summary(explained["points"])
+        ),
         "sections": sections,
         "metadata": {
             "ocr_used": extraction["ocr_used"],
@@ -361,19 +382,44 @@ def _translate_result(
     translate: TranslateFn,
     language: str,
 ) -> dict[str, Any]:
-    """Translate the summary and every available section, if we can.
+    """The third layer: the simple English, translated.
+
+    The model is handed the *plain* layer rather than the legalese —
+    a sentence already in everyday words survives a small translation
+    model, and a line of statutes often does not. Layer one (the order
+    as written) stays in the response untouched, so the reader can
+    step down all three and compare them.
 
     A model failure does not throw the English answer away: the text
     stays as it is and the response records why it is not translated.
     """
     try:
-        result["summary"] = translate(result["summary"]) or result["summary"]
+        layers = result.get("layers") or {}
+        legal_summary = result["summary"]
+        simple_summary = layers.get("simple") or legal_summary
+
+        translated_summary = translate(legal_summary) or legal_summary
+        result["summary"] = translated_summary
+
+        layers["translated"] = (
+            translated_summary
+            if simple_summary == legal_summary
+            else translate(simple_summary) or None
+        )
+        result["layers"] = layers
 
         for section in result["sections"]:
             if not section["available"] or not section["text"]:
                 continue
 
-            section["translated_text"] = translate(section["text"]) or None
+            simple = section.get("simple_text") or section["text"]
+            translated = translate(simple) or None
+
+            section["translated_text"] = translated
+
+            section_layers = section.get("layers")
+            if isinstance(section_layers, dict):
+                section_layers["translated"] = translated
     except Exception as exc:  # noqa: BLE001 - degrade, never lose the text
         logger.warning("court order translation failed: %r", exc)
         return {
@@ -385,7 +431,13 @@ def _translate_result(
             ),
         }
 
-    return {"requested": language, "applied": True, "reason": ""}
+    return {
+        "requested": language,
+        "applied": True,
+        "reason": "",
+        # Which layer the model was given — always step two.
+        "layer": "simple",
+    }
 
 
 def safe_filename(filename: str | None) -> str:
