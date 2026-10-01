@@ -1,6 +1,6 @@
 import gc
+import json
 import os
-import re
 import threading
 import time
 import uuid
@@ -45,24 +45,19 @@ from legal_simplification import (
 )
 from fastapi.responses import JSONResponse
 from glossary_matcher import find_glossary_matches
-from next_steps_guidance_lookup import (
-    find_related_glossary_terms,
-    load_guidance_data,
-)
+# The guidance set itself (load_guidance_data, find_related_glossary_terms)
+# is now reached through guidance_matching, which does the scoring and
+# the shaping; nothing here reads it directly any more.
+from guidance_matching import match_guidance
+from incident_analysis import analyze_incident
+from case_companion import answer_case_question
+from conversation_context import CONVERSATIONS
+import what_happened_service as what_happened
 import logging
-from datetime import datetime as dt
 
-logging.basicConfig(
-    filename="access_audit.log",
-    level=logging.INFO,
-    format="%(asctime)s | %(message)s",
-)
-
-def log_access(endpoint: str, detail: str = ""):
-    logging.info(f"ACCESS endpoint={endpoint} {detail}")
-import logging
-from datetime import datetime as dt
-
+# The access-audit block below used to be pasted twice (identical
+# second copy); one copy remains — `datetime` itself is already
+# imported at the top of the file.
 logging.basicConfig(
     filename="access_audit.log",
     level=logging.INFO,
@@ -839,131 +834,18 @@ async def court_order_explain(request: Request, auth=Depends(verify_api_key)):
 
 
 # ---------------------------------------------------------------------------
-# NEXT STEPS — "what should I do now", from whatever the person said.
+# NEXT STEPS - what should I do now, from whatever the person said.
 #
-# The guidance set is keyed by the fifty case-stage phrases the court
-# system uses. Somebody describing their situation in their own words
-# will not type those phrases, so the rule is matched by scoring the
-# words they did use against each rule's own vocabulary — the stage
-# phrases carry the weight, description wording only breaks ties.
+# The scoring itself lives in guidance_matching.py, shared with the
+# case companion in case_companion.py: one scorer, two callers, so
+# /api/guidance and a case question about a stated stage cannot
+# disagree about which case stage a description belongs to. The
+# vocabulary weights and the coverage bar are documented over there.
 #
-# `urgency` comes back too, and it is a lookup against that same set,
-# not a model's opinion about a particular incident. The screen says
-# so; the incident-urgency model replaces it later without this
-# endpoint changing shape.
+# The incident workflow (/api/incident/analyze) deliberately does not
+# call this: an incident is not a court stage.
 # ---------------------------------------------------------------------------
 
-# Carried no signal when scoring. The generic nouns are in nearly every
-# stage, so a match on them would rate every rule equally. The last line
-# is different: these are the ordinary English words the stage phrases
-# happen to be built out of — "for want of time" shares "want" with a
-# sentence about wanting to open a shop, and "next date for compliance"
-# shares "date" with almost any account of a court hearing. They are
-# dropped on both sides, so a stage is scored on what makes it that
-# stage and nothing else.
-_GUIDANCE_STOPWORDS = frozenset(
-    """
-    the a an to of for in on at by with and or not is be are was were it its
-    this that from as within till under before after up no any shall will
-    due when if then so such other another each every both few more most
-    case matter
-    want time next date part
-    """.split()
-)
-
-# The words that decide what a stage *means*. They are weighted above the
-# nouns around them for two reasons: a person's account usually contains
-# the outcome and little else, and a rule carrying one of these that the
-# account does not contain is being contradicted — which is exactly how
-# "bail application was rejected" stays on a rejected rule instead of
-# landing on the identical-looking "bail application allowed".
-_GUIDANCE_OUTCOMES = frozenset(
-    """
-    allowed granted rejected refused dismissed declined admitted withdrawn
-    reserved disposed quashed restored remanded transferred extended
-    released unserved filed pending cancelled
-    """.split()
-)
-
-# The subject the stage is about. Weighed between the outcomes and the
-# connective tissue: someone saying "bail" is talking about a bail rule,
-# and a rule that is about bail outranks one that merely mentions an
-# application.
-_GUIDANCE_SUBJECTS = frozenset(
-    """
-    bail appeal notice custody summons statement vakalatnama rejoinder
-    review revision execution anticipatory accused interim stay
-    condonation counter affidavit remand jurisdiction registrar
-    """.split()
-)
-
-
-def _guidance_terms(text: str):
-    return {
-        token
-        for token in re.findall(r"[a-z]+", text.lower())
-        if len(token) > 1 and token not in _GUIDANCE_STOPWORDS
-    }
-
-
-def _guidance_weight(term: str) -> int:
-    if term in _GUIDANCE_OUTCOMES:
-        return 3
-    if term in _GUIDANCE_SUBJECTS:
-        return 2
-    return 1
-
-
-# A third of the stage's weighted vocabulary is a knife-edge: a
-# single shared word in a three-word stage lands exactly there,
-# so one word in three stops counting and one word in two still
-# does.
-_GUIDANCE_MATCH_COVERAGE = 0.35
-
-# Worth mentioning as "closest stages" when nothing cleared the
-# bar, but never close enough to act on — and only if the shared
-# words include one that carries weight. "Want" from "for want of
-# time" is a connective in somebody's sentence about opening a
-# shop, not a sign they are describing an adjournment.
-_GUIDANCE_NEAR_COVERAGE = 0.15
-_GUIDANCE_NEAR_MIN_WEIGHT = 2
-
-
-def _score_guidance_rule(tokens, rule):
-    """(score, coverage, shared_weight) for one rule.
-
-    All three are always computed — the endpoint needs to tell
-    the difference between "nothing here at all" and "some of
-    this is here, just not enough to act on", and between
-    sharing a word that means something and sharing a
-    connective, because only the first of those is worth
-    offering back as a near miss.
-    """
-    stage_terms = _guidance_terms(rule["case_stage"])
-
-    if not stage_terms:
-        return 0.0, 0.0, 0
-
-    total = sum(_guidance_weight(term) for term in stage_terms)
-    shared = sum(
-        _guidance_weight(term) for term in stage_terms if term in tokens
-    )
-    coverage = shared / total
-
-    # Description wording adds a little, but only for words long enough
-    # to be specific — "court" and "date" appear in half the set.
-    other_terms = (
-        _guidance_terms(rule["description"])
-        | _guidance_terms(rule["suggested_action"])
-    ) - stage_terms
-
-    secondary = sum(
-        0.35
-        for term in other_terms
-        if len(term) >= 6 and term in tokens
-    )
-
-    return shared + secondary + coverage * 1.5, coverage, shared
 
 
 class GuidanceRequest(BaseModel):
@@ -981,80 +863,26 @@ def guidance_endpoint(
     if not text:
         raise HTTPException(status_code=400, detail="Nothing to read.")
 
-    data = load_guidance_data()
-    tokens = _guidance_terms(text)
+    # One scorer, one shaper (guidance_matching.match_guidance): this
+    # endpoint and /api/incident/analyze must never disagree about
+    # which case stage a description belongs to.
+    match = match_guidance(text)
 
-    rows = [
-        (*_score_guidance_rule(tokens, rule), rule)
-        for rule in data["guidance_v2"]
-    ]
-
-    # Matching is decided on coverage, never on score. Score
-    # mixes in shared and secondary words, so a rule sharing two
-    # weight-1 words can out-score one that clears the bar on a
-    # single subject — and taking the top of that list would let
-    # a near miss occupy the answer.
-    eligible = [row for row in rows if row[1] >= _GUIDANCE_MATCH_COVERAGE]
-    eligible.sort(key=lambda row: (row[0], row[1]), reverse=True)
-
-    rows.sort(key=lambda row: (row[0], row[1]), reverse=True)
-
-    if not eligible:
+    if not match.matched:
         log_access(
             "/api/guidance",
             f"chars={len(text)} matched=no "
-            f"best={rows[0][1]:.2f}",
+            f"best={match.coverage:.2f}",
         )
-        return {
-            "matched": False,
-            "stage": None,
-            "urgency": None,
-            "why": "",
-            "what_to_do_next": (
-                "Nothing you described matches a stage this service "
-                "covers, so nothing specific has been guessed. Say a "
-                "little more — a notice, a hearing date, an order, a "
-                "bail or custody situation — and it will match one of "
-                "the fifty stages in the guidance set. Meanwhile, treat "
-                "any deadline printed on your papers as real and speak "
-                "to a qualified advocate."
-            ),
-            "related_terms": [],
-            # Rules that shared a word of real weight but not enough
-            # to act on. A rule sharing only connectives — or nothing
-            # — drops out rather than being offered as "closest".
-            "candidates": [
-                {"stage": rule["case_stage"], "urgency": rule["urgency"]}
-                for _score, coverage, shared, rule in rows[:6]
-                if coverage >= _GUIDANCE_NEAR_COVERAGE
-                and shared >= _GUIDANCE_NEAR_MIN_WEIGHT
-            ][:3],
-            "disclaimer": data["disclaimer"],
-        }
-
-    best_score, best_coverage, _shared, best_rule = eligible[0]
+        return match.response
 
     log_access(
         "/api/guidance",
-        f"chars={len(text)} matched={best_rule['guidance_id']} "
-        f"score={best_score:.2f} coverage={best_coverage:.2f}",
+        f"chars={len(text)} matched={match.guidance_id} "
+        f"score={match.score:.2f} coverage={match.coverage:.2f}",
     )
 
-    return {
-        "matched": True,
-        "stage": best_rule["case_stage"],
-        "urgency": best_rule["urgency"],
-        "why": best_rule["description"],
-        "what_to_do_next": best_rule["suggested_action"],
-        "related_terms": [
-            {"term": term["formal_term"], "plain": term["plain_explanation_en"]}
-            for term in find_related_glossary_terms(
-                f"{best_rule['case_stage']} {best_rule['description']}"
-            )
-        ],
-        "candidates": [],
-        "disclaimer": data["disclaimer"],
-    }
+    return match.response
 
 
 # ---------------------------------------------------------------------------
@@ -1308,6 +1136,549 @@ def legal_simplify_endpoint(
         glossary_terms_used=glossary_terms_used,
         warnings=seen,
     )
+
+
+# ---------------------------------------------------------------------------
+# WHAT HAPPENED? — two separate workflows, one service, no new model.
+#
+#   /api/incident/analyze   WORKFLOW 1, "Tell us an incident". Reads a
+#                           description of something that happened to
+#                           the person: Member 2's classification when
+#                           its model is connected (keyword matching
+#                           over Member 1's knowledge otherwise, and
+#                           that source is reported), the incident
+#                           interpretation layer, then the structured
+#                           incident knowledge. It does *not* match a
+#                           court stage — an incident is not a stage.
+#                           Everything it cannot determine comes back
+#                           in `warnings`, `missing_information`,
+#                           `confidence` and `urgency` rather than
+#                           being guessed at.
+#
+#   /api/case-companion/ask answers WORKFLOW 2, "Ask about your case":
+#                           a question about a case from the case
+#                           information supplied *with the question*
+#                           (Member 4's My Cases data), reusing the
+#                           existing guidance engine for the stage the
+#                           record states — and saying so plainly when
+#                           that information does not cover the
+#                           question.
+#
+# Translation (layer three) reuses `_translate_simple_layer`, the same
+# entity-preserving path /api/legal-simplify uses, so a date, a CNR,
+# a section number or a sum of money survives into Marathi or Hindi
+# unchanged. Conversation memory is the bounded in-store in
+# conversation_context.py — no database, one interface.
+#
+# Both endpoints speak the same API-key convention as the rest of the
+# service: `Authorization: Bearer <NYAYMITRA_NLP_KEY>`.
+# ---------------------------------------------------------------------------
+
+# How much case information one question may carry. Generous for any
+# real case record, small enough that one request cannot pin the
+# process.
+CASE_CONTEXT_MAX_CHARS = 200_000
+
+
+class IncidentAnalyzeRequest(BaseModel):
+    description: str = ""
+    # Optional. Sent by a client that is continuing a conversation;
+    # omitted on a first, one-off question and minted by the service.
+    conversation_id: str | None = None
+    # Facts the client already established (e.g. from an earlier
+    # turn). Merged with what this conversation has already seen.
+    known_facts: dict = Field(default_factory=dict)
+    # BCP-47-ish language of the message itself, handed to Member 2's
+    # classifier when it is connected. Defaults to English; it never
+    # changes how the text is analyzed here.
+    language: str = "en"
+    # IndicTrans2's own codes, like /api/legal-simplify. eng_Latn
+    # means "no translation" and costs no model call.
+    target_lang: str = "eng_Latn"
+
+
+class CaseCompanionAskRequest(BaseModel):
+    question: str = ""
+    case_context: dict = Field(default_factory=dict)
+    conversation_id: str | None = None
+    target_lang: str = "eng_Latn"
+
+
+def _translate_texts(texts: list[str], target_lang: str) -> tuple[list[str], list[str]]:
+    """A list of prose fields into `target_lang`, plus warnings.
+
+    Every value a translation must not touch is masked by
+    `_translate_simple_layer` and put back afterwards. A field that
+    cannot be translated comes back in English rather than being
+    dropped — an untranslated sentence is better than a missing one.
+    """
+    translated: list[str] = []
+    warnings: list[str] = []
+
+    for text in texts:
+        if not text:
+            translated.append(text)
+            continue
+        try:
+            value, dropped = _translate_simple_layer(text, target_lang)
+        except Exception:  # noqa: BLE001 - keep the English and say so
+            logging.getLogger("nyaymitra.what_happened").exception(
+                "field translation failed (%d chars -> %s)",
+                len(text),
+                target_lang,
+            )
+            warnings.append(
+                "Part of this answer could not be translated and is "
+                "shown in English."
+            )
+            translated.append(text)
+            continue
+        if dropped:
+            warnings.append(
+                UNPRESERVED_WARNING.format(items=", ".join(dropped))
+            )
+        translated.append(value)
+
+    return translated, warnings
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: list[str] = []
+    for item in items:
+        if item and item not in seen:
+            seen.append(item)
+    return seen
+
+
+def _translate_analysis(result: dict, target_lang: str) -> None:
+    """Translate every prose field of an analysis result, in place."""
+    extra: list[str] = []
+
+    def one(text: str) -> str:
+        values, warnings = _translate_texts([text], target_lang)
+        extra.extend(warnings)
+        return values[0]
+
+    result["possible_issue"] = one(result["possible_issue"])
+    result["simple_explanation"] = one(result["simple_explanation"])
+    result["next_steps"] = [one(t) for t in result["next_steps"]]
+    result["missing_information"] = [
+        one(t) for t in result["missing_information"]
+    ]
+    result["evidence_to_preserve"] = [
+        one(t) for t in result["evidence_to_preserve"]
+    ]
+    result["warnings"] = [one(t) for t in result["warnings"]]
+
+    urgency = result.get("urgency") or {}
+    if urgency.get("message"):
+        urgency["message"] = one(urgency["message"])
+    if urgency.get("knowledge_indicator_note"):
+        urgency["knowledge_indicator_note"] = one(
+            urgency["knowledge_indicator_note"]
+        )
+    if urgency.get("knowledge_indicators"):
+        urgency["knowledge_indicators"] = [
+            one(t) for t in urgency["knowledge_indicators"]
+        ]
+
+    result["warnings"] = _dedupe(result["warnings"] + extra)
+
+
+# The section headings of `translated_response` — the one-string
+# rendering of the analysis, sectioned the same way the screen shows
+# it. Headings travel through the same translation path as the prose.
+ANALYSIS_HEADINGS = {
+    "told": "WHAT YOU TOLD US",
+    "involve": "WHAT THIS MAY INVOLVE",
+    "simple": "IN SIMPLE WORDS",
+    "next": "WHAT YOU CAN CONSIDER DOING",
+    "evidence": "INFORMATION / EVIDENCE TO KEEP",
+    "missing": "INFORMATION WE STILL NEED",
+    "urgency": "URGENCY / IMPORTANT WARNING",
+    "disclaimer": "DISCLAIMER",
+}
+
+
+def _headings_in(target_lang: str) -> dict[str, str]:
+    if target_lang == "eng_Latn":
+        return dict(ANALYSIS_HEADINGS)
+    keys = list(ANALYSIS_HEADINGS)
+    values, _warnings = _translate_texts(
+        [ANALYSIS_HEADINGS[key] for key in keys], target_lang
+    )
+    return dict(zip(keys, values))
+
+
+def _bullets(items: list[str]) -> str:
+    return "\n".join(f"- {item}" for item in items if item)
+
+
+def _compose_analysis_summary(result: dict, target_lang: str) -> str:
+    """The whole analysis as one sectioned string.
+
+    Composed from the (possibly already translated) fields, so it can
+    never contradict them, and carrying the same hedges and warnings —
+    this is the text somebody forwards to a family member.
+    """
+    headings = _headings_in(target_lang)
+
+    urgency = result.get("urgency") or {}
+    urgency_lines: list[str] = []
+    if urgency.get("status") == "available":
+        urgency_lines.append(
+            f"{str(urgency.get('level', '')).upper()}: "
+            f"{urgency.get('message', '')}".strip(": ")
+        )
+    elif urgency.get("message"):
+        urgency_lines.append(urgency["message"])
+    if urgency.get("knowledge_indicators"):
+        urgency_lines.extend(urgency["knowledge_indicators"])
+    urgency_lines.extend(result.get("warnings") or [])
+
+    sections: list[tuple[str, str]] = [
+        (headings["told"], result.get("what_user_described", "")),
+        (headings["involve"], result.get("possible_issue", "")),
+        (headings["simple"], result.get("simple_explanation", "")),
+        (headings["next"], _bullets(result.get("next_steps") or [])),
+        (
+            headings["evidence"],
+            _bullets(result.get("evidence_to_preserve") or []),
+        ),
+        (
+            headings["missing"],
+            _bullets(result.get("missing_information") or []),
+        ),
+        (headings["urgency"], "\n".join(urgency_lines)),
+        (headings["disclaimer"], result.get("disclaimer", "")),
+    ]
+
+    return "\n\n".join(
+        f"{title}\n{body}".rstrip()
+        for title, body in sections
+        if body
+    )
+
+
+def _prior_incident_text(
+    state: dict,
+    this_turn: str,
+    *,
+    max_chars: int = 8000,
+) -> str:
+    """Earlier user messages of this incident conversation.
+
+    A follow-up like "It happened yesterday" only makes sense next to
+    the account it refers to, so the incident workflow analyzes the
+    whole story — every user message since the conversation was on
+    the incident intent. Repeats (a re-send of the same text to
+    change the language) are not counted twice.
+    """
+    parts: list[str] = []
+    for message in state.get("messages", []):
+        if message.get("role") != "user":
+            continue
+        content = " ".join((message.get("content") or "").split())
+        if not content or content == this_turn:
+            continue
+        parts.append(content)
+    combined = " ".join(parts)
+    return combined[-max_chars:]
+
+
+def _translate_companion(result: dict, target_lang: str) -> None:
+    """Translate every prose field of a companion answer, in place."""
+    extra: list[str] = []
+
+    def one(text: str) -> str:
+        values, warnings = _translate_texts([text], target_lang)
+        extra.extend(warnings)
+        return values[0]
+
+    result["answer"] = one(result["answer"])
+    result["next_steps"] = [one(t) for t in result["next_steps"]]
+    result["missing_information"] = [
+        one(t) for t in result["missing_information"]
+    ]
+    result["warnings"] = [one(t) for t in result["warnings"]]
+
+    simplified = result.get("simplified_order")
+    if simplified:
+        simplified["simple_english"] = one(simplified["simple_english"])
+
+    result["warnings"] = _dedupe(result["warnings"] + extra)
+
+
+def _remembered_facts(result: dict) -> dict:
+    """What this analysis established, keyed so a later turn can reuse it."""
+    counts: dict[str, int] = {}
+    remembered: dict[str, str] = {}
+    for fact in result.get("facts", []):
+        kind = str(fact.get("type", "fact"))
+        if fact.get("source") == "provided":
+            key = str(fact.get("label") or kind)
+        else:
+            counts[kind] = counts.get(kind, 0) + 1
+            key = f"{kind}_{counts[kind]}"
+        value = fact.get("value")
+        if value:
+            remembered[key] = str(value)
+    return remembered
+
+
+@app.post("/api/incident/analyze")
+def incident_analyze_endpoint(
+    req: IncidentAnalyzeRequest,
+    auth=Depends(verify_api_key),
+):
+    """WORKFLOW 1 — "Tell us an incident". What happened, read back
+    hedged: what was described, what it may involve, the facts
+    actually present, what is still missing, considered next steps
+    and the urgency adapter's answer. No court stage is matched here;
+    that question belongs to /api/case-companion/ask."""
+    description = " ".join((req.description or "").split())
+    if not description:
+        raise HTTPException(status_code=400, detail="Nothing to analyze.")
+
+    if len(req.description) > MAX_INPUT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"That description is too long to analyze in one go "
+                f"({len(req.description)} characters; the limit is "
+                f"{MAX_INPUT_CHARS})."
+            ),
+        )
+
+    if req.target_lang not in SUPPORTED_TARGET_LANGS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported target_lang. Supported: "
+                + ", ".join(SUPPORTED_TARGET_LANGS)
+                + "."
+            ),
+        )
+
+    state = CONVERSATIONS.ensure(req.conversation_id)
+    conversation_id = state["conversation_id"]
+
+    # Facts established earlier in this conversation still count — a
+    # second, shorter message does not lose the date the first one gave.
+    merged_facts = dict(CONVERSATIONS.known_facts(conversation_id))
+    for key, value in (req.known_facts or {}).items():
+        if value is None or not str(value).strip():
+            continue
+        merged_facts[str(key)[:120]] = str(value)[:500]
+
+    # ...and so does the earlier *story*: "It happened yesterday" is
+    # analyzed with the account it refers to, not on its own. Only a
+    # conversation already on the incident intent contributes — a case
+    # question asked in the same chat is not part of this incident.
+    prior = (
+        _prior_incident_text(state, description)
+        if state.get("current_intent") == "incident_analysis"
+        else ""
+    )
+
+    try:
+        result = analyze_incident(
+            req.description,
+            known_facts=merged_facts,
+            prior_description=prior,
+            language=(req.language or "en")[:20],
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Nothing to analyze.")
+
+    CONVERSATIONS.record(
+        conversation_id,
+        role="user",
+        content=description,
+        current_intent="incident_analysis",
+    )
+    CONVERSATIONS.record(
+        conversation_id,
+        role="assistant",
+        content=result["possible_issue"],
+        current_intent="incident_analysis",
+        incident_category=(result.get("incident_category") or {}).get("id"),
+        known_facts=_remembered_facts(result),
+    )
+
+    if req.target_lang != "eng_Latn":
+        _translate_analysis(result, req.target_lang)
+
+    result["translated_response"] = _compose_analysis_summary(
+        result, req.target_lang
+    )
+    result["conversation_id"] = conversation_id
+    result["language"] = req.target_lang
+
+    log_access(
+        "/api/incident/analyze",
+        f"chars={len(description)} "
+        f"category={(result.get('incident_category') or {}).get('id')} "
+        f"classification={result['classification']['source']} "
+        f"urgency={result['urgency'].get('status')} "
+        f"confidence={result['confidence']['level']} "
+        f"lang={req.target_lang} warnings={len(result['warnings'])}",
+    )
+
+    return result
+
+
+@app.post("/api/case-companion/ask")
+def case_companion_ask_endpoint(
+    req: CaseCompanionAskRequest,
+    auth=Depends(verify_api_key),
+):
+    """WORKFLOW 2 — "Ask about your case". A question about a case,
+    answered only from the case information supplied with it — and,
+    where that information does not cover the question, said to be
+    absent rather than filled in. The existing guidance engine is
+    reused for the stage the case record states."""
+    question = " ".join((req.question or "").split())
+    if not question:
+        raise HTTPException(status_code=400, detail="Nothing to answer.")
+
+    if len(req.question) > MAX_INPUT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"That question is too long ({len(req.question)} "
+                f"characters; the limit is {MAX_INPUT_CHARS})."
+            ),
+        )
+
+    if req.target_lang not in SUPPORTED_TARGET_LANGS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported target_lang. Supported: "
+                + ", ".join(SUPPORTED_TARGET_LANGS)
+                + "."
+            ),
+        )
+
+    context = req.case_context if isinstance(req.case_context, dict) else {}
+    try:
+        context_size = len(json.dumps(context, default=str))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="case_context could not be read.")
+
+    if context_size > CASE_CONTEXT_MAX_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"That case information is too large for one question "
+                f"({context_size} characters; the limit is "
+                f"{CASE_CONTEXT_MAX_CHARS}). Send the relevant sections."
+            ),
+        )
+
+    state = CONVERSATIONS.ensure(req.conversation_id)
+    conversation_id = state["conversation_id"]
+
+    result = answer_case_question(question, context)
+
+    CONVERSATIONS.record(
+        conversation_id,
+        role="user",
+        content=question,
+        current_intent="case_companion",
+    )
+    CONVERSATIONS.record(
+        conversation_id,
+        role="assistant",
+        content=result["answer"],
+        current_intent="case_companion",
+    )
+
+    if req.target_lang != "eng_Latn":
+        _translate_companion(result, req.target_lang)
+
+    result["conversation_id"] = conversation_id
+    result["language"] = req.target_lang
+
+    log_access(
+        "/api/case-companion/ask",
+        f"chars={len(question)} type={result['question_type']} "
+        f"grounded={result['grounded']} context_keys={len(context)} "
+        f"lang={req.target_lang}",
+    )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# WHAT HAPPENED? - the case and incident companion.
+#
+# One endpoint for the whole feature: incident mode reads what somebody
+# says happened to them, case mode answers a question from the case
+# record the client sends with it. Both return the same envelope, hold
+# their conversation state in memory, and only ever assert what the
+# request actually carried - no sections, dates, outcomes or reasons
+# are invented here. The reasoning lives in what_happened_service.py
+# (pure Python, covered by test_what_happened.py); this function is the
+# wiring, the API-key check and the translation.
+# ---------------------------------------------------------------------------
+
+
+class WhatHappenedRequest(BaseModel):
+    mode: str
+    text: str = ""
+    language: str = "en"
+    case_id: str | None = None
+    conversation_id: str | None = None
+    case_context: dict | None = None
+
+
+def _what_happened_translate(text: str, language: str) -> str:
+    """English response prose into the language the user picked, through
+    the same IndicTrans2 checkpoint /api/translate already uses."""
+    with _loaded("en_indic"):
+        return translate(text, LANG_CODE_MAP[language])
+
+
+@app.post("/api/what-happened")
+def what_happened_endpoint(
+    req: WhatHappenedRequest,
+    auth=Depends(verify_api_key),
+):
+    """Answer one turn of the "What Happened?" conversation.
+
+    Request:  mode ("incident" | "case"), text, language (en | hi | mr),
+              optional case_id / conversation_id, and - for case mode -
+              `case_context`, the frontend's snapshot of the Case record.
+
+    Response: the structured envelope documented in
+              what_happened_service.py, already in `language`.
+    """
+    try:
+        result = what_happened.handle_request(
+            {
+                "mode": req.mode,
+                "text": req.text,
+                "language": req.language,
+                "case_id": req.case_id,
+                "conversation_id": req.conversation_id,
+                "case_context": req.case_context,
+            },
+            translator=_what_happened_translate,
+        )
+    except what_happened.WhatHappenedError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    log_access(
+        "/api/what-happened",
+        f"mode={req.mode} language={req.language} "
+        f"chars={len(req.text or '')} "
+        f"conversation={result.get('conversation_id', '-')} "
+        f"stage={result.get('matched_stage') or '-'}",
+    )
+
+    return result
 
 
 @app.get("/health")

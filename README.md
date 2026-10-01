@@ -329,7 +329,7 @@ python -u e2e_check.py          # 6 checks across translate / indic-to-indic / v
 
 ```powershell
 cd frontend
-npm test                       # 25 checks: CNR lookup + case dashboard states
+npm test                       # 34 checks: CNR lookup, case dashboard, Tell Us What Happened
 npx tsc -b                      # types
 npx eslint .                    # lint — note the react-hooks rules are on
 npm run build                   # tsc + vite build

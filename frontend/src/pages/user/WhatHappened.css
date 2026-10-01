@@ -1,0 +1,587 @@
+/* =========================================================
+   WHAT HAPPENED? — the case & incident companion
+
+   Sits on top of the `voice-*` styles already in App.css, which
+   keep this screen in the same design language as the rest of
+   NyayMitra: indigo on white cards, the same radii, the same
+   spacing. Only what is new here is named `wh-`.
+   ========================================================= */
+
+/* ---------------- LANDING ---------------- */
+
+.wh-intro {
+  margin-bottom: 20px;
+}
+
+.wh-intro p {
+  margin-top: 6px;
+
+  color: #475569;
+
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.wh-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  gap: 22px;
+
+  margin-bottom: 26px;
+}
+
+.wh-choice-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+
+  padding: 28px 26px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+
+  background: white;
+  color: #172554;
+
+  text-align: left;
+
+  box-shadow: 0 10px 34px rgba(30, 41, 59, 0.06);
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.wh-choice-card:hover {
+  transform: translateY(-3px);
+
+  box-shadow: 0 16px 40px rgba(30, 41, 59, 0.12);
+}
+
+.wh-choice-incident {
+  border-top: 4px solid #4f46e5;
+}
+
+.wh-choice-case {
+  border-top: 4px solid #0f766e;
+}
+
+.wh-choice-icon {
+  display: grid;
+  place-items: center;
+
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+
+  border-radius: 16px;
+
+  background: #eef2ff;
+  color: #4f46e5;
+
+  font-size: 24px;
+}
+
+.wh-choice-case .wh-choice-icon {
+  background: #ecfdf5;
+  color: #0f766e;
+}
+
+.wh-choice-card h2 {
+  margin-bottom: 8px;
+
+  font-size: 21px;
+  letter-spacing: -0.4px;
+}
+
+.wh-choice-card p {
+  color: #475569;
+
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.wh-choice-card b {
+  margin-left: auto;
+
+  align-self: center;
+
+  color: #94a3b8;
+
+  font-size: 20px;
+}
+
+.wh-choice-card:hover b {
+  color: #4f46e5;
+}
+
+/* ---------------- MODE + LANGUAGE BAR ---------------- */
+
+.wh-mode-controls {
+  display: flex;
+  align-items: center;
+
+  gap: 14px;
+}
+
+.wh-change-mode {
+  padding: 9px 15px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+
+  background: #f8fafc;
+  color: #475569;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.wh-change-mode:hover {
+  border-color: #c7d2fe;
+  color: #4f46e5;
+}
+
+.wh-language {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wh-language span {
+  color: #64748b;
+
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.wh-language select,
+.wh-case-picker select {
+  padding: 10px 14px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+
+  background: white;
+  color: #172554;
+
+  font-size: 14px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+/* ---------------- CASE PICKER ---------------- */
+
+.wh-case-picker {
+  margin-bottom: 22px;
+
+  padding: 20px 22px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+
+  background: white;
+
+  box-shadow: 0 8px 30px rgba(30, 41, 59, 0.05);
+}
+
+.wh-case-picker label {
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+.wh-case-picker p {
+  color: #475569;
+
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ---------------- TRANSCRIPT ---------------- */
+
+.wh-transcript {
+  display: flex;
+  flex-direction: column;
+
+  gap: 16px;
+
+  margin-bottom: 24px;
+}
+
+.wh-turn {
+  border-radius: 18px;
+}
+
+.wh-turn-user {
+  align-self: flex-end;
+
+  max-width: 78%;
+
+  padding: 16px 20px;
+
+  background: #eef2ff;
+  border: 1px solid #e0e7ff;
+}
+
+.wh-turn-user span {
+  display: block;
+  margin-bottom: 6px;
+
+  color: #4f46e5;
+
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+}
+
+.wh-turn-user p {
+  color: #1e293b;
+
+  font-size: 15px;
+  line-height: 1.65;
+
+  white-space: pre-wrap;
+}
+
+.wh-turn-nyaymitra {
+  padding: 24px 24px 20px;
+
+  border: 1px solid #e5e7eb;
+  border-top: 4px solid #4f46e5;
+
+  background: white;
+
+  box-shadow: 0 10px 34px rgba(30, 41, 59, 0.06);
+}
+
+.wh-answer-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  margin-bottom: 16px;
+}
+
+.wh-answer-head h3 {
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+
+.wh-answer-head .voice-speak-button {
+  margin-left: auto;
+}
+
+.wh-ack {
+  margin-bottom: 14px;
+
+  color: #4f46e5;
+
+  font-size: 14.5px;
+  font-weight: 650;
+}
+
+/* ---------------- PANELS ---------------- */
+
+.wh-panel {
+  padding: 18px 0;
+
+  border-top: 1px solid #f1f5f9;
+}
+
+.wh-panel-title {
+  display: block;
+  margin-bottom: 10px;
+
+  color: #4f46e5;
+
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.wh-panel-gap .wh-panel-title {
+  color: #b45309;
+}
+
+.wh-panel p {
+  color: #334155;
+
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.wh-panel-lead {
+  color: #172554 !important;
+  font-size: 16px !important;
+  font-weight: 650;
+}
+
+.wh-panel ul,
+.wh-panel ol {
+  display: flex;
+  flex-direction: column;
+
+  gap: 9px;
+
+  margin-top: 4px;
+
+  padding-left: 20px;
+}
+
+.wh-panel li {
+  color: #334155;
+
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.wh-panel-gap li {
+  color: #7c2d12;
+}
+
+.wh-facts {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 8px;
+
+  margin-top: 14px;
+
+  padding: 0 !important;
+  list-style: none;
+}
+
+.wh-facts li {
+  padding: 6px 11px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+
+  background: #f8fafc;
+
+  color: #334155;
+
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.wh-stage {
+  margin-bottom: 8px;
+
+  color: #64748b !important;
+
+  font-size: 13px !important;
+}
+
+.wh-stage strong {
+  color: #172554;
+}
+
+.wh-term {
+  margin-bottom: 8px;
+}
+
+.wh-term strong {
+  color: #172554;
+}
+
+/* ---------------- TIME + WARNINGS ---------------- */
+
+.wh-time {
+  display: flex;
+  gap: 11px;
+
+  margin-top: 6px;
+  padding: 14px 16px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+
+  background: #f8fafc;
+}
+
+.wh-time.is-soon {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.wh-time span {
+  font-size: 15px;
+}
+
+.wh-time p {
+  color: #334155;
+
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.wh-warnings {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+
+  margin-top: 12px;
+}
+
+.wh-warnings p {
+  color: #92400e;
+
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wh-disclaimer {
+  margin-top: 14px;
+
+  color: #94a3b8;
+
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* ---------------- COMPOSER ---------------- */
+
+.wh-composer {
+  display: flex;
+  align-items: center;
+
+  gap: 16px;
+
+  margin-top: 16px;
+  padding-top: 18px;
+
+  border-top: 1px solid #f1f5f9;
+}
+
+.wh-composer .voice-microphone {
+  width: 54px;
+  height: 54px;
+
+  font-size: 20px;
+}
+
+.wh-composer-hint {
+  flex: 1;
+
+  color: #64748b;
+
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.wh-send {
+  margin-left: auto;
+
+  min-width: 150px;
+}
+
+.wh-voice-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap: 12px;
+
+  margin-bottom: 26px;
+  padding: 18px 20px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+
+  background: white;
+
+  box-shadow: 0 8px 30px rgba(30, 41, 59, 0.05);
+}
+
+.wh-voice-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 16px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+
+  background: #f8fafc;
+  color: #475569;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.wh-voice-toggle:hover {
+  border-color: #c7d2fe;
+  color: #4f46e5;
+}
+
+.wh-voice-toggle.on {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.wh-voice-bar p {
+  flex: 1 1 260px;
+
+  color: #64748b;
+
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wh-error {
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+}
+
+/* ---------------- RESPONSIVE ---------------- */
+
+@media (max-width: 760px) {
+  .wh-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wh-choice-card b {
+    display: none;
+  }
+
+  .voice-language-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .wh-mode-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .wh-composer {
+    flex-wrap: wrap;
+  }
+
+  .wh-composer-hint {
+    order: 3;
+    flex: 1 1 100%;
+  }
+
+  .wh-send {
+    margin-left: auto;
+  }
+
+  .wh-turn-user {
+    max-width: 100%;
+  }
+}

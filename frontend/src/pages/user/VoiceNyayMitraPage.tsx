@@ -1,91 +1,190 @@
-import {useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { transcribeVoice } from "../../api/translationApi";
-import { getGuidance } from "../../api/guidanceApi";
-import type { GuidanceResult } from "../../api/guidanceApi";
+import {
+  askWhatHappened,
+} from "../../api/whatHappenedApi";
+import type {
+  WhatHappenedLanguage,
+  WhatHappenedMode,
+  WhatHappenedResponse,
+} from "../../api/whatHappenedApi";
+import { getCasesForUser } from "../../api/caseApi";
 
 import ServiceStatus from "../../components/ServiceStatus";
+import "./WhatHappened.css";
 
 /* =========================================================
-   VOICE NYAYMITRA
+   WHAT HAPPENED? — NyayMitra case & incident companion
 
-   One page where somebody says what has happened to them and
-   is told two things back: what to do next, and how urgent it
-   is. "Tell us what happened" and "Next steps" used to be two
-   separate screens asking for a CNR between them; the answer
-   now comes out of what the person said, so the number was
-   never needed.
+   The screen that used to be "Voice NyayMitra". The route is
+   unchanged (`voice` in App.tsx), so every existing link still
+   lands here; only what the person is asked at the door has
+   changed.
 
-   The two halves are built to different depths and say so.
+   The first decision is not "voice or typing" — it is
+   INCIDENT or CASE:
 
-   WHAT TO DO NEXT comes from the guidance set — fifty case
-   stages, matched on the words the person actually used. It is
-   real, and it is theirs to read.
+     🧑 Tell us an incident   something happened, understand it
+     ⚖ Ask about your case    a case is running, ask what is next
 
-   URGENCY is a band borrowed from that same matched stage. It
-   is a lookup describing the stage in general, not a model's
-   opinion about this particular incident, and the panel
-   says exactly that until the urgency model is connected.
+   Both doors lead to the same conversation box: type, or press
+   the microphone, read the transcript back, correct it, send.
+   The answer comes from POST /api/what-happened — incident
+   understanding and grounded case answers are the backend's
+   work; this file is the conversation around them.
+
+   Voice: the existing ASR endpoint does the transcribing, the
+   browser's speech synthesis reads answers back. Turn-based on
+   purpose — speak, read, correct, send, hear the reply.
    ========================================================= */
 
 type VoiceNyayMitraPageProps = {
   onBack: () => void;
+  userId: string;
 };
 
-const languages = [
-  { code: "hi", name: "Hindi" },
-  { code: "mr", name: "Marathi" },
+/* The selector shows the language as it is written. */
+const languages: {
+  code: WhatHappenedLanguage;
+  name: string;
+}[] = [
+  { code: "en", name: "English" },
+  { code: "hi", name: "हिन्दी" },
+  { code: "mr", name: "मराठी" },
 ];
 
-/* Carried over from the Next Steps screen, which no longer
-   exists on its own. These four hold whether or not the
-   guidance set recognised anything, so they are shown with
-   every result rather than only when a stage matched. */
-const GENERAL_CHECKLIST = [
-  {
-    title: "Check the next hearing date",
-    body: "Review your latest case information and confirm the upcoming hearing date with the court record.",
-  },
-  {
-    title: "Review required documents",
-    body: "Check whether any documents, applications or evidence need to be submitted before the next hearing.",
-  },
-  {
-    title: "Consult your lawyer",
-    body: "Discuss the latest case development with your lawyer before taking an important legal action.",
-  },
-  {
-    title: "Keep your case information updated",
-    body: "Continue monitoring your case status and upcoming hearings through NyayMitra.",
-  },
+type VoiceState = "idle" | "listening" | "transcribing";
+
+type Turn =
+  | { id: string; role: "user"; text: string }
+  | { id: string; role: "assistant"; response: WhatHappenedResponse };
+
+const INCIDENT_EXAMPLES = [
+  "Someone called me pretending to be from my bank and asked for my OTP. I gave it and money was deducted.",
+  "Someone threatened me and demanded money.",
+  "My landlord wants me to vacate the flat before the notice period ends.",
 ];
 
-const URGENCY_TONE: Record<string, string> = {
-  low: "is-low",
-  medium: "is-mid",
-  high: "is-high",
-};
+const CASE_EXAMPLES = [
+  "What happened in my last hearing?",
+  "What should I do next?",
+  "When is my next hearing?",
+  "What did the latest order say?",
+  "Why was the hearing postponed?",
+  "What is the current status?",
+];
 
-const URGENCY_BLURB: Record<string, string> = {
-  low: "Nothing here has a deadline attached to it today.",
-  medium: "Something is expected of you within a short window.",
-  high: "A date, a filing or an arrest question is running against the clock.",
-};
+let turnSeq = 0;
+
+function nextTurnId(): string {
+  turnSeq += 1;
+  return `t${turnSeq}`;
+}
+
+/* Browser TTS voice for the chosen language. Falls back to the
+   default voice when the language has none installed — speaking in
+   the wrong accent still beats not speaking at all. */
+function speechLang(code: WhatHappenedLanguage): string {
+  if (code === "hi") return "hi-IN";
+  if (code === "mr") return "mr-IN";
+  return "en-IN";
+}
+
+/** What the read-aloud control actually says: the answer, then the
+ *  two most useful next steps. Long enough to be worth hearing,
+ *  short enough not to lose the listener. */
+function speakable(response: WhatHappenedResponse): string {
+  const parts = [
+    response.acknowledgement,
+    response.summary,
+    response.possible_issue,
+    response.explanation,
+    ...response.next_steps.slice(0, 2),
+  ].filter(Boolean);
+
+  const text = parts.join(". ").replace(/\s+/g, " ").trim();
+
+  return text.length > 900 ? `${text.slice(0, 897)}…` : text;
+}
 
 export default function VoiceNyayMitraPage({
   onBack,
+  userId,
 }: VoiceNyayMitraPageProps) {
-  const [language, setLanguage] = useState("mr");
-  const [question, setQuestion] = useState("");
-  const [isListening, setIsListening] = useState(false);
+  /* ---------- navigation between the two doors ---------- */
+  const [mode, setMode] = useState<WhatHappenedMode | null>(null);
+
+  /* ---------- conversation ---------- */
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [conversationId, setConversationId] =
+    useState<string | null>(null);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  /* ---------- language ---------- */
+  const [language, setLanguage] =
+    useState<WhatHappenedLanguage>("en");
+
+  /* ---------- voice ---------- */
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [transcriptReady, setTranscriptReady] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  const [result, setResult] = useState<GuidanceResult | null>(null);
-  const [isReading, setIsReading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  /* ---------- read aloud ---------- */
+  /* Which turn is speaking — one id, so only that card shows
+     "Speaking…" and Stop only stops what is actually talking. */
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [voiceConversation, setVoiceConversation] = useState(false);
+
+  /* ---------- case mode ---------- */
+  const cases = getCasesForUser(userId);
+  const [selectedCnr, setSelectedCnr] = useState<string>("");
+
+  const selectedCase =
+    cases.find((item) => item.cnr_number === selectedCnr) ??
+    cases[0] ??
+    null;
+
+  const stopSpeaking = () => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingId(null);
+  };
+
+  /* Stop any playback when the page goes away, so a half-read
+     answer does not keep talking over the dashboard. */
+  useEffect(() => {
+    return () => {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const speak = (text: string, turnId?: string) => {
+    if (!text.trim() || !("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = speechLang(language);
+    utterance.onstart = () => setSpeakingId(turnId ?? "auto");
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  /* =======================================================
+     MICROPHONE — existing ASR endpoint, existing recorder
+     flow. The transcript lands in the box to be edited; it is
+     never sent on its own.
+     ======================================================= */
 
   const blobToWav = async (blob: Blob): Promise<Blob> => {
     const arrayBuffer = await blob.arrayBuffer();
@@ -97,7 +196,9 @@ export default function VoiceNyayMitraPage({
     const sampleRate = audioBuffer.sampleRate;
     const length = audioBuffer.length;
 
-    const wavBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
+    const wavBuffer = new ArrayBuffer(
+      44 + length * numberOfChannels * 2,
+    );
     const view = new DataView(wavBuffer);
 
     const writeString = (offset: number, value: string) => {
@@ -130,7 +231,10 @@ export default function VoiceNyayMitraPage({
 
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+        const sample = Math.max(
+          -1,
+          Math.min(1, channels[channel][i]),
+        );
 
         view.setInt16(
           offset,
@@ -148,12 +252,21 @@ export default function VoiceNyayMitraPage({
   };
 
   const startListening = async () => {
+    if (voiceState !== "idle") return;
+
+    setVoiceNotice("");
+    setError("");
+
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Microphone access is not supported by this browser.");
+        throw new Error(
+          "Microphone access is not supported by this browser.",
+        );
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
 
       const recorder = new MediaRecorder(stream);
 
@@ -172,31 +285,33 @@ export default function VoiceNyayMitraPage({
           type: recorder.mimeType,
         });
 
-        const audioBlob = await blobToWav(recordedBlob);
-
         try {
-          setIsReading(true);
-          setQuestion("Transcribing your voice...");
+          const audioBlob = await blobToWav(recordedBlob);
 
-          const data = await transcribeVoice(
-            audioBlob,
-            language as "hi" | "mr",
-          );
+          setVoiceState("transcribing");
 
-          setQuestion(data.transcribed_text || "");
-        } catch (error) {
-          console.error("Voice transcription error:", error);
+          const data = await transcribeVoice(audioBlob, language);
 
-          setQuestion("");
+          /* The transcript is only ever a draft: it lands in the
+             box, editable, and nothing is sent until Send. */
+          setInput(data.transcribed_text || "");
+          setTranscriptReady(Boolean(data.transcribed_text?.trim()));
 
-          alert(
-            error instanceof Error
-              ? error.message
+          if (!data.transcribed_text?.trim()) {
+            setVoiceNotice(
+              "Nothing was heard. Try again, a little closer to the microphone.",
+            );
+          }
+        } catch (caught) {
+          console.error("Voice transcription error:", caught);
+
+          setVoiceNotice(
+            caught instanceof Error
+              ? caught.message
               : "Unable to transcribe the recording.",
           );
         } finally {
-          setIsReading(false);
-          setIsListening(false);
+          setVoiceState("idle");
         }
       };
 
@@ -204,13 +319,14 @@ export default function VoiceNyayMitraPage({
 
       recorder.start();
 
-      setIsListening(true);
-    } catch (error) {
-      console.error("Microphone error:", error);
+      setVoiceState("listening");
+    } catch (caught) {
+      console.error("Microphone error:", caught);
 
-      setIsListening(false);
-
-      alert("Microphone access was denied or unavailable.");
+      setVoiceState("idle");
+      setVoiceNotice(
+        "Microphone access was denied or unavailable. You can type instead.",
+      );
     }
   };
 
@@ -222,75 +338,97 @@ export default function VoiceNyayMitraPage({
     }
   };
 
-  /* Speech to text, then the text read against the guidance set.
-     The placeholder sentence the screen used to show in place of
-     an answer is gone — this either returns something or says
-     why it could not. */
-  const handleAsk = async () => {
-    const text = question.trim();
+  /* =======================================================
+     SENDING A TURN
+     ======================================================= */
 
-    if (!text || busy) return;
+  const handleSend = async () => {
+    const text = input.trim();
+
+    if (!text || busy || !mode) return;
 
     setBusy(true);
     setError("");
-    setResult(null);
+    stopSpeaking();
+
+    const userTurn: Turn = {
+      id: nextTurnId(),
+      role: "user",
+      text,
+    };
 
     try {
-      setResult(await getGuidance(text));
+      const response = await askWhatHappened({
+        mode,
+        text,
+        language,
+        case_id: selectedCase?.cnr_number,
+        conversation_id: conversationId ?? undefined,
+        case_context:
+          mode === "case" && selectedCase ? selectedCase : null,
+      });
+
+      setConversationId(response.conversation_id);
+
+      const assistantTurn: Turn = {
+        id: nextTurnId(),
+        role: "assistant",
+        response,
+      };
+
+      setTurns((previous) => [...previous, userTurn, assistantTurn]);
+      setInput("");
+      setTranscriptReady(false);
+
+      if (voiceConversation) {
+        speak(speakable(response), assistantTurn.id);
+      }
     } catch (caught) {
-      console.error("Guidance error:", caught);
+      console.error("What-happened error:", caught);
 
       setError(
         caught instanceof Error
           ? caught.message
-          : "Your description could not be read.",
+          : "NyayMitra could not read that just now.",
       );
     } finally {
       setBusy(false);
     }
   };
 
-  const clearConversation = () => {
-    setQuestion("");
-    setResult(null);
+  const resetConversation = () => {
+    setTurns([]);
+    setConversationId(null);
+    setInput("");
     setError("");
-    setIsSpeaking(false);
-
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    setTranscriptReady(false);
+    stopSpeaking();
   };
 
-  /* Reads the action back, not the whole panel. */
-  const speakResponse = () => {
-    if (!result) return;
-
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-
-      const speech = new SpeechSynthesisUtterance(
-        result.stage
-          ? `${result.stage}. ${result.what_to_do_next}`
-          : result.what_to_do_next,
-      );
-
-      speech.lang =
-        language === "hi" ? "hi-IN" : language === "mr" ? "mr-IN" : "en-IN";
-
-      speech.onstart = () => setIsSpeaking(true);
-      speech.onend = () => setIsSpeaking(false);
-
-      window.speechSynthesis.speak(speech);
-    }
+  const pickMode = (next: WhatHappenedMode) => {
+    setMode(next);
+    resetConversation();
   };
 
-  const selectedLanguage =
-    languages.find((item) => item.code === language)?.name || "English";
+  const placeholder =
+    mode === "case"
+      ? "Ask about your case… (for example: when is my next hearing?)"
+      : "Tell us what happened…";
+
+  const examples = mode === "case" ? CASE_EXAMPLES : INCIDENT_EXAMPLES;
+
+  /* =======================================================
+     RENDER
+     ======================================================= */
 
   return (
     <main className="voice-nyaymitra-page">
       {/* BACK TO DASHBOARD */}
-      <button type="button" className="voice-back-button" onClick={onBack}>
+      <button
+        type="button"
+        className="voice-back-button"
+        onClick={onBack}
+      >
         ← Back to Dashboard
       </button>
 
@@ -300,26 +438,22 @@ export default function VoiceNyayMitraPage({
 
         <div className="voice-hero-content">
           <div className="voice-eyebrow">
-            <span>🎙</span>
-            NYAYMITRA VOICE ASSISTANCE
+            <span>⚖</span>
+            NYAYMITRA CASE & INCIDENT COMPANION
           </div>
 
           <h1>
-            Tell NyayMitra
-            <br />
-            <span>what happened.</span>
+            What <span>Happened?</span>
           </h1>
 
           <p>
-            Speak about your situation in your own words. NyayMitra turns it
-            into text and comes back with what to do next, and how urgent the
-            matter looks.
+            Tell NyayMitra what happened, or ask about your case.
           </p>
 
           <div className="voice-hero-pills">
-            <span>Voice First</span>
-            <span>Multilingual</span>
-            <span>What to do next</span>
+            <span>Type or speak</span>
+            <span>English · हिन्दी · मराठी</span>
+            <span>General legal information</span>
           </div>
         </div>
       </section>
@@ -329,387 +463,621 @@ export default function VoiceNyayMitraPage({
         {/* NLP SERVICE STATUS */}
         <ServiceStatus />
 
-        {/* LANGUAGE */}
-        <div className="voice-language-card">
-          <div>
-            <span className="voice-small-label">CONVERSATION LANGUAGE</span>
-
-            <h3>Choose your preferred language</h3>
-          </div>
-
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value)}
-          >
-            {languages.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* VOICE AREA */}
-        <div className="voice-assistant-card">
-          <div className="voice-assistant-top">
-            <div>
-              <span className="voice-section-label">VOICE ASSISTANT</span>
-
-              <h2>What happened?</h2>
+        {/* ------------------------------------------------
+            LANDING — incident or case, nothing else
+            ------------------------------------------------ */}
+        {mode === null && (
+          <>
+            <div className="wh-intro">
+              <span className="voice-section-label">
+                WHERE WOULD YOU LIKE TO START?
+              </span>
 
               <p>
-                Speak about it, or type what happened below.
+                Choose the door that fits. You can type or speak on
+                the next screen — that choice comes later.
               </p>
             </div>
 
-            <div className="voice-status">
-              <span />
-              Ready
-            </div>
-          </div>
-
-          {/* MICROPHONE */}
-          <div className="voice-microphone-area">
-            <button
-              type="button"
-              className={
-                isListening ? "voice-microphone listening" : "voice-microphone"
-              }
-              onClick={isListening ? stopListening : startListening}
-              aria-label={isListening ? "Stop listening" : "Start voice input"}
-            >
-              <span>{isListening ? "■" : "🎙"}</span>
-            </button>
-
-            <strong>{isListening ? "Listening..." : "Tap to speak"}</strong>
-
-            <p>
-              {isListening
-                ? "Tell NyayMitra what has happened"
-                : "Speak naturally in your selected language"}
-            </p>
-          </div>
-
-          {/* WHAT THEY SAID */}
-          <div className="voice-input-section">
-            <div className="voice-input-heading">
-              <label htmlFor="voice-question">WHAT YOU SAID</label>
-
-              {question && !isReading && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuestion("");
-                    setResult(null);
-                    setError("");
-                  }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            <textarea
-              id="voice-question"
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              placeholder="Your spoken account will appear here, and you can edit it before sending..."
-              rows={5}
-            />
-
-            <div className="voice-input-footer">
-              <span>{question.length} characters</span>
-
-              <span>{selectedLanguage}</span>
-            </div>
-          </div>
-
-          {/* ASK BUTTON */}
-          <button
-            type="button"
-            className="voice-ask-button"
-            disabled={!question.trim() || busy}
-            onClick={handleAsk}
-          >
-            <span>✦</span>
-            {busy ? "Reading your account..." : "What should I do next?"}
-            <strong>→</strong>
-          </button>
-        </div>
-
-        {/* ERROR */}
-        {error && (
-          <div className="voice-disclaimer">
-            <span>ⓘ</span>
-
-            <p>
-              <strong>That could not be read:</strong> {error}
-            </p>
-          </div>
-        )}
-
-        {/* RESULTS */}
-        {result && (
-          <div className="voice-guidance">
-            {/* -------------------------------
-                1. WHAT TO DO NEXT
-                ------------------------------- */}
-            <section className="voice-guidance-card">
-              <div className="voice-guidance-head">
-                <div className="voice-response-avatar">⚖</div>
-
-                <div>
-                  <span className="voice-section-label">
-                    {result.matched
-                      ? "MATCHED TO A CASE STAGE"
-                      : "WHAT TO DO NEXT"}
-                  </span>
-
-                  <h2>What to do next</h2>
-                </div>
-              </div>
-
-              <p className="voice-guidance-action">
-                {result.what_to_do_next}
-              </p>
-
-              {result.matched && (
-                <div className="voice-guidance-stage">
-                  <span>Because it looks like this stage</span>
-
-                  <strong>{result.stage}</strong>
-
-                  <p>{result.why}</p>
-                </div>
-              )}
-
-              {!result.matched && result.candidates.length > 0 && (
-                <div className="voice-guidance-stage">
-                  <span>Closest stages in the guidance set</span>
-
-                  <ul className="voice-guidance-candidates">
-                    {result.candidates.map((candidate) => (
-                      <li key={candidate.stage}>
-                        <strong>{candidate.stage}</strong>
-                        <small>{candidate.urgency} urgency</small>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.related_terms.length > 0 && (
-                <div className="voice-guidance-terms">
-                  <span className="voice-section-label">LEGAL TERMS USED</span>
-
-                  {result.related_terms.map((term) => (
-                    <p key={term.term}>
-                      <strong>{term.term} —</strong> {term.plain}
-                    </p>
-                  ))}
-                </div>
-              )}
-
-              {/* Always shown: these four hold whatever the set matched. */}
-              <div className="voice-guidance-checklist">
-                <span className="voice-section-label">AND ANYWAY</span>
-
-                <div className="voice-guidance-checklist-grid">
-                  {GENERAL_CHECKLIST.map((step, index) => (
-                    <article key={step.title}>
-                      <div className="voice-guidance-number">
-                        {String(index + 1).padStart(2, "0")}
-                      </div>
-
-                      <div>
-                        <h3>{step.title}</h3>
-
-                        <p>{step.body}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {/* -------------------------------
-                2. URGENCY OF YOUR INCIDENT
-                ------------------------------- */}
-            <section className="voice-guidance-card voice-urgency-card">
-              <div className="voice-guidance-head">
-                <div className="voice-response-avatar">◔</div>
-
-                <div>
-                  <span className="voice-section-label">URGENCY OF YOUR INCIDENT</span>
-
-                  <h2>
-                    {result.matched
-                      ? "Preliminary urgency read"
-                      : "Urgency not assessed"}
-                  </h2>
-                </div>
-              </div>
-
-              {result.matched ? (
-                <div className="voice-urgency-body">
-                  <div
-                    className={`voice-urgency-badge ${
-                      URGENCY_TONE[result.urgency ?? ""] ?? "is-low"
-                    }`}
-                  >
-                    {(result.urgency ?? "low").toUpperCase()}
-                  </div>
-
-                  <p>
-                    {URGENCY_BLURB[result.urgency ?? ""] ??
-                      "No urgency band is recorded for this stage."}
-                  </p>
-                </div>
-              ) : (
-                <div className="voice-urgency-body">
-                  <div className="voice-urgency-badge is-unknown">
-                    NOT ASSESSED
-                  </div>
-
-                  <p>
-                    Nothing was recognised, so no band could be borrowed for
-                    it. Say a little more — a notice, a hearing date, an order,
-                    a bail or custody situation — and both the action and the
-                    urgency come back together.
-                  </p>
-                </div>
-              )}
-
-              <div className="voice-urgency-model-note">
-                <span aria-hidden="true">⚙</span>
-
-                <div>
-                  <strong>The incident-urgency model is not connected yet</strong>
-
-                  <p>
-                    The band above is read off the case stage it matched, which
-                    describes that stage in general. Scoring how urgent
-                    <em> this</em> incident is — from what you actually said —
-                    will come from the urgency model when its API is available,
-                    and will replace this panel without changing anything else
-                    on this page.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            {/* ACTIONS */}
-            <div className="voice-response-actions">
+            <div className="wh-choice-grid">
               <button
                 type="button"
-                className={
-                  isSpeaking
-                    ? "voice-speak-button speaking"
-                    : "voice-speak-button"
-                }
-                onClick={speakResponse}
+                className="wh-choice-card wh-choice-incident"
+                onClick={() => pickMode("incident")}
               >
-                <span>{isSpeaking ? "🔊" : "🔈"}</span>
+                <span className="wh-choice-icon">🧑</span>
 
-                {isSpeaking ? "Speaking..." : "Read Aloud"}
+                <div>
+                  <h2>Tell us an incident</h2>
+
+                  <p>
+                    “Something happened to me and I want to
+                    understand it.”
+                  </p>
+                </div>
+
+                <b>→</b>
               </button>
 
               <button
                 type="button"
-                className="voice-new-button"
-                onClick={clearConversation}
+                className="wh-choice-card wh-choice-case"
+                onClick={() => pickMode("case")}
               >
-                New Question
+                <span className="wh-choice-icon">⚖</span>
+
+                <div>
+                  <h2>Ask about your case</h2>
+
+                  <p>
+                    “I already have a case and want to understand
+                    what happened or what to do next.”
+                  </p>
+                </div>
+
+                <b>→</b>
               </button>
             </div>
 
             <div className="voice-disclaimer">
               <span>ⓘ</span>
 
-              <p>{result.disclaimer}</p>
+              <p>
+                <strong>Important:</strong> NyayMitra provides
+                general legal information for understanding legal
+                processes. It is not a substitute for advice from a
+                qualified legal professional.
+              </p>
             </div>
-          </div>
+          </>
         )}
 
-        {/* EXAMPLES */}
-        <div className="voice-example-section">
-          <div className="voice-section-heading">
-            <span className="voice-section-label">TRY SAYING</span>
-
-            <h2>Tell NyayMitra...</h2>
-          </div>
-
-          <div className="voice-example-grid">
-            <button
-              type="button"
-              onClick={() =>
-                setQuestion(
-                  "I received a legal notice from the other side last week and do not know what to reply.",
-                )
-              }
-            >
-              <span>📄</span>
-
+        {/* ------------------------------------------------
+            CONVERSATION (both modes)
+            ------------------------------------------------ */}
+        {mode !== null && (
+          <>
+            {/* MODE + LANGUAGE */}
+            <div className="voice-language-card">
               <div>
-                <strong>Legal Notice</strong>
+                <span className="voice-small-label">
+                  {mode === "incident"
+                    ? "MODE — TELL US AN INCIDENT"
+                    : "MODE — ASK ABOUT YOUR CASE"}
+                </span>
 
-                <small>A notice arrived and no reply is drafted</small>
+                <h3>
+                  {mode === "incident"
+                    ? "Something happened to me"
+                    : "I already have a case running"}
+                </h3>
               </div>
 
-              <b>→</b>
-            </button>
+              <div className="wh-mode-controls">
+                <button
+                  type="button"
+                  className="wh-change-mode"
+                  onClick={() => setMode(null)}
+                >
+                  Change
+                </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                setQuestion(
-                  "The judge adjourned my case without giving a new date.",
-                )
-              }
-            >
-              <span>⚖</span>
+                <label className="wh-language">
+                  <span>LANGUAGE</span>
 
-              <div>
-                <strong>Adjourned</strong>
+                  <select
+                    value={language}
+                    onChange={(event) =>
+                      setLanguage(
+                        event.target.value as WhatHappenedLanguage,
+                      )
+                    }
+                  >
+                    {languages.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
 
-                <small>Hearing pushed with no date to replace it</small>
+            {/* CASE PICKER — case mode only */}
+            {mode === "case" && (
+              <div className="wh-case-picker">
+                {cases.length > 0 ? (
+                  <label>
+                    <span className="voice-section-label">
+                      WHICH CASE?
+                    </span>
+
+                    <select
+                      value={selectedCase?.cnr_number ?? ""}
+                      onChange={(event) =>
+                        setSelectedCnr(event.target.value)
+                      }
+                    >
+                      {cases.map((item) => (
+                        <option
+                          key={item.cnr_number}
+                          value={item.cnr_number}
+                        >
+                          {item.case_type} — {item.cnr_number} —{" "}
+                          {item.current_case_stage}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p>
+                    No case is filed on this account yet, so answers
+                    stay general. File a case under My Cases and it
+                    will be selectable here.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* TRANSCRIPT */}
+            {turns.length > 0 && (
+              <div className="wh-transcript">
+                <span className="voice-section-label">
+                  THE CONVERSATION
+                </span>
+
+                {turns.map((turn) =>
+                  turn.role === "user" ? (
+                    <div
+                      key={turn.id}
+                      className="wh-turn wh-turn-user"
+                    >
+                      <span>You</span>
+                      <p>{turn.text}</p>
+                    </div>
+                  ) : (
+                    <AnswerCard
+                      key={turn.id}
+                      response={turn.response}
+                      speaking={speakingId === turn.id}
+                      onRead={() => speak(speakable(turn.response), turn.id)}
+                      onStop={stopSpeaking}
+                    />
+                  ),
+                )}
+              </div>
+            )}
+
+            {/* ERROR */}
+            {error && (
+              <div className="voice-disclaimer wh-error">
+                <span>ⓘ</span>
+
+                <p>
+                  <strong>That could not be sent:</strong> {error}
+                </p>
+              </div>
+            )}
+
+            {/* VOICE NOTICE (ASR, microphone, English) */}
+            {voiceNotice && (
+              <div className="voice-disclaimer wh-error">
+                <span>ⓘ</span>
+
+                <p>
+                  <strong>Voice:</strong> {voiceNotice}
+                </p>
+              </div>
+            )}
+
+            {/* INPUT */}
+            <div className="voice-assistant-card">
+              <div className="voice-assistant-top">
+                <div>
+                  <span className="voice-section-label">
+                    {mode === "incident"
+                      ? "TELL US WHAT HAPPENED"
+                      : "ASK ABOUT YOUR CASE"}
+                  </span>
+
+                  <h2>
+                    {voiceState === "listening"
+                      ? "LISTENING…"
+                      : voiceState === "transcribing"
+                        ? "TRANSCRIBING…"
+                        : "What happened?"}
+                  </h2>
+
+                  <p>
+                    {voiceState === "listening"
+                      ? "Speak naturally in your selected language"
+                      : voiceState === "transcribing"
+                        ? "Turning your speech into text…"
+                        : "Type it, or press the microphone and speak."}
+                  </p>
+                </div>
+
+                <div className="voice-status">
+                  <span />
+                  {busy ? "Working…" : "Ready"}
+                </div>
               </div>
 
-              <b>→</b>
-            </button>
+              {/* WHAT YOU SAID — editable */}
+              <div className="voice-input-section">
+                <div className="voice-input-heading">
+                  <label htmlFor="wh-input">
+                    {transcriptReady
+                      ? "WHAT YOU SAID — EDIT BEFORE SENDING"
+                      : mode === "case"
+                        ? "YOUR QUESTION"
+                        : "WHAT HAPPENED"}
+                  </label>
 
-            <button
-              type="button"
-              onClick={() =>
-                setQuestion(
-                  "My written statement has to be filed and I have not filed it yet.",
-                )
-              }
-            >
-              <span>📑</span>
+                  {input && !busy && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInput("");
+                        setTranscriptReady(false);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
 
-              <div>
-                <strong>Deadline Running</strong>
+                <textarea
+                  id="wh-input"
+                  value={input}
+                  onChange={(event) => {
+                    setInput(event.target.value);
+                    setTranscriptReady(false);
+                  }}
+                  placeholder={placeholder}
+                  rows={5}
+                  disabled={voiceState !== "idle"}
+                />
 
-                <small>A filing is due and still not in</small>
+                <div className="voice-input-footer">
+                  <span>{input.length} characters</span>
+
+                  <span>
+                    {languages.find((item) => item.code === language)
+                      ?.name ?? "English"}
+                  </span>
+                </div>
               </div>
 
-              <b>→</b>
-            </button>
-          </div>
-        </div>
+              {/* MIC + SEND, inside the box */}
+              <div className="wh-composer">
+                <button
+                  type="button"
+                  className={
+                    voiceState === "listening"
+                      ? "voice-microphone listening"
+                      : "voice-microphone"
+                  }
+                  onClick={
+                    voiceState === "listening"
+                      ? stopListening
+                      : startListening
+                  }
+                  disabled={voiceState === "transcribing" || busy}
+                  aria-label={
+                    voiceState === "listening"
+                      ? "Stop listening"
+                      : "Start voice input"
+                  }
+                >
+                  <span>
+                    {voiceState === "listening" ? "■" : "🎙"}
+                  </span>
+                </button>
 
-        {/* DISCLAIMER */}
-        <div className="voice-disclaimer">
-          <span>ⓘ</span>
+                <div className="wh-composer-hint">
+                  {voiceState === "listening"
+                    ? "LISTENING… tap to stop"
+                    : voiceState === "transcribing"
+                      ? "TRANSCRIBING…"
+                      : transcriptReady
+                        ? "Check the transcript above, then send"
+                        : "Speak, or type below"}
+                </div>
 
-          <p>
-            <strong>Important:</strong> NyayMitra provides AI-assisted legal
-            information for understanding legal processes. It is not a
-            substitute for advice from a qualified legal professional.
-          </p>
-        </div>
+                <button
+                  type="button"
+                  className="voice-ask-button wh-send"
+                  onClick={handleSend}
+                  disabled={!input.trim() || busy}
+                >
+                  <span>✦</span>
+                  {busy ? "Thinking…" : "Send"}
+                  <strong>→</strong>
+                </button>
+              </div>
+            </div>
+
+            {/* VOICE CONVERSATION */}
+            <div className="wh-voice-bar">
+              <button
+                type="button"
+                className={
+                  voiceConversation
+                    ? "wh-voice-toggle on"
+                    : "wh-voice-toggle"
+                }
+                onClick={() => {
+                  if (voiceConversation) stopSpeaking();
+                  setVoiceConversation((value) => !value);
+                }}
+              >
+                <span>🎙</span>
+                {voiceConversation
+                  ? "Voice conversation on"
+                  : "Start voice conversation"}
+              </button>
+
+              {speakingId && (
+                <button
+                  type="button"
+                  className="wh-voice-toggle"
+                  onClick={stopSpeaking}
+                >
+                  <span>🔇</span>
+                  Stop speaking
+                </button>
+              )}
+
+              {turns.length > 0 && (
+                <button
+                  type="button"
+                  className="wh-voice-toggle"
+                  onClick={resetConversation}
+                >
+                  New conversation
+                </button>
+              )}
+
+              <p>
+                {voiceConversation
+                  ? "Speak, hear the answer, then speak again — the microphone never opens on its own."
+                  : "With voice conversation on, every answer is read aloud."}
+              </p>
+            </div>
+
+            {/* EXAMPLES */}
+            <div className="voice-example-section">
+              <div className="voice-section-heading">
+                <span className="voice-section-label">
+                  {mode === "case"
+                    ? "TRY ASKING"
+                    : "TRY SAYING"}
+                </span>
+
+                <h2>
+                  {mode === "case"
+                    ? "Ask NyayMitra about your case…"
+                    : "Tell NyayMitra…"}
+                </h2>
+              </div>
+
+              <div className="voice-example-grid">
+                {examples.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => {
+                      setInput(example);
+                      setTranscriptReady(false);
+                    }}
+                  >
+                    <span>{mode === "case" ? "⚖" : "📄"}</span>
+
+                    <div>
+                      <small>{example}</small>
+                    </div>
+
+                    <b>→</b>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* DISCLAIMER */}
+            <div className="voice-disclaimer">
+              <span>ⓘ</span>
+
+              <p>
+                <strong>Important:</strong> NyayMitra provides
+                general legal information for understanding legal
+                processes. It is not a substitute for advice from a
+                qualified legal professional.
+              </p>
+            </div>
+          </>
+        )}
       </section>
     </main>
+  );
+}
+
+/* =========================================================
+   ANSWER CARD — one assistant turn, rendered from the same
+   envelope in both modes. Incident mode shows the five panels;
+   case mode shows what the record says and what it does not.
+   ========================================================= */
+
+type AnswerCardProps = {
+  response: WhatHappenedResponse;
+  speaking: boolean;
+  onRead: () => void;
+  onStop: () => void;
+};
+
+function AnswerCard({
+  response,
+  speaking,
+  onRead,
+  onStop,
+}: AnswerCardProps) {
+  const isCase = response.mode === "case";
+
+  return (
+    <div className="wh-turn wh-turn-nyaymitra">
+      <div className="wh-answer-head">
+        <div className="voice-response-avatar">
+          {isCase ? "⚖" : "🧑"}
+        </div>
+
+        <div>
+          <span className="voice-section-label">
+            {isCase ? "ABOUT YOUR CASE" : "WHAT MAY HAVE HAPPENED"}
+          </span>
+
+          <h3>NyayMitra</h3>
+        </div>
+
+        <button
+          type="button"
+          className={speaking ? "voice-speak-button speaking" : "voice-speak-button"}
+          onClick={speaking ? onStop : onRead}
+        >
+          <span>{speaking ? "🔊" : "🔈"}</span>
+          {speaking ? "Speaking…" : "Read aloud"}
+        </button>
+      </div>
+
+      {response.acknowledgement && (
+        <p className="wh-ack">{response.acknowledgement}</p>
+      )}
+
+      {/* ---------- WHAT MAY HAVE HAPPENED / THE RECORD SAYS ---------- */}
+      <section className="wh-panel">
+        <span className="wh-panel-title">
+          {isCase ? "WHAT THE AVAILABLE RECORD SAYS" : "WHAT MAY HAVE HAPPENED"}
+        </span>
+
+        <p className="wh-panel-lead">{response.summary}</p>
+
+        <p>{response.explanation}</p>
+
+        {isCase && response.case_facts.length > 0 && (
+          <ul className="wh-facts">
+            {response.case_facts.map((fact) => (
+              <li key={fact}>{fact}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ---------- POSSIBLE LEGAL ISSUE (incident only) ---------- */}
+      {!isCase && response.possible_issue && (
+        <section className="wh-panel">
+          <span className="wh-panel-title">POSSIBLE LEGAL ISSUE</span>
+
+          <p>{response.possible_issue}</p>
+        </section>
+      )}
+
+      {/* ---------- THE RECORD DOES NOT STATE (case only) ---------- */}
+      {isCase && response.record_gaps.length > 0 && (
+        <section className="wh-panel wh-panel-gap">
+          <span className="wh-panel-title">
+            WHAT THE RECORD DOES NOT STATE
+          </span>
+
+          <ul>
+            {response.record_gaps.map((gap) => (
+              <li key={gap}>{gap}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ---------- WHAT YOU CAN CONSIDER DOING ---------- */}
+      {response.next_steps.length > 0 && (
+        <section className="wh-panel">
+          <span className="wh-panel-title">
+            WHAT YOU CAN CONSIDER DOING
+          </span>
+
+          {response.matched_stage && (
+            <p className="wh-stage">
+              Matched to the case stage{" "}
+              <strong>{response.matched_stage}</strong> — a match on
+              words, not a finding about your case.
+            </p>
+          )}
+
+          <ol>
+            {response.next_steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {/* ---------- INFORMATION TO PRESERVE (incident only) ---------- */}
+      {!isCase && response.preserve_information.length > 0 && (
+        <section className="wh-panel">
+          <span className="wh-panel-title">
+            INFORMATION TO PRESERVE
+          </span>
+
+          <ul>
+            {response.preserve_information.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ---------- WHAT ELSE WOULD HELP ---------- */}
+      {response.follow_up_questions.length > 0 && (
+        <section className="wh-panel">
+          <span className="wh-panel-title">WHAT ELSE WOULD HELP</span>
+
+          <ul>
+            {response.follow_up_questions.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ---------- LEGAL TERMS, in the chosen language ---------- */}
+      {response.legal_terms.length > 0 && (
+        <section className="wh-panel">
+          <span className="wh-panel-title">
+            LEGAL TERMS, IN PLAIN WORDS
+          </span>
+
+          {response.legal_terms.map((term) => (
+            <p className="wh-term" key={term.term}>
+              <strong>{term.term}</strong> — {term.plain}
+            </p>
+          ))}
+        </section>
+      )}
+
+      {/* ---------- TIME SENSITIVITY ---------- */}
+      <div className={response.time_sensitive ? "wh-time is-soon" : "wh-time"}>
+        <span>{response.time_sensitive ? "⏱" : "◌"}</span>
+
+        <p>{response.time_sensitivity_note}</p>
+      </div>
+
+      {/* ---------- WARNINGS ---------- */}
+      {response.warnings.length > 0 && (
+        <div className="wh-warnings">
+          {response.warnings.map((warning) => (
+            <p key={warning}>ⓘ {warning}</p>
+          ))}
+        </div>
+      )}
+
+      <p className="wh-disclaimer">{response.disclaimer}</p>
+    </div>
   );
 }

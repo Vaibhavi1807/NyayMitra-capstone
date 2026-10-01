@@ -331,7 +331,7 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
 
 
             {/* =================================================
-                6. VOICE NYAYMITRA
+                6. TELL US WHAT HAPPENED (route still "voice")
                 ================================================= */}
 
             <button
@@ -346,15 +346,15 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
 
               <div className="dashboard-action-content">
 
-                <span>SPEAK ABOUT YOUR SITUATION</span>
+                <span>INCIDENT OR CASE - TELL US WHAT HAPPENED</span>
 
                 <h3>
-                  Voice NyayMitra
+                  Tell Us What Happened
                 </h3>
 
                 <p>
-                  Say what happened in your own words and
-                  get what to do next and how urgent it is.
+                  Describe an incident, or ask what happened in your
+                  case and what to do next.
                 </p>
 
               </div>
