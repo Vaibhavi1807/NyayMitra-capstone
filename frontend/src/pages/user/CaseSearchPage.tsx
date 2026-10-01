@@ -3,8 +3,10 @@ import { useState } from "react";
 import CaseSearch from "../../components/CaseSearch";
 import AddCaseForm from "../../components/AddCaseForm";
 import CaseDetail from "../../components/CaseDetail";
+import CnrLookup from "../../components/CnrLookup";
 import type { ChatTarget } from "../../api/chatApi";
 import { getCase } from "../../api/caseApi";
+import type { Case } from "../../types/case";
 
 /* =========================================================
    MY CASES
@@ -38,6 +40,11 @@ type CaseSearchPageProps = {
 
   /* Opens a chat thread with the advocate on the matter. */
   onChat?: (target: ChatTarget) => void;
+
+  /* Hands the reader to Court Orders — the door an order sent for
+     explanation goes through. Omitted where there is no such door,
+     and then the order cards simply carry no button. */
+  onOpenCourtOrders?: () => void;
 };
 
 export default function CaseSearchPage({
@@ -45,13 +52,25 @@ export default function CaseSearchPage({
   userName = "",
   onBack,
   onChat,
+  onOpenCourtOrders,
 }: CaseSearchPageProps) {
   const [view, setView] = useState<View>({ kind: "list" });
 
+  /* A CNR looked up by number, not filed on this account. It is
+     kept beside the store rather than inside it: the detail view
+     opens on it, but My Cases never starts claiming a matter it
+     does not own. */
+  const [lookedUp, setLookedUp] = useState<Case | null>(null);
+
   /* Re-read on every render: the detail view must reflect a
-     matter that was re-opened, not the last one it rendered. */
+     matter that was re-opened, not the last one it rendered.
+     The lookup answer is the fallback when the CNR is not one
+     this account filed. */
   const opened =
-    view.kind === "detail" ? getCase(view.cnr) : null;
+    view.kind === "detail"
+      ? (getCase(view.cnr) ??
+        (lookedUp?.cnr_number === view.cnr ? lookedUp : null))
+      : null;
 
   return (
     <main className="nyaymitra-page">
@@ -91,6 +110,17 @@ export default function CaseSearchPage({
             </div>
           </section>
 
+          {/* Reading a matter nobody filed here — the CNR from a
+              notice — sits above the account's own list, where the
+              person who came for it will find it. */}
+          <CnrLookup
+            userId={userId}
+            onOpen={(record) => {
+              setLookedUp(record);
+              setView({ kind: "detail", cnr: record.cnr_number });
+            }}
+          />
+
           <CaseSearch
             userId={userId}
             onAdd={() => setView({ kind: "add" })}
@@ -115,6 +145,7 @@ export default function CaseSearchPage({
           userId={userId}
           onBack={() => setView({ kind: "list" })}
           onChat={onChat}
+          onOpenCourtOrders={onOpenCourtOrders}
         />
       )}
 

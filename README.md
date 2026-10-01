@@ -146,7 +146,11 @@ be set for the app to run.
 Both switches that *are* read (`VITE_AUTH_MODE`, `VITE_CHAT_MODE`) default to
 `mock` when unset, so a missing `.env` is not an error. On the service side,
 `MODEL_IDLE_SECONDS` (default `600`) controls how long a loaded NLP checkpoint
-is held before it is released.
+is held before it is released. On the lawyer service, `CASE_DATA_PROVIDER`
+(default `development`) picks the case provider behind `/api/cases`,
+`CASE_DATASET_PATH` optionally points the development provider at another
+dataset file, and `CASE_EXTERNAL_DSN` stays unset until an authorised external
+source exists. See [`docs/my-cases.md`](docs/my-cases.md).
 
 ---
 
@@ -156,7 +160,10 @@ is held before it is released.
 - **My Cases** — only the signed-in user's own matters, filtered by
   `owner_user_id`. From one place: file a **new case** with its first
   documents, open an **ongoing case** to see that case's documents, add
-  more to it, and **chat with the lawyer assigned to it**.
+  more to it, and **chat with the lawyer assigned to it**. A **CNR
+  search** at the top opens any case by its 16-character CNR — full
+  dashboard with status, parties, court, chronological timeline, orders
+  and next-steps guidance ([`docs/my-cases.md`](docs/my-cases.md)).
 - **Find a Lawyer** — live directory from `GET /api/lawyers`, with a
   **Chat** button per profile.
 - **Court Order** — upload an image or PDF and the NLP service explains
@@ -241,6 +248,9 @@ Two lists are derived from that one matrix:
 | GET | `/api/lawyers` | Find a Lawyer, admin Manage Lawyers / Platform Data |
 | GET | `/api/lawyers/{lawyer_id}` | Lawyer profile, admin Lawyer Records |
 | GET | `/api/practice-areas` | Practice-area filtering |
+| GET | `/api/cases` | My Cases list (`q`, `status`, `state`, `page`, `limit`) |
+| GET | `/api/cases/cnr/{cnr}` | My Cases detail — 400 malformed / 404 unknown |
+| GET | `/api/cases/meta` | Status and court filters for My Cases |
 
 > The **list** response is a summary: `enrollment_number`, `bar_council`,
 > `practice_areas` and `profile_status` are blank there. They are only present
@@ -304,6 +314,13 @@ out-score a genuine match.
 ## Testing and CI
 
 ```powershell
+cd NyayMitra-feature-lawyer-api
+python -m pytest              # 37 checks: CNR validation, timeline, orders,
+                              # provider failures — no server, no network
+python tests/smoke_cases_api.py http://127.0.0.1:8000   # against a live server
+```
+
+```powershell
 cd NyayMitra-feature-nlp-translation
 $env:TRANSLATION_API_URL = 'http://127.0.0.1:8001'
 $env:PYTHONUTF8 = '1'
@@ -312,6 +329,7 @@ python -u e2e_check.py          # 6 checks across translate / indic-to-indic / v
 
 ```powershell
 cd frontend
+npm test                       # 25 checks: CNR lookup + case dashboard states
 npx tsc -b                      # types
 npx eslint .                    # lint — note the react-hooks rules are on
 npm run build                   # tsc + vite build
@@ -326,9 +344,13 @@ on pull requests to `main`.
 
 These are real and deliberately left visible rather than papered over:
 
-- **No cases endpoint.** `GET /api/cases` returns 404; case records live in
-  `src/mocks/cases.ts` and `owner_user_id` / `handling_lawyer_id` are local
-  fields on top of them.
+- **Case data is development data, not eCourts.** `GET /api/cases` and
+  `GET /api/cases/cnr/{cnr}` now exist and serve 109 CNR records through
+  `cases/provider.py`, but the default `DevelopmentCaseProvider` reads a
+  file built from the project's own captures — every response says so in
+  `data_source.live_ecourts_data: false`. `AuthorizedExternalCaseProvider`
+  is the stub for a real authorised source and refuses to answer until
+  `CASE_EXTERNAL_DSN` is set; nothing is scraped from eCourts.
 - **Chat, authority grants, account status and lawyer verification are
   `localStorage` mocks.** They mirror the real shapes so each swap is a
   one-file change when the endpoints arrive: `chatApi.ts`,
@@ -359,5 +381,6 @@ These are real and deliberately left visible rather than papered over:
 - [`frontend/README.md`](frontend/README.md) — Vite template notes, ESLint setup
 - [`NyayMitra-feature-lawyer-api/README.md`](NyayMitra-feature-lawyer-api/README.md) — lawyer API integration guide
 - [`docs/auth-decision.md`](docs/auth-decision.md) — how sign-in decides the role
+- [`docs/my-cases.md`](docs/my-cases.md) — My Cases: CNR lookup, case dashboard, the development dataset and its provider
 - [`docs/pwa-strategy.md`](docs/pwa-strategy.md) — offline strategy
 - [`docs/postman/NyayMitra.postman_collection.json`](docs/postman/NyayMitra.postman_collection.json) — API collection

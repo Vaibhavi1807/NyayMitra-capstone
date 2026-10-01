@@ -9362,6 +9362,280 @@ select {
 }
 
 /* =========================================================
+   CNR LOOKUP — reading a case nobody filed on this account
+
+   Sits between the hero and the account's own list, so it takes
+   the pull into the hero the list used to carry; the list then
+   follows it instead of overlapping it.
+   ========================================================= */
+
+.cnr-lookup {
+  position: relative;
+  z-index: 6;
+
+  max-width: 1120px;
+  margin: -52px auto 0;
+  padding: 26px;
+
+  background: white;
+  border: 1px solid #e5e7ef;
+  border-radius: 22px;
+
+  box-shadow: 0 20px 50px rgba(25, 30, 60, 0.13);
+}
+
+.cnr-lookup + .case-search-section {
+  margin-top: 34px;
+}
+
+.cnr-lookup-head h2 {
+  margin: 0;
+
+  color: #20253a;
+  font-size: 22px;
+}
+
+.cnr-lookup-head p {
+  max-width: 720px;
+  margin: 8px 0 0;
+
+  color: #858b9e;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.cnr-lookup-form {
+  display: flex;
+  gap: 12px;
+
+  margin-top: 18px;
+}
+
+.cnr-lookup-form input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0 17px;
+
+  background: #f7f8fc;
+  border: 1px solid #e3e5ed;
+  border-radius: 14px;
+
+  color: #20253a;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+
+  transition: 0.2s ease;
+}
+
+.cnr-lookup-form input::placeholder {
+  color: #9ca2b3;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+.cnr-lookup-form input:focus {
+  outline: none;
+  background: white;
+  border-color: #818cf8;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.cnr-lookup-form button {
+  flex-shrink: 0;
+  padding: 0 24px;
+
+  border: 0;
+  border-radius: 14px;
+
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  color: white;
+
+  font-size: 13px;
+  font-weight: 750;
+  font-family: inherit;
+
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.2);
+  transition: 0.2s ease;
+}
+
+.cnr-lookup-form button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.cnr-lookup-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* The service's own refusal, shown as it arrived — a malformed
+   CNR and an unknown one read differently on purpose. */
+.cnr-lookup-error {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+
+  background: #fff5f5;
+  border: 1px solid #f6d7d7;
+  border-radius: 11px;
+
+  color: #b42318;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.cnr-result {
+  margin-top: 18px;
+  padding: 20px;
+
+  background: #fafbfe;
+  border: 1px solid #e5e7ef;
+  border-radius: 18px;
+}
+
+.cnr-result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.cnr-result-head h3 {
+  margin: 5px 0 0;
+
+  color: #20253a;
+  font-size: 18px;
+}
+
+.cnr-result-head p {
+  margin: 5px 0 0;
+
+  color: #7c8294;
+  font-size: 13px;
+}
+
+.cnr-result-stage {
+  flex-shrink: 0;
+
+  padding: 8px 13px;
+  border-radius: 999px;
+
+  background: #eeefff;
+  color: #4f46c5;
+
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.cnr-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+
+  margin-top: 16px;
+  padding-top: 16px;
+
+  border-top: 1px dashed #e3e5ed;
+}
+
+.cnr-result-grid strong {
+  display: block;
+  margin-top: 4px;
+
+  color: #252a40;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.cnr-result-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+
+  margin-top: 18px;
+}
+
+.cnr-result-counts {
+  color: #7c8294;
+  font-size: 12.5px;
+}
+
+.cnr-result-open {
+  flex-shrink: 0;
+
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  padding: 11px 18px;
+
+  border: 0;
+  border-radius: 12px;
+
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  color: white;
+
+  font-size: 13px;
+  font-weight: 750;
+  font-family: inherit;
+
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.cnr-result-open:hover {
+  transform: translateY(-2px);
+}
+
+/* Provenance, at the bottom where a footnote belongs: this is a
+   development dataset, not a live court feed. */
+.cnr-result-source {
+  margin: 16px 0 0;
+  padding-top: 13px;
+
+  border-top: 1px dashed #e3e5ed;
+
+  color: #9aa0b3;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.cnr-result-source strong {
+  color: #6b7183;
+}
+
+/* The field is a column: the box, then what is still missing about
+   what was typed into it. The button sits beside the column, not
+   beside the box, so the hint never pushes the row out of line. */
+.cnr-lookup-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.cnr-lookup-form input {
+  width: 100%;
+}
+
+.cnr-lookup-hint {
+  margin: 8px 2px 0;
+
+  color: #858b9e;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Still being typed, not yet wrong enough to stop — but worth
+   saying what a CNR looks like before the button is pressed. */
+.cnr-lookup-hint-bad {
+  color: #b42318;
+}
+
+/* =========================================================
    UPLOADED ORDER — how it was read, and what it contained
    ========================================================= */
 
@@ -9763,6 +10037,35 @@ select {
    ========================================================= */
 
 @media (max-width: 560px) {
+  .cnr-lookup {
+    margin-top: -38px;
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .cnr-lookup-form {
+    flex-direction: column;
+  }
+
+  .cnr-lookup-form button {
+    height: 48px;
+  }
+
+  .cnr-result {
+    padding: 16px;
+  }
+
+  .cnr-result-head,
+  .cnr-result-foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .cnr-result-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .order-section header {
     flex-direction: column;
     align-items: flex-start;

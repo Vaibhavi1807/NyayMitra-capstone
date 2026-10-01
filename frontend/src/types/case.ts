@@ -12,6 +12,40 @@ export interface CaseHistoryEntry {
   purpose_of_hearing: string;
 }
 
+/* An order recorded against the case by the case service — the court's
+   own record of what it has passed, not a document somebody uploaded. */
+export interface CaseOrder {
+  order_type: string;
+  order_number: string;
+  order_date: string;
+  order_details: string;
+  order_section: string;
+}
+
+/* Where the record came from. Every non-session case carries this, so
+   the screen can say plainly that it is reading development data
+   rather than a live court feed. */
+export interface CaseDataSource {
+  provider: string;
+  label: string;
+  live_ecourts_data: boolean;
+  disclaimer: string;
+  available?: boolean;
+  records?: number;
+}
+
+/* One step of the case's history as the case service orders it:
+   filing, registration, a sitting, a passed order, the next listing —
+   oldest first, and only ever built from dates the record carries.
+   `date` is empty when the source row had none of its own. */
+export interface CaseTimelineEvent {
+  date: string;
+  event: string;
+  description: string;
+  purpose: string;
+  stage: string | null;
+}
+
 export interface Case {
   cnr_number: string;
 
@@ -40,6 +74,21 @@ export interface Case {
   respondents_list: string[];
   applied_act: string;
   applied_section: string;
+
+  /* "Case pending" / "Case disposed" exactly as the source records it.
+     Optional: cases filed in this browser have no such field. */
+  case_status?: string;
+
   calculated_metrics: CaseMetrics;
   case_history_timeline: CaseHistoryEntry[];
+
+  /* Present only on records read from the case service. Cases filed in
+     this browser have no court-recorded orders behind them. */
+  orders?: CaseOrder[];
+  data_source?: CaseDataSource;
+
+  /* The full journey — filed, registered, every sitting, every order,
+     the next date — sorted oldest first. Store-filed cases have no
+     court record to draw it from, so it is optional. */
+  timeline?: CaseTimelineEvent[];
 }

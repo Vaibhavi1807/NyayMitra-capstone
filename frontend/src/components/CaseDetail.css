@@ -558,6 +558,111 @@
 }
 
 /* =========================================================
+   WHERE THE RECORD CAME FROM
+
+   Shown once, under the header: this is a development dataset,
+   not a live eCourts feed, and the page says so before any
+   number on it is read as the court's today.
+   ========================================================= */
+
+.matter-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  margin: 16px 0 0;
+  padding: 13px 16px;
+
+  background: #fff9ec;
+  border: 1px solid #f3e3bd;
+  border-radius: 14px;
+
+  color: #8a6116;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.matter-source-tag {
+  flex-shrink: 0;
+
+  padding: 4px 10px;
+  border-radius: 999px;
+
+  background: #f7edcf;
+  color: #7a5410;
+
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.matter-source strong {
+  color: #6d4a0d;
+}
+
+/* =========================================================
+   ORDERS THE COURT HAS PASSED
+   ========================================================= */
+
+.matter-orders {
+  margin-top: 18px;
+}
+
+.matter-order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.matter-order-list li {
+  padding: 14px 16px;
+
+  background: #fafbfe;
+  border: 1px solid #e5e7ef;
+  border-radius: 14px;
+}
+
+.matter-order-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.matter-order-line strong {
+  color: #20253a;
+  font-size: 14px;
+}
+
+.matter-order-date {
+  flex-shrink: 0;
+
+  color: #777d91;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.matter-order-section {
+  display: block;
+  margin-top: 5px;
+
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.matter-order-list p {
+  margin: 8px 0 0;
+
+  color: #777d91;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* =========================================================
    RESPONSIVE
    ========================================================= */
 
@@ -611,5 +716,162 @@
   .matter-timeline li {
     flex-direction: column;
     gap: 4px;
+  }
+
+  .matter-source {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .matter-order-line {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* =========================================================
+   STATUS, NEXT STEPS, TIMELINE STEPS, ORDER ACTIONS
+
+   Added with the CNR dashboard: a record read from the case
+   service says where it stands, what the guidance set advises
+   from that standing, and offers the door an order goes through.
+   ========================================================= */
+
+/* How the source describes where the matter stands — pending or
+   disposed — kept beside the stage rather than folded into a
+   paragraph, because the two read very differently at a glance. */
+.matter-status {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+
+  padding: 5px 13px;
+
+  border: 1px solid transparent;
+  border-radius: 999px;
+
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.matter-status-pending {
+  background: #e8f6ee;
+  border-color: #c9e9d6;
+  color: #1c7a4b;
+}
+
+.matter-status-disposed {
+  background: #eef1f5;
+  border-color: #dfe3ea;
+  color: #5b6172;
+}
+
+/* NEXT STEPS — the standing guidance service, asked from this
+   record. The button is quiet until there is an answer to show. */
+.matter-guidance {
+  margin-top: 16px;
+  padding-top: 15px;
+  border-top: 1px solid #eef0f6;
+}
+
+.matter-guidance-btn {
+  padding: 9px 17px;
+
+  background: #fff;
+  border: 1px solid #d9dcff;
+  border-radius: 999px;
+
+  color: #4338ca;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.matter-guidance-btn:hover:not(:disabled) {
+  background: #eef0ff;
+}
+
+.matter-guidance-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.matter-guidance-error {
+  margin: 11px 0 0;
+  color: #b42318;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.matter-guidance-result {
+  margin-top: 11px;
+  padding: 12px 13px;
+
+  background: #f7f8fc;
+  border: 1px solid #e9ebf3;
+  border-radius: 13px;
+}
+
+.matter-guidance-result p {
+  margin: 0;
+  color: #4c5165;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.matter-guidance-stage {
+  margin-bottom: 6px !important;
+  color: #4338ca !important;
+  font-weight: 650;
+}
+
+.matter-guidance-note {
+  margin-top: 9px !important;
+  color: #9aa0b3 !important;
+  font-size: 11px !important;
+}
+
+/* The court's own copy of an order is not in the dataset, so the
+   action is the one that exists: open it in Court Orders, where the
+   extraction and explanation service reads a pasted or uploaded
+   copy of the document itself. */
+.matter-order-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* TIMELINE STEPS — the framing events and the listing that has not
+   happened yet are marked, so a reader can find them in a long list
+   without every row shouting equally. */
+.matter-timeline li.is-milestone strong {
+  color: #4338ca;
+}
+
+.matter-timeline li.is-milestone::before {
+  background: #a5b4fc;
+}
+
+.matter-timeline li.is-upcoming::before {
+  background: #fff;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px #6366f1;
+}
+
+.matter-timeline li.is-next strong {
+  color: #4338ca;
+}
+
+.matter-timeline li.is-next .matter-timeline-date {
+  color: #4338ca;
+}
+
+@media (max-width: 620px) {
+  .matter-status {
+    align-self: flex-start;
   }
 }

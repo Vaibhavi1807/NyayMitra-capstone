@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { Case } from "../types/case";
 import type { ChatTarget } from "../api/chatApi";
+import { getGuidance, type GuidanceResult } from "../api/guidanceApi";
 import {
   DOCUMENT_CATEGORIES,
   addDocument,
@@ -43,6 +44,11 @@ type CaseDetailProps = {
      chat — the component then simply does not offer one
      rather than showing a button that goes nowhere. */
   onChat?: (target: ChatTarget) => void;
+
+  /* Hands the reader to the Court Orders screen, where the existing
+     extraction/explanation service lives. Omitted where the shell has
+     no such door, and then the order cards carry no button at all. */
+  onOpenCourtOrders?: () => void;
 };
 
 function formatDate(iso: string): string {
@@ -68,6 +74,21 @@ function documentIcon(mime: string): string {
   if (mime.startsWith("image/")) return "🖼";
   if (mime === "application/pdf") return "📄";
   return "📎";
+}
+
+/* A date the court has not reached yet. An empty or unparseable date
+   is never "upcoming" — it is simply unknown, and the timeline says
+   so rather than guessing. */
+function isFuture(iso: string): boolean {
+  if (!iso) return false;
+
+  const parsed = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return parsed >= today;
 }
 
 /* =========================================================
@@ -156,6 +177,7 @@ export default function CaseDetail({
   userId,
   onBack,
   onChat,
+  onOpenCourtOrders,
 }: CaseDetailProps) {
   const cnr = caseData.cnr_number;
 
@@ -165,6 +187,44 @@ export default function CaseDetail({
   const [category, setCategory] = useState<DocumentCategory>("Evidence");
   const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  /* -------------------------------------------------
+     NEXT STEPS — the guidance service the dashboard and the
+     voice screen already call, asked from where this matter
+     stands. The question is assembled only from values this
+     record carries: nothing about the case is invented to
+     make a tidier prompt.
+     ------------------------------------------------- */
+  const [guidance, setGuidance] = useState<GuidanceResult | null>(null);
+  const [guidanceBusy, setGuidanceBusy] = useState(false);
+  const [guidanceError, setGuidanceError] = useState("");
+
+  async function askGuidance() {
+    const parts = [
+      caseData.case_status,
+      caseData.current_case_stage
+        ? `Current stage: ${caseData.current_case_stage}`
+        : "",
+      caseData.next_hearing_date
+        ? `Next hearing ${formatDate(caseData.next_hearing_date)}`
+        : "",
+      caseData.case_type ? `Case type: ${caseData.case_type}` : "",
+    ].filter((part): part is string => Boolean(part));
+
+    setGuidanceBusy(true);
+    setGuidanceError("");
+    setGuidance(null);
+
+    try {
+      setGuidance(await getGuidance(parts.join(". ") + "."));
+    } catch {
+      setGuidanceError(
+        "Guidance could not be reached just now. Try again in a moment.",
+      );
+    } finally {
+      setGuidanceBusy(false);
+    }
+  }
 
   const refresh = () => {
     setDocuments(listDocuments(cnr));
@@ -230,6 +290,12 @@ export default function CaseDetail({
     [caseData.case_history_timeline],
   );
 
+  /* The whole journey as the case service orders it — filing,
+     registration, sittings, orders, the next date, oldest first.
+     Absent for cases this browser filed, which have no court record
+     behind them and fall back to their hearing list above. */
+  const journey = caseData.timeline ?? [];
+
   return (
     <section className="matter-detail">
       {/* -------------------------------------------------
@@ -250,7 +316,22 @@ export default function CaseDetail({
           </div>
 
           <div className="matter-head-side">
+            {/* Where the matter stands in court terms, and the
+                status the source records for it — a pending case
+                and a disposed one read differently at a glance. */}
             <span className="matter-stage">{caseData.current_case_stage}</span>
+
+            {caseData.case_status && (
+              <span
+                className={`matter-status${
+                  /disposed/i.test(caseData.case_status)
+                    ? " matter-status-disposed"
+                    : " matter-status-pending"
+                }`}
+              >
+                {caseData.case_status}
+              </span>
+            )}
 
             {canChat && (
               <button
@@ -264,6 +345,30 @@ export default function CaseDetail({
           </div>
         </div>
       </div>
+
+      {/* -------------------------------------------------
+          SOURCE
+
+          A record read from the case service says where it came
+          from and, more importantly, what it is not: this is a
+          development dataset, not a live eCourts feed. Showing
+          that once, under the header, beats letting a reader
+          assume every number here is the court's today.
+          ------------------------------------------------- */}
+      {caseData.data_source && (
+        <p className="matter-source">
+          <span className="matter-source-tag">
+            {caseData.data_source.live_ecourts_data
+              ? "Live court data"
+              : "Development data"}
+          </span>
+
+          <span>
+            <strong>{caseData.data_source.label}.</strong>{" "}
+            {caseData.data_source.disclaimer}
+          </span>
+        </p>
+      )}
 
       {/* -------------------------------------------------
           PARTIES · COURT · SCHEDULE
@@ -376,6 +481,41 @@ export default function CaseDetail({
               </div>
             </div>
           )}
+
+          {/* -------------------------------------------------
+              NEXT STEPS — the guidance service the dashboard and
+              the voice screen already use, asked from this record's
+              own status, stage and listing.
+              ------------------------------------------------- */}
+          <div className="matter-guidance">
+            <button
+              type="button"
+              className="matter-guidance-btn"
+              onClick={askGuidance}
+              disabled={guidanceBusy}
+            >
+              {guidanceBusy ? "Asking…" : "What should I do next?"}
+            </button>
+
+            {guidanceError && (
+              <p className="matter-guidance-error">{guidanceError}</p>
+            )}
+
+            {guidance && (
+              <div className="matter-guidance-result">
+                {guidance.matched && guidance.stage ? (
+                  <p className="matter-guidance-stage">
+                    <strong>{guidance.stage}</strong>
+                    {guidance.urgency ? <> · {guidance.urgency}</> : null}
+                  </p>
+                ) : null}
+
+                <p>{guidance.matched ? guidance.what_to_do_next : guidance.why}</p>
+
+                <p className="matter-guidance-note">{guidance.disclaimer}</p>
+              </div>
+            )}
+          </div>
         </article>
       </div>
 
@@ -448,12 +588,141 @@ export default function CaseDetail({
       </article>
 
       {/* -------------------------------------------------
-          HISTORY
+          ORDERS THE COURT HAS PASSED
+
+          Distinct from the documents above: those are files this
+          account filed, these are the court's own record of what
+          it has ruled. Cases opened from the browser's store have
+          no such record, and the card is simply not rendered for
+          them rather than appearing empty.
+          ------------------------------------------------- */}
+      {/* -------------------------------------------------
+          ORDERS THE COURT HAS PASSED
+
+          Distinct from the documents above: those are files this
+          account filed, these are the court's own record of what
+          it has ruled.
+
+          A record read from the case service always gets this card,
+          including when nothing has been passed — "no orders yet" is
+          an answer, and a blank is not. Cases opened from the
+          browser's store keep the old behaviour and get no card.
+
+          The docket entry is all the capture holds; the document
+          itself is not in the dataset. So the action offered is the
+          one that exists: hand the reader to Court Orders, where the
+          extraction and explanation service reads a pasted or
+          uploaded copy.
+          ------------------------------------------------- */}
+      {(caseData.data_source || (caseData.orders?.length ?? 0) > 0) && (
+        <article className="matter-card matter-orders">
+          <div className="matter-card-head">
+            <div>
+              <h3>Orders passed</h3>
+              <p>
+                Recorded by the court in this matter — the docket entry,
+                not a copy of the order itself.
+              </p>
+            </div>
+          </div>
+
+          {(caseData.orders?.length ?? 0) === 0 ? (
+            <div className="matter-empty">
+              <span aria-hidden="true">⚖</span>
+              <p>No orders are recorded against this case yet.</p>
+            </div>
+          ) : (
+            <ul className="matter-order-list">
+              {caseData.orders?.map((order, index) => (
+                <li key={`${order.order_number}_${index}`}>
+                  <div className="matter-order-line">
+                    <strong>
+                      {order.order_type} Order No. {order.order_number || "—"}
+                    </strong>
+
+                    <span className="matter-order-date">
+                      {formatDate(order.order_date)}
+                    </span>
+                  </div>
+
+                  <span className="matter-order-section">
+                    {order.order_section}
+                  </span>
+
+                  {order.order_details && <p>{order.order_details}</p>}
+
+                  {onOpenCourtOrders && (
+                    <div className="matter-order-actions">
+                      <button
+                        type="button"
+                        className="doc-ghost"
+                        onClick={onOpenCourtOrders}
+                      >
+                        Explain this order
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      )}
+
+      {/* -------------------------------------------------
+          TIMELINE
+
+          The case service returns the whole journey already in
+          order — filed, registered, every sitting, every order, the
+          next date — so a service record shows that. Cases filed in
+          this browser have no court record to draw a journey from
+          and keep their hearing list, in the same shape.
           ------------------------------------------------- */}
       <article className="matter-card">
-        <h3>Hearing history</h3>
+        <div className="matter-card-head">
+          <div>
+            <h3>{journey.length > 0 ? "Case timeline" : "Hearing history"}</h3>
 
-        {groupedHistory.length > 0 ? (
+            <p>
+              {journey.length > 0
+                ? "Oldest first, built only from dates the record carries."
+                : "What the court has listed in this matter."}
+            </p>
+          </div>
+        </div>
+
+        {journey.length > 0 ? (
+          <ol className="matter-timeline">
+            {journey.map((step, index) => {
+              const upcoming = isFuture(step.date);
+
+              return (
+                <li
+                  key={`${step.date}_${step.event}_${index}`}
+                  className={[
+                    upcoming ? "is-upcoming" : "",
+                    step.event === "Next hearing" ? "is-next" : "",
+                    step.event === "Case filed" ||
+                    step.event === "Case registered"
+                      ? "is-milestone"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <span className="matter-timeline-date">
+                    {step.date ? formatDate(step.date) : "Date not recorded"}
+                  </span>
+
+                  <div>
+                    <strong>{step.event}</strong>
+                    {step.description && <span>{step.description}</span>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : groupedHistory.length > 0 ? (
           <ol className="matter-timeline">
             {groupedHistory.map((entry, index) => (
               <li key={`${entry.hearing_date}_${index}`}>
@@ -471,7 +740,7 @@ export default function CaseDetail({
         ) : (
           <div className="matter-empty">
             <span aria-hidden="true">🗓</span>
-            <p>No hearings recorded yet.</p>
+            <p>No events are recorded for this case yet.</p>
           </div>
         )}
       </article>

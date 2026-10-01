@@ -337,6 +337,10 @@ function App() {
             userName={session.fullName}
             onBack={goBackToDashboard}
             onChat={startChat}
+            /* An order opened from a case dashboard goes to the
+               Court Orders screen, where the existing extraction
+               and explanation service lives. */
+            onOpenCourtOrders={() => goToPage("orders")}
           />
         )}
 

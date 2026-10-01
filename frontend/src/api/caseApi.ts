@@ -18,7 +18,12 @@
    ========================================================= */
 
 import { mockCases } from "../mocks/cases";
-import type { Case } from "../types/case";
+import type {
+  Case,
+  CaseDataSource,
+  CaseMetrics,
+} from "../types/case";
+import { LAWYER_API_BASE_URL, apiRequest } from "./config";
 
 const STORAGE_KEY = "nyaymitra.cases.added.v1";
 
@@ -241,4 +246,74 @@ export function resetCases(): void {
   } catch {
     storageUsable = false;
   }
+}
+
+/* =========================================================
+   LOOKING A CASE UP BY CNR — the case service
+
+   The store above is this browser's own bookkeeping. A CNR search
+   is not: it asks the case service (NyayMitra-feature-lawyer-api)
+   for one record, and the answer comes back shaped like every
+   other `Case` on the screen, so the card and the detail view
+   work on it without knowing where it came from.
+
+   What the service returns is development data — a normalised
+   copy of records captured manually from eCourts — and its
+   provenance rides along on `data_source`, so the screen can
+   say plainly what it is showing.
+   ========================================================= */
+
+type ServiceCase = Omit<
+  Case,
+  "owner_user_id" | "handling_lawyer_id" | "calculated_metrics"
+> & {
+  owner_user_id?: string;
+  handling_lawyer_id?: string;
+  calculated_metrics?: CaseMetrics;
+};
+
+interface CaseLookupResponse {
+  success: boolean;
+  case: ServiceCase;
+  data_source: CaseDataSource;
+}
+
+/**
+ * Fetch one case by CNR.
+ *
+ * Throws with the service's own message when it can answer: a
+ * malformed CNR is a 400 saying what a CNR looks like, an unknown
+ * one a 404 naming only that number — both written for whoever
+ * typed it. When the service cannot be reached at all, the
+ * browser's fetch error surfaces instead, and the caller says the
+ * service could not be reached rather than pretending the number
+ * was tested.
+ */
+export async function lookupCaseByCnr(
+  cnr: string,
+  userId: string,
+): Promise<Case> {
+  const payload = await apiRequest<CaseLookupResponse>(
+    LAWYER_API_BASE_URL,
+    `/api/cases/cnr/${encodeURIComponent(cnr.trim())}`,
+  );
+
+  const record = payload.case;
+
+  return {
+    ...record,
+    owner_user_id: record.owner_user_id || userId,
+    handling_lawyer_id: record.handling_lawyer_id || "",
+    respondents_list: record.respondents_list ?? [],
+    case_history_timeline: record.case_history_timeline ?? [],
+    timeline: record.timeline ?? [],
+    orders: record.orders ?? [],
+    data_source: payload.data_source,
+    calculated_metrics: record.calculated_metrics ?? {
+      respondent_count: (record.respondents_list ?? []).length,
+      total_case_age_days: 0,
+      total_hearings_scheduled: (record.case_history_timeline ?? []).length,
+      current_stage_duration_days: 0,
+    },
+  };
 }
