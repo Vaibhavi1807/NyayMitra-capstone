@@ -1,0 +1,28 @@
+# Case data - never commit raw / processed / scraped datasets
+data/raw/
+data/processed/
+data/disposedata/
+
+# Any CSV (case data, extracted tables, source dumps)
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend (if re-added later)
+node_modules/
+dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
