@@ -1,0 +1,136 @@
+/* =========================================================
+   NLP SERVICE STATUS BANNER
+   ========================================================= */
+
+.service-status {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 16px;
+
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* ---------- ONLINE / CHECKING (quiet pills) ---------- */
+
+.service-status-online,
+.service-status-checking {
+  display: inline-flex;
+  width: fit-content;
+
+  padding: 7px 13px;
+
+  border: 1px solid #e5e7ef;
+
+  border-radius: 999px;
+
+  background: white;
+
+  color: #777d91;
+}
+
+.service-status-online {
+  border-color: #cdeeda;
+
+  color: #17834c;
+}
+
+.service-status-dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #b6bac7;
+}
+
+.service-status-online .service-status-dot {
+  background: #21a866;
+
+  box-shadow: 0 0 0 3px rgba(33, 168, 102, 0.16);
+}
+
+/* ---------- OFFLINE (actionable banner) ---------- */
+
+.service-status-offline {
+  align-items: flex-start;
+
+  padding: 15px 16px;
+
+  border: 1px solid #f6d7d7;
+
+  border-radius: 16px;
+
+  background: #fff5f5;
+
+  color: #b42318;
+}
+
+.service-status-icon {
+  font-size: 16px;
+
+  line-height: 1.3;
+}
+
+.service-status-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.service-status-body strong {
+  display: block;
+
+  margin-bottom: 4px;
+
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.service-status-body p {
+  margin: 0;
+
+  color: #8a5252;
+
+  font-size: 12px;
+  font-weight: 500;
+
+  line-height: 1.6;
+}
+
+.service-status-body code {
+  padding: 1px 5px;
+
+  border-radius: 5px;
+
+  background: #fdeaea;
+
+  font-size: 11px;
+}
+
+.service-status-offline button {
+  flex-shrink: 0;
+
+  padding: 8px 15px;
+
+  border: 1px solid #f0c4c4;
+
+  border-radius: 999px;
+
+  background: white;
+
+  color: #b42318;
+
+  font-size: 11px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.service-status-offline button:hover {
+  border-color: #b42318;
+}
