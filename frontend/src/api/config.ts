@@ -1,3 +1,5 @@
+import { loadSession } from "../auth/session";
+
 /* =========================================================
    NYAYMITRA — CENTRAL API CONFIG
 
@@ -42,6 +44,20 @@ export async function apiRequest<T>(
   endpoint: string,
   options?: RequestInit,
 ): Promise<T> {
+  /*
+   * AUTHENTICATION
+   *
+   * Requests to the lawyer service (:8000) carry the signed-in
+   * session token when there is one — this is how protected
+   * endpoints (auth/me, chat, verification) see who is calling.
+   * Callers may still override any header (their headers are
+   * spread last), and endpoints that do not require a session
+   * simply ignore the header. The NLP service uses its own
+   * fetchers and its own API key — it never reaches this point.
+   */
+  const session =
+    baseUrl === LAWYER_API_BASE_URL ? loadSession() : null;
+
   const response = await fetch(
     `${baseUrl}${endpoint}`,
     {
@@ -49,6 +65,9 @@ export async function apiRequest<T>(
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...(session?.token
+          ? { Authorization: `Bearer ${session.token}` }
+          : {}),
         ...(options?.headers || {}),
       },
     },

@@ -634,8 +634,9 @@ export default function CourtOrdersPage({
             <h3>No ongoing cases on this account</h3>
 
             <p>
-              Court orders are filed against a case. File a case from My
-              Cases and its orders will be listed here.
+              Court orders are issued against a case. Search a CNR in
+              My Cases, save the case, and its orders will be listed
+              here.
             </p>
           </div>
         ) : (

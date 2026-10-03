@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Session } from "../../auth/session";
 import {
+  CAN_DELETE_CONVERSATIONS,
+  IS_MOCK_CHAT,
   KNOWN_PARTIES,
   deleteConversation,
+  listAvailableLawyers,
   listConversations,
   partyFromSession,
   sendMessage,
@@ -131,6 +134,17 @@ export default function ChatPage({
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
 
+  /*
+   * Verified lawyers the "New chat" picker offers (API mode only).
+   * The server has already filtered to APPROVED registrations, so
+   * PENDING and REJECTED lawyers cannot show up here. The mock mode
+   * falls back to KNOWN_PARTIES below and never touches this state.
+   */
+  const [directory, setDirectory] = useState<ChatParty[]>([]);
+  const [directoryError, setDirectoryError] = useState<
+    string | null
+  >(null);
+
   /* Which category the list is showing, and the thread the ✕ is armed on.
      Deletion asks twice: the control sits a single click from the
      conversation it destroys, and something irreversible should not be one
@@ -155,6 +169,16 @@ export default function ChatPage({
         const next = await refresh();
         if (!cancelled && next.length > 0) {
           setActiveId((current) => current ?? next[0].id);
+        }
+      } catch (err) {
+        /* An expired token or a down backend must read as an error,
+           not silently as "no conversations yet". */
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not load conversations.",
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -202,6 +226,31 @@ export default function ChatPage({
       cancelled = true;
     };
   }, [target, me, refresh, onTargetConsumed]);
+
+  /* ---- verified lawyer listing for the picker (API mode) ---- */
+  useEffect(() => {
+    if (IS_MOCK_CHAT || me.role !== "USER") return;
+
+    let cancelled = false;
+
+    void listAvailableLawyers()
+      .then((lawyers) => {
+        if (!cancelled) setDirectory(lawyers);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setDirectoryError(
+            err instanceof Error
+              ? err.message
+              : "Could not load verified lawyers.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [me.role]);
 
   /* ---- keep the newest message in view ---- */
   useEffect(() => {
@@ -285,8 +334,11 @@ export default function ChatPage({
   /* Parties this role may start a thread with — the visible list, so
      somebody cannot open a conversation that has no category to file
      it under. Replies into an existing thread are checked separately
-     against the full matrix. */
-  const startable = KNOWN_PARTIES.filter(
+     against the full matrix. In API mode the pool is the server's
+     verified-lawyer directory; mock mode keeps the demo party list. */
+  const startable = (
+    IS_MOCK_CHAT ? KNOWN_PARTIES : directory
+  ).filter(
     (party) =>
       party.id !== me.id &&
       visiblePartners(me.role).includes(party.role) &&
@@ -444,23 +496,25 @@ export default function ChatPage({
                           </span>
                         </button>
 
-                        <button
-                          type="button"
-                          className={`chat-thread-delete${
-                            armed ? " is-armed" : ""
-                          }`}
-                          aria-label={
-                            armed
-                              ? `Confirm deleting the conversation with ${peer.name}`
-                              : `Delete the conversation with ${peer.name}`
-                          }
-                          onClick={() => {
-                            if (armed) void remove(thread.id);
-                            else setPendingDelete(thread.id);
-                          }}
-                        >
-                          {armed ? "Delete" : "✕"}
-                        </button>
+                        {CAN_DELETE_CONVERSATIONS && (
+                          <button
+                            type="button"
+                            className={`chat-thread-delete${
+                              armed ? " is-armed" : ""
+                            }`}
+                            aria-label={
+                              armed
+                                ? `Confirm deleting the conversation with ${peer.name}`
+                                : `Delete the conversation with ${peer.name}`
+                            }
+                            onClick={() => {
+                              if (armed) void remove(thread.id);
+                              else setPendingDelete(thread.id);
+                            }}
+                          >
+                            {armed ? "Delete" : "✕"}
+                          </button>
+                        )}
                       </li>
                     );
                   })}
@@ -473,7 +527,11 @@ export default function ChatPage({
             <div className="chat-picker">
               <p className="chat-picker-title">Start a conversation</p>
 
-              {startable.length === 0 ? (
+              {directoryError ? (
+                <p className="chat-error" role="alert">
+                  {directoryError}
+                </p>
+              ) : startable.length === 0 ? (
                 <p className="chat-muted">
                   No one new to message right now.
                 </p>
@@ -486,7 +544,10 @@ export default function ChatPage({
                         onClick={() => void openNew(party)}
                       >
                         <strong>{party.name}</strong>
-                        <span>{roleLabel(party.role)}</span>
+                        <span>
+                          {roleLabel(party.role)}
+                          {party.detail ? ` · ${party.detail}` : ""}
+                        </span>
                       </button>
                     </li>
                   ))}

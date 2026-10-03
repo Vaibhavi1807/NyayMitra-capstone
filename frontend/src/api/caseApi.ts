@@ -3,10 +3,14 @@
 
    `mockCases` stays exactly as it is: the fixture, immutable
    and shared. This module adds the one thing a static array
-   cannot do — let a citizen file a new matter — without
-   forcing every existing reader to change how it reads.
+   cannot do — let a citizen save a matter they looked up by
+   CNR — without forcing every existing reader to change how
+   it reads.
 
-   Only user-added cases are persisted. The seeds come from
+   Nothing in this module creates a court case. NyayMitra
+   tracks real cases; it never files them.
+
+   Only user-saved cases are persisted. The seeds come from
    `mockCases` on every read, so fixing a fixture value (a
    stale hearing date, a renamed party) takes effect
    immediately instead of being trapped behind whatever was
@@ -65,7 +69,7 @@ function write(next: Case[]): void {
    QUERIES
    ========================================================= */
 
-/** Every case on the platform: the ones this browser filed,
+/** Every case on the platform: the ones this account saved,
  *  then the seeded fixture. */
 export function getCases(): Case[] {
   return [...read(), ...mockCases];
@@ -95,7 +99,7 @@ export function getCasesForLawyer(lawyerId: string): Case[] {
    field on Case, so the stage is the only thing that can answer
    "is this still live?" — and it is worth being generous here: a
    word the fixture does not use leaves the case open rather than
-   hiding it from the citizen who filed it. */
+   hiding it from the citizen tracking it. */
 const CLOSED_STAGE =
   /(closed|concluded|disposed|dismissed|withdrawn|acquitted|settled|disposed of)/i;
 
@@ -113,128 +117,62 @@ export function getOngoingCasesForUser(userId: string): Case[] {
 }
 
 /* =========================================================
-   ADDING A CASE
+   SAVING A CASE TO MY CASES
+
+   Nothing in this section fabricates a court case. The record
+   arrives from the case service (`lookupCaseByCnr`) already
+   complete, and saving only claims it for one account — a tag
+   on an existing record, never a new one. There is no "file a
+   new case" path: NyayMitra tracks real cases, it never
+   creates them.
    ========================================================= */
 
-export type NewCaseInput = {
-  /* Who filed it and who is handling it. Both are set by the
-     caller from the session and the lawyer picker, never by
-     the form itself. */
-  owner_user_id: string;
-  handling_lawyer_id: string;
-
-  petitioner_name: string;
-  respondents_list: string[];
-  petitioner_advocate: string;
-
-  case_type: string;
-  court_name: string;
-  court_state: string;
-  court_district: string;
-  presiding_judge: string;
-
-  applied_act: string;
-  applied_section: string;
-
-  filing_date: string;
-  next_hearing_date: string;
-};
+/** Is this CNR already among the cases this account saved? */
+export function isSavedForUser(
+  cnr: string,
+  userId: string,
+): boolean {
+  return getCasesForUser(userId).some(
+    (item) => item.cnr_number === cnr,
+  );
+}
 
 /**
- * CNR in the same shape as the seeded records — four letters,
- * a court-code letter, a seven digit serial and the year —
- * so a newly filed matter is indistinguishable in layout from
- * an imported one.
+ * Save a looked-up case to My Cases.
+ *
+ * - The record itself is untouched apart from `owner_user_id`:
+ *   every field (CNR, parties, dates, timeline) stays exactly
+ *   as the service reported it.
+ * - Idempotent: saving a CNR this account already has changes
+ *   nothing, so the list never grows duplicates — whether the
+ *   copy came from an earlier save or from the seeded fixture.
+ * - Existing saved cases are never rewritten; this only ever
+ *   appends one record.
+ *
+ * Returns the saved record (or the already-saved copy).
  */
-function generateCnr(): string {
-  const serial = String(
-    Math.floor(Math.random() * 9_999_999),
-  ).padStart(7, "0");
-
-  const year = new Date().getFullYear();
-
-  return `PBASB${serial}${year}`;
-}
-
-function uniqueCnr(): string {
-  let candidate = generateCnr();
-
-  while (getCase(candidate) !== null) {
-    candidate = generateCnr();
+export function saveCaseForUser(
+  record: Case,
+  userId: string,
+): Case {
+  if (isSavedForUser(record.cnr_number, userId)) {
+    return (
+      getCasesForUser(userId).find(
+        (item) => item.cnr_number === record.cnr_number,
+      ) ?? record
+    );
   }
 
-  return candidate;
-}
+  const saved: Case = { ...record, owner_user_id: userId };
 
-function daysBetween(from: string, to: string): number {
-  const a = new Date(`${from}T00:00:00`).getTime();
-  const b = new Date(`${to}T00:00:00`).getTime();
+  write([saved, ...read()]);
 
-  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
-
-  return Math.max(0, Math.round((b - a) / 86_400_000));
-}
-
-export function addCase(input: NewCaseInput): Case {
-  const cnr = uniqueCnr();
-  const today = new Date().toISOString().slice(0, 10);
-
-  const filed = input.filing_date || today;
-
-  const created: Case = {
-    cnr_number: cnr,
-    owner_user_id: input.owner_user_id,
-    handling_lawyer_id: input.handling_lawyer_id,
-
-    court_state: input.court_state,
-    court_district: input.court_district,
-    court_name: input.court_name,
-
-    case_type: input.case_type,
-    filing_number: `FILING/${new Date(filed).getFullYear()}/${cnr.slice(-7)}`,
-    filing_date: filed,
-    registration_number: `REG/${cnr.slice(-7)}`,
-    registration_date: filed,
-    first_hearing_date: input.next_hearing_date || filed,
-    next_hearing_date: input.next_hearing_date || filed,
-    current_case_stage: "Filed — awaiting first hearing",
-
-    presiding_judge: input.presiding_judge || "Not yet listed",
-    petitioner_name: input.petitioner_name,
-    petitioner_advocate: input.petitioner_advocate,
-    respondents_list: input.respondents_list,
-
-    applied_act: input.applied_act,
-    applied_section: input.applied_section,
-
-    calculated_metrics: {
-      respondent_count: input.respondents_list.length,
-      total_case_age_days: daysBetween(filed, today),
-      total_hearings_scheduled: 0,
-      current_stage_duration_days: daysBetween(filed, today),
-    },
-
-    /* One entry so the timeline is not empty on a case the
-       user just filed — there is no hearing to record yet,
-       only the act of filing itself. */
-    case_history_timeline: [
-      {
-        judge_title: "Pending",
-        business_on_date: filed,
-        hearing_date: filed,
-        purpose_of_hearing: "Case filed and registered",
-      },
-    ],
-  };
-
-  write([created, ...read()]);
-
-  return created;
+  return saved;
 }
 
 /**
  * Re-read after a fixture or store change. Exported so a screen
- * that has just added a case can rebuild its list without
+ * that has just saved a case can rebuild its list without
  * re-running the whole component tree.
  */
 export function resetCases(): void {

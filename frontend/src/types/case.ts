@@ -76,19 +76,19 @@ export interface Case {
   applied_section: string;
 
   /* "Case pending" / "Case disposed" exactly as the source records it.
-     Optional: cases filed in this browser have no such field. */
+     Optional: cases saved from the browser's store have no such field. */
   case_status?: string;
 
   calculated_metrics: CaseMetrics;
   case_history_timeline: CaseHistoryEntry[];
 
-  /* Present only on records read from the case service. Cases filed in
-     this browser have no court-recorded orders behind them. */
+  /* Present only on records read from the case service. Cases saved
+     from the browser's store have no court-recorded orders behind them. */
   orders?: CaseOrder[];
   data_source?: CaseDataSource;
 
   /* The full journey — filed, registered, every sitting, every order,
-     the next date — sorted oldest first. Store-filed cases have no
+     the next date — sorted oldest first. Store-saved cases have no
      court record to draw it from, so it is optional. */
   timeline?: CaseTimelineEvent[];
 }

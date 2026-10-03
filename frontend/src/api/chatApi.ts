@@ -1,16 +1,21 @@
 import type { Role } from "../auth/roles";
 import type { Session } from "../auth/session";
 
+import { LAWYER_API_BASE_URL, apiRequest } from "./config";
+
 /* =========================================================
    CHAT API
 
-   The chat backend has not been delivered yet ("remaining
-   APIs will be provided soon"), so this module ships the
-   real contract against a localStorage-backed store. The
-   pages, navigation and — importantly — the role rules are
-   all live and testable today; moving to FastAPI means
-   reimplementing the functions below and flipping
-   VITE_CHAT_MODE to "api".
+   Phase 3 wired this module to the real backend: by default the
+   functions below talk to FastAPI over HTTP (``/api/chat``) with
+   the signed-in session's Bearer token, and the messages live in
+   the server's SQLite ``conversations``/``messages`` tables — so
+   they survive refreshes, re-logins and different devices.
+
+   Set ``VITE_CHAT_MODE=mock`` to fall back to the original
+   localStorage store (offline demos and UI experiments); the role
+   matrix and every caller-facing signature are identical in both
+   modes, which is why the pages never branch on the mode.
 
    ROLE RULES (as specified)
 
@@ -27,6 +32,11 @@ import type { Session } from "../auth/session";
    conversation the other can. ADMIN <-> USER is deliberately
    absent on both sides — that follows "user must communicate
    only with lawyer and the staff".
+
+   Server-side enforcement (Phase 3): the backend re-checks every
+   one of these rules from the session — participants only, verified
+   lawyers only — so the matrix here is UI convenience, never the
+   security boundary.
    ========================================================= */
 
 const ALLOWED_PARTNERS: Record<Role, readonly Role[]> = {
@@ -89,6 +99,10 @@ export interface ChatParty {
   id: string;
   role: Role;
   name: string;
+  /* Optional one-line profile shown in the "new chat" picker — the real
+     directory fills it with practice areas + experience, the mock leaves
+     it out and the picker falls back to the role label. */
+  detail?: string;
 }
 
 export interface ChatMessage {
@@ -152,11 +166,24 @@ export function partyFromSession(session: Session): ChatParty {
 }
 
 /* =========================================================
-   MOCK SWITCH (mirrors authApi.ts)
+   MODE SWITCH (mirrors authApi.ts)
+
+   Real FastAPI backend by default; VITE_CHAT_MODE=mock keeps the
+   localStorage store available for offline demos and UI tests.
    ========================================================= */
 
 const USE_MOCK =
-  (import.meta.env.VITE_CHAT_MODE || "mock") !== "api";
+  (import.meta.env.VITE_CHAT_MODE || "api") !== "api";
+
+/** True while threads live in localStorage instead of the server. */
+export const IS_MOCK_CHAT = USE_MOCK;
+
+/**
+ * Only the localStorage store can delete a thread — the server keeps
+ * history by design and offers no delete endpoint, so the inbox hides
+ * its ✕ in API mode rather than showing a control that would fail.
+ */
+export const CAN_DELETE_CONVERSATIONS = USE_MOCK;
 
 const STORAGE_KEY = "nyaymitra.chat.v1";
 
@@ -293,6 +320,237 @@ function buildSeeds(): ChatConversation[] {
 }
 
 /* =========================================================
+   API MODE — the real backend (Phase 3)
+
+   Wire shapes (chat/schemas.py) mapped onto the ChatParty /
+   ChatConversation / ChatMessage types every page already speaks,
+   so no caller knows which mode is active.
+   ========================================================= */
+
+interface ApiMessage {
+  id: number;
+  sender_id: number;
+  sender_role: Role;
+  message: string;
+  created_at: string;
+}
+
+interface ApiConversation {
+  id: number;
+  user_id: number;
+  user_name: string;
+  lawyer_id: string;
+  lawyer_name: string;
+  case_cnr: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: ApiMessage[];
+}
+
+interface ApiConversationList {
+  count: number;
+  conversations: ApiConversation[];
+}
+
+interface ApiLawyer {
+  lawyer_id: string;
+  full_name: string;
+  practice_areas: string[];
+  years_of_experience: number | null;
+  professional_bio: string | null;
+  bar_council: string | null;
+  verification_status: "APPROVED";
+}
+
+interface ApiLawyerList {
+  count: number;
+  lawyers: ApiLawyer[];
+}
+
+function toMessage(message: ApiMessage): ChatMessage {
+  return {
+    id: String(message.id),
+    senderId: String(message.sender_id),
+    senderRole: message.sender_role,
+    body: message.message,
+    sentAt: message.created_at,
+  };
+}
+
+function toConversation(thread: ApiConversation): ChatConversation {
+  return {
+    id: String(thread.id),
+    /* The citizen first, the advocate second — both sides see the
+       same pair, so peerOf() resolves either way round. */
+    parties: [
+      {
+        id: String(thread.user_id),
+        role: "USER",
+        name: thread.user_name,
+      },
+      {
+        id: thread.lawyer_id,
+        role: "LAWYER",
+        name: thread.lawyer_name,
+      },
+    ],
+    caseCnr: thread.case_cnr || undefined,
+    messages: thread.messages.map(toMessage),
+    updatedAt: thread.updated_at || thread.created_at,
+  };
+}
+
+function caseCnrPayload(caseCnr?: string): Record<string, string> {
+  const value = caseCnr?.trim();
+  return value ? { case_cnr: value } : {};
+}
+
+async function apiListConversations(
+  party: ChatParty,
+): Promise<ChatConversation[]> {
+  if (party.role === "USER") {
+    const data = await apiRequest<ApiConversationList>(
+      LAWYER_API_BASE_URL,
+      "/api/chat/conversations",
+    );
+    return data.conversations.map(toConversation);
+  }
+
+  if (party.role === "LAWYER") {
+    const data = await apiRequest<ApiConversationList>(
+      LAWYER_API_BASE_URL,
+      "/api/chat/lawyer/conversations",
+    );
+    return data.conversations.map(toConversation);
+  }
+
+  /* ADMIN and STAFF have no chat surface on the backend (403 by
+     design) — say so in the inbox instead of leaking that detail. */
+  throw new Error("Your account does not have a chat inbox.");
+}
+
+async function apiGetConversation(
+  id: string,
+): Promise<ChatConversation | null> {
+  try {
+    const thread = await apiRequest<ApiConversation>(
+      LAWYER_API_BASE_URL,
+      `/api/chat/conversations/${encodeURIComponent(id)}`,
+    );
+    return toConversation(thread);
+  } catch (error) {
+    /* Same contract as the mock store: null for "no such thread". */
+    if (
+      error instanceof Error &&
+      error.message === "Conversation not found."
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function apiStartConversation(
+  me: ChatParty,
+  other: ChatParty,
+  caseCnr?: string,
+): Promise<ChatConversation> {
+  if (!canChatWith(me.role, other.role)) {
+    throw new Error(
+      `${me.role} cannot start a conversation with ${other.role}.`,
+    );
+  }
+
+  if (me.role === "USER") {
+    const created = await apiRequest<ApiConversation>(
+      LAWYER_API_BASE_URL,
+      "/api/chat/conversations",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          lawyer_id: other.id,
+          ...caseCnrPayload(caseCnr),
+        }),
+      },
+    );
+    return toConversation(created);
+  }
+
+  if (me.role === "LAWYER") {
+    /* The client's id must be a real user id — mock/demo case data
+       carries placeholder owners like USER_0001, which belong to no
+       server account. Fail with a sentence instead of a 404. */
+    if (!/^\d+$/.test(other.id.trim())) {
+      throw new Error(
+        "That client account is not linked to NyayMitra yet.",
+      );
+    }
+
+    const created = await apiRequest<ApiConversation>(
+      LAWYER_API_BASE_URL,
+      "/api/chat/lawyer/conversations",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: Number(other.id.trim()),
+          ...caseCnrPayload(caseCnr),
+        }),
+      },
+    );
+    return toConversation(created);
+  }
+
+  throw new Error("Your account cannot start new conversations.");
+}
+
+async function apiSendMessage(
+  id: string,
+  body: string,
+): Promise<ChatMessage> {
+  const trimmed = body.trim();
+
+  if (!trimmed) {
+    throw new Error("Message cannot be empty.");
+  }
+
+  const created = await apiRequest<ApiMessage>(
+    LAWYER_API_BASE_URL,
+    `/api/chat/conversations/${encodeURIComponent(id)}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message: trimmed }),
+    },
+  );
+
+  return toMessage(created);
+}
+
+async function apiAvailableLawyers(): Promise<ChatParty[]> {
+  const data = await apiRequest<ApiLawyerList>(
+    LAWYER_API_BASE_URL,
+    "/api/chat/lawyers",
+  );
+
+  return data.lawyers.map((lawyer): ChatParty => {
+    const facts = [
+      lawyer.practice_areas.slice(0, 3).join(", "),
+      lawyer.years_of_experience !== null
+        ? `${lawyer.years_of_experience} yrs experience`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    return {
+      id: lawyer.lawyer_id,
+      role: "LAWYER",
+      name: lawyer.full_name,
+      detail: facts || undefined,
+    };
+  });
+}
+
+/* =========================================================
    QUERIES
    ========================================================= */
 
@@ -306,6 +564,10 @@ async function latency(): Promise<void> {
 export async function listConversations(
   party: ChatParty,
 ): Promise<ChatConversation[]> {
+  if (!USE_MOCK) {
+    return apiListConversations(party);
+  }
+
   await latency();
 
   return read()
@@ -318,6 +580,10 @@ export async function listConversations(
 export async function getConversation(
   id: string,
 ): Promise<ChatConversation | null> {
+  if (!USE_MOCK) {
+    return apiGetConversation(id);
+  }
+
   return read().find((thread) => thread.id === id) ?? null;
 }
 
@@ -332,6 +598,10 @@ export async function startConversation(
   other: ChatParty,
   caseCnr?: string,
 ): Promise<ChatConversation> {
+  if (!USE_MOCK) {
+    return apiStartConversation(me, other, caseCnr);
+  }
+
   await latency();
 
   if (!canChatWith(me.role, other.role)) {
@@ -365,6 +635,12 @@ export async function sendMessage(
   me: ChatParty,
   body: string,
 ): Promise<ChatMessage> {
+  if (!USE_MOCK) {
+    /* `me` is deliberately unused: the server takes the sender from
+       the session token, never from anything this call supplies. */
+    return apiSendMessage(conversationId_, body);
+  }
+
   await latency();
 
   const trimmed = body.trim();
@@ -410,6 +686,13 @@ export async function sendMessage(
 export async function deleteConversation(
   id: string,
 ): Promise<void> {
+  if (!USE_MOCK) {
+    /* The server keeps history by design and offers no delete — the
+       inbox hides the ✕ (CAN_DELETE_CONVERSATIONS), so reaching this
+       branch means something bypassed the UI. */
+    throw new Error("Deleting conversations is not available yet.");
+  }
+
   await latency();
 
   write(read().filter((thread) => thread.id !== id));
@@ -417,6 +700,8 @@ export async function deleteConversation(
 
 /** Test/demo helper — wipes stored threads so the seeds come back. */
 export function resetConversations(): void {
+  if (!USE_MOCK) return;
+
   memory = null;
 
   try {
@@ -424,4 +709,22 @@ export function resetConversations(): void {
   } catch {
     storageUsable = false;
   }
+}
+
+/**
+ * Verified (APPROVED) lawyers a citizen may open a thread with —
+ * the "Chat with Lawyer" listing.
+ *
+ * API mode: GET /api/chat/lawyers, where the server filters on
+ * verification_status, so PENDING and REJECTED registrations can
+ * never appear. Mock mode: the LAWYER entries among KNOWN_PARTIES.
+ */
+export async function listAvailableLawyers(): Promise<ChatParty[]> {
+  if (!USE_MOCK) {
+    return apiAvailableLawyers();
+  }
+
+  await latency();
+
+  return KNOWN_PARTIES.filter((party) => party.role === "LAWYER");
 }

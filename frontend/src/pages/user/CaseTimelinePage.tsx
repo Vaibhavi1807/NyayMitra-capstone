@@ -228,7 +228,7 @@ export default function CaseTimelinePage({
                 onAction={show}
                 busyCnr={busyCnr}
                 emptyTitle="No ongoing cases on this account"
-                emptyBody="A timeline is built from a case that is still running. File a case from My Cases and it will appear here."
+                emptyBody="A timeline is built from a case that is still running. Search a CNR in My Cases, save the case, and it will appear here."
               />
             </>
           ) : (

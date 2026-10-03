@@ -474,44 +474,6 @@ select {
   font-size: 13px;
 }
 
-/* The one action that changes what this screen holds — filing
-   a matter. Kept beside the count rather than in the search
-   bar, which is for finding what already exists. */
-.new-case-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-
-  padding: 13px 24px;
-
-  background: linear-gradient(135deg, #4338ca, #6366f1);
-
-  border: 0;
-  border-radius: 999px;
-
-  color: white;
-
-  font-size: 13.5px;
-  font-weight: 650;
-  font-family: inherit;
-
-  cursor: pointer;
-
-  box-shadow: 0 12px 26px rgba(67, 56, 202, 0.3);
-
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-
-.new-case-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 32px rgba(67, 56, 202, 0.36);
-}
-
-.new-case-btn span {
-  font-size: 16px;
-  line-height: 1;
-}
-
 /* A card that opens its matter. The pointer is the whole
    affordance — the footer link stays for readers who look
    for one. */
@@ -9362,7 +9324,7 @@ select {
 }
 
 /* =========================================================
-   CNR LOOKUP — reading a case nobody filed on this account
+   CNR LOOKUP — reading a case nobody has saved on this account
 
    Sits between the hero and the account's own list, so it takes
    the pull into the hero the list used to carry; the list then
@@ -9590,6 +9552,52 @@ select {
 
 .cnr-result-open:hover {
   transform: translateY(-2px);
+}
+
+/* The reader's choice beside "Open full case": keep the
+   record for tracking, or just read it. Saving tags the
+   record the service returned — it never files a new case. */
+.cnr-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.cnr-result-save {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 18px;
+
+  border: 1.5px solid #c3c8f5;
+  border-radius: 12px;
+
+  background: #fff;
+  color: #4338ca;
+
+  font-size: 13px;
+  font-weight: 750;
+  font-family: inherit;
+
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.cnr-result-save:hover:not(:disabled) {
+  border-color: #4338ca;
+  transform: translateY(-2px);
+}
+
+/* Already in My Cases: the state says so and the action is over. */
+.cnr-result-save:disabled {
+  border-color: #b7e0c6;
+  background: #f0faf4;
+  color: #1e8e5a;
+
+  cursor: default;
 }
 
 /* Provenance, at the bottom where a footnote belongs: this is a
@@ -10060,6 +10068,11 @@ select {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+  }
+
+  .cnr-result-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .cnr-result-grid {

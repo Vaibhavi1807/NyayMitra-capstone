@@ -81,12 +81,26 @@ Every protected API endpoint must independently validate authentication and auth
 
 ## 6. Current Scope
 
-At this stage:
+At this stage (after Phases 1 and 2):
 
-- Role constants are defined.
+- Role constants are defined (`USER` / `LAWYER` / `ADMIN`).
 - The authentication architecture is documented.
-- JWT implementation is not yet connected.
-- Backend authentication endpoints are not yet integrated.
-- Protected routes will be implemented after the backend authentication contract is available.
+- Sessions use opaque bearer tokens stored server-side in the
+  `sessions` table (passwords PBKDF2-hashed) rather than JWT — a
+  deliberate no-new-packages choice; the contract described here is
+  unchanged.
+- Backend authentication endpoints are integrated on the lawyer
+  service: `POST /api/auth/register`, `POST /api/auth/register/lawyer`,
+  `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`,
+  `GET /api/auth/lawyer/profile`, plus the ADMIN-only lawyer
+  verification API (`GET`/`PATCH /api/admin/lawyers[/{lawyer_id}]`).
+  Every request above is runnable from
+  `docs/postman/NyayMitra.postman_collection.json`.
+- Protected routes validate role and verification state server-side
+  (`require_role(...)` and `require_verified_lawyer` in
+  `auth/security.py`). Lawyer registration always lands `PENDING`;
+  only an ADMIN can move it to `APPROVED`/`REJECTED`, and a lawyer
+  calling the admin routes — including on their own row — receives
+  403.
 
-This approach allows frontend and backend development to proceed independently while keeping a clear authentication contract.
+The frontend- and backend-side development contract above still applies: route protection in the UI remains an access-control layer, never a security boundary.

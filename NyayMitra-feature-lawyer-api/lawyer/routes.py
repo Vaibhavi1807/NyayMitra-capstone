@@ -1,5 +1,8 @@
+import psycopg2
 from fastapi import APIRouter, HTTPException, Query
+
 from database.connection import get_db_connection
+from database.sqlite_db import connect as sqlite_connect
 
 router = APIRouter(prefix="/api/lawyers", tags=["Lawyers"])
 
@@ -11,6 +14,17 @@ def split_semicolon_list(value):
     if isinstance(value, (list, tuple)):
         return [str(item).strip() for item in value if str(item).strip()]
     return [item.strip() for item in str(value).split(";") if item.strip()]
+
+
+# lawyers.verification_status (the account database) rendered in the
+# vocabulary the frontend's profile-status slot already speaks — see
+# VerificationState in frontend/src/api/lawyerApi.ts. Unknown values
+# pass through unchanged.
+_PROFILE_STATUS = {
+    "APPROVED": "Verified",
+    "PENDING": "Pending",
+    "REJECTED": "Rejected",
+}
 
 
 @router.get("")
@@ -134,6 +148,18 @@ def get_lawyer_profile(lawyer_id: str):
     if not lawyer_id:
         raise HTTPException(status_code=400, detail="Lawyer ID is required.")
 
+    # The legacy directory lives in PostgreSQL (lawyer_database.sql),
+    # which this environment cannot run — see database/sqlite_db.py.
+    # The Lawyer Dashboard must not die with it: when the directory
+    # database is unreachable, serve the same response shape from the
+    # account database, where every registered lawyer exists.
+    try:
+        return _profile_from_postgres(lawyer_id)
+    except psycopg2.Error:
+        return _profile_from_sqlite(lawyer_id)
+
+
+def _profile_from_postgres(lawyer_id: str):
     connection = get_db_connection()
     try:
         cursor = connection.cursor()
@@ -232,4 +258,83 @@ def get_lawyer_profile(lawyer_id: str):
         "profile_status": row[28],
         "created_at": row[29].isoformat() if row[29] else None,
         "updated_at": row[30].isoformat() if row[30] else None,
+    }
+
+
+def _profile_from_sqlite(lawyer_id: str):
+    """Serve ``GET /{lawyer_id}`` from the account database.
+
+    Fallback used when PostgreSQL is unreachable: this environment
+    has no PostgreSQL at all (Phase 0 finding), while every lawyer
+    registered through ``/api/auth/register/lawyer`` lives in the one
+    project database (SQLite). The dict mirrors the PostgreSQL
+    response key-for-key so the frontend needs no special case;
+    columns the account database does not hold come back ``None`` /
+    ``[]`` and the dashboard renders its usual "Not available".
+
+    Deliberately exposes no login email: this route is public and
+    ``users.email`` is a sign-in identity, not a professional
+    contact address (the chat directory makes the same call).
+    """
+    connection = sqlite_connect()
+    try:
+        row = connection.execute(
+            """
+            SELECT
+                l.lawyer_id,
+                u.name,
+                l.license_id,
+                l.practice_areas,
+                l.bar_council,
+                l.years_of_experience,
+                l.professional_phone_number,
+                l.professional_bio,
+                l.verification_status,
+                l.created_at,
+                l.updated_at
+            FROM lawyers l
+            JOIN users u ON u.id = l.user_id
+            WHERE l.lawyer_id = ?
+            """,
+            (lawyer_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Lawyer not found")
+
+    return {
+        "lawyer_id": row["lawyer_id"],
+        "full_name": row["name"],
+        "profile_photo": None,
+        "profile_image": None,
+        "gender": None,
+        "date_of_birth": None,
+        "enrollment_number": row["license_id"],
+        "registration_number": None,
+        "bar_id_or_bar_code": None,
+        "bar_council": row["bar_council"],
+        "year_of_enrollment": None,
+        "years_of_experience": row["years_of_experience"],
+        "practice_areas": split_semicolon_list(row["practice_areas"]),
+        "courts_of_practice": [],
+        "state": None,
+        "district": None,
+        "city": None,
+        "office_address": None,
+        "pincode": None,
+        "professional_phone_number": row["professional_phone_number"],
+        "professional_email": None,
+        "office_phone": None,
+        "website": None,
+        "preferred_contact_method": None,
+        "education_qualifications": [],
+        "languages_known": [],
+        "working_office_hours": None,
+        "professional_bio": row["professional_bio"],
+        "data_source": None,
+        "profile_status": _PROFILE_STATUS.get(row["verification_status"]),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
     }

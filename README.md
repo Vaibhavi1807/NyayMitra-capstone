@@ -81,6 +81,7 @@ docker compose up -d database     # postgres:16-alpine on :5432
 cd NyayMitra-feature-lawyer-api
 copy .env.example .env            # then fill in your real DB password
 # load lawyer_database.sql into the database once
+python -m database.seed_demo_accounts   # demo accounts (idempotent, see below)
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -113,16 +114,34 @@ Then open **http://localhost:5173** — use `localhost`, not `127.0.0.1`.
 
 ---
 
-## Demo credentials
+## Demo credentials (development & testing only)
 
-| Role | Email | Password | ID |
-|------|-------|----------|----|
-| Citizen | `asha@example.com` | `user123` | `USER_0001` (Asha Verma) |
-| Lawyer | `rohan@example.com` | `lawyer123` | `LAWYER_0003` (Adv. Rohan Deshmukh) |
-| Administrator | `admin@nyaymitra.in` | `admin123` | `ADMIN_0001` |
-| Staff | `kavya@nyaymitra.in` | `staff123` | `STAFF_0001` (Kavya Iyer) |
+These are **seeded demo/test accounts — never real user data.** Creating them
+is repeatable and idempotent (re-running never duplicates an account):
 
-The login page prints these under each door.
+```powershell
+cd NyayMitra-feature-lawyer-api
+python -m database.seed_demo_accounts
+```
+
+| Role | Email | Password | Profile |
+|------|-------|----------|---------|
+| USER (citizen) | `asha@example.com` | `user123` | Asha Verma (`is_demo = 1`) |
+| LAWYER | `rohan@example.com` | `lawyer123` | Adv. Rohan Deshmukh — `lawyer_id LAWYER_0003`, verification **APPROVED** |
+| ADMIN | `admin@nyaymitra.in` | `admin123` | Site Administrator — for Admin Dashboard integration testing only; ADMIN has **no** self-registration path |
+
+- Passwords live in the database only as PBKDF2-HMAC-SHA256 hashes; the
+  plaintext above exists in this README and in the seeder's console output
+  only. `users.is_demo = 1` marks every seeded account.
+- **Production frontend builds never contain these credentials** — they are
+  dev-gated (`import.meta.env.DEV`), so a `vite build` bundle has none of
+  them; the login page's demo panel appears only in dev builds running
+  `VITE_AUTH_MODE=mock`.
+- Mock-mode only (never seeded into the database): Staff
+  `kavya@nyaymitra.in` / `staff123` — STAFF accounts are issued by ADMIN in
+  the offline demo and have no database role.
+- In dev mock mode the login page still prints the demo credentials under
+  each door.
 
 ---
 
@@ -139,12 +158,14 @@ be set for the app to run.
 | `VITE_TRANSLATION_API_KEY` | `nyaymitra-local-test-2026` | Bearer key the NLP service expects |
 | `NYAYMITRA_NLP_KEY` | `nyaymitra-local-test-2026` | The service-side half of that key — the NLP service reads it, so the two must be set together |
 | `VITE_LAWYER_ID` | `LAWYER_0003` | Profile opened during development; the session overrides it after login |
-| `VITE_AUTH_MODE` | `mock` | `mock` works today; `api` expects `POST /api/auth/login` |
-| `VITE_CHAT_MODE` | `mock` | Conversations kept in `localStorage` until chat endpoints land |
+| `VITE_AUTH_MODE` | `api` | `api` talks to the FastAPI auth endpoints (`/api/auth/register`, `/api/auth/login`); `mock` uses the offline demo accounts (dev builds only — production bundles contain no credentials) |
+| `VITE_CHAT_MODE` | `api` | `api` talks to the FastAPI chat endpoints (`/api/chat/...` — conversations persist server-side); `mock` keeps threads in `localStorage` for offline demos |
 | `VITE_AUTHORITY_MODE` | *(not read)* | Reserved for `/authorities`. Grants are always kept in `localStorage` today — the flag is documented in `.env.example` but nothing consumes it yet |
 
-Both switches that *are* read (`VITE_AUTH_MODE`, `VITE_CHAT_MODE`) default to
-`mock` when unset, so a missing `.env` is not an error. On the service side,
+`VITE_AUTH_MODE` and `VITE_CHAT_MODE` both default to `api` (the real
+FastAPI endpoints), so a missing `.env` is not an error; setting either
+to `mock` switches that module to its offline demo store.
+On the service side,
 `MODEL_IDLE_SECONDS` (default `600`) controls how long a loaded NLP checkpoint
 is held before it is released. On the lawyer service, `CASE_DATA_PROVIDER`
 (default `development`) picks the case provider behind `/api/cases`,
@@ -166,6 +187,11 @@ source exists. See [`docs/my-cases.md`](docs/my-cases.md).
   and next-steps guidance ([`docs/my-cases.md`](docs/my-cases.md)).
 - **Find a Lawyer** — live directory from `GET /api/lawyers`, with a
   **Chat** button per profile.
+- **Messages** — the shared inbox against **APPROVED lawyers only**:
+  open a thread from a Find-a-Lawyer card or the inbox's New chat
+  picker (the picker lists the verified-lawyer directory from
+  `GET /api/chat/lawyers`), with full history that survives refresh
+  and re-login, and an optional link to a saved case's CNR.
 - **Court Order** — upload an image or PDF and the NLP service explains
   it in simple words; orders are listed per ongoing case.
 - **Case Timeline** and **Delay Analysis** — pick an ongoing case, then
@@ -351,14 +377,67 @@ These are real and deliberately left visible rather than papered over:
   `data_source.live_ecourts_data: false`. `AuthorizedExternalCaseProvider`
   is the stub for a real authorised source and refuses to answer until
   `CASE_EXTERNAL_DSN` is set; nothing is scraped from eCourts.
-- **Chat, authority grants, account status and lawyer verification are
-  `localStorage` mocks.** They mirror the real shapes so each swap is a
-  one-file change when the endpoints arrive: `chatApi.ts`,
-  `authorityApi.ts` (work assignment lives here too), `accountApi.ts`
-  and the verification overlay in `lawyerApi.ts`.
-- **No `/api/auth/login`** on the lawyer service, so `VITE_AUTH_MODE=api` is
-  wired but not yet usable; `mock` is the working mode. The deactivation
-  check sits ahead of both modes, so it survives that switch.
+- **Authority grants, account status and chat *deletion* are
+  `localStorage` mocks.** `authorityApi.ts` (work assignment lives
+  here too) and `accountApi.ts` mirror the real shapes so each swap
+  is a one-file change when the endpoints arrive. `chatApi.ts` now
+  runs against the live `/api/chat` endpoints by default (its
+  localStorage store is kept behind `VITE_CHAT_MODE=mock`), and the
+  inbox hides its delete control in API mode because the server
+  keeps message history by design — there is no delete endpoint.
+  The verification overlay in `lawyerApi.ts` is
+  still a local mock as well — its backend (`/api/admin/lawyers`)
+  is live now and documented in the Postman collection, waiting for
+  the Admin Dashboard to be pointed at it.
+- **Auth now runs on the lawyer service** (it used to be frontend-mock
+  only): `POST /api/auth/register`, `POST /api/auth/register/lawyer`,
+  `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+  and `GET /api/auth/lawyer/profile`, plus the ADMIN-only lawyer
+  verification API (`GET/PATCH /api/admin/lawyers[/{lawyer_id}]`),
+  backed by one SQLite file (`data/nyaymitra.db`,
+  schema `database/auth_schema.sql`). Lawyer registration lands
+  `PENDING`; only an ADMIN can move it to `APPROVED`/`REJECTED`
+  (self-approval is refused server-side). The register page offers
+  **Create User Account** or **Create Lawyer Account**; the lawyer
+  form adds optional profile fields (bar council, experience, phone,
+  bio) and uploads the licence document in the same submission:
+  `POST /api/auth/lawyer/verification-document` (multipart, PDF/JPG/
+  PNG, max 10 MB, magic-byte checked, one replaceable copy per
+  lawyer under the gitignored `data/uploads/verification/`, never
+  served statically). Bytes leave the server only through the
+  lawyer's own `GET /api/auth/lawyer/verification-document` or the
+  ADMIN-only `GET /api/admin/lawyers/{lawyer_id}/document`, and the
+  registration/list/detail responses carry the document *metadata*
+  (`document: {filename, mime_type, size_bytes, sha256, uploaded_at}`
+  or `null`) for the admin dashboard to display. Until an admin
+  approves, the register page and the lawyer dashboard say
+  "Your lawyer registration is pending admin verification." The
+  schema is portable SQL reserved for a later PostgreSQL migration;
+  the legacy Postgres tables are untouched. Account deactivation is
+  still a frontend-only mock.
+- **Chat runs on the lawyer service** (Phase 3): `GET /api/chat/lawyers`
+  lists APPROVED lawyers only (PENDING/REJECTED never appear; no email,
+  licence id or phone leaves the server), `GET/POST
+  /api/chat/conversations` is the citizen side, `GET/POST
+  /api/chat/lawyer/conversations` the verified-lawyer side, and
+  `GET /api/chat/conversations/{id}[/messages]` plus
+  `POST .../messages` read and append history — plain HTTP, no
+  WebSockets, one thread per (citizen, lawyer) pair that is reused
+  rather than duplicated, with an optional `case_cnr` link (4 letters
+  + 12 digits, same format `cases/routes.py` enforces) to My Cases.
+  Identity always comes from the bearer session: payloads cannot name
+  a sender or an owner (extra identity fields are 422), threads are
+  visible only to their two participants (anyone else gets 404, so
+  ids cannot be probed), PENDING/REJECTED lawyers get 403 with their
+  own status, and signed-out requests get 401. Messages persist in the
+  same `data/nyaymitra.db` (`conversations`/`messages` already in
+  `database/auth_schema.sql` — no new tables, no schema change). The
+  shared inbox (`ChatPage`) uses the API by default
+  (`VITE_CHAT_MODE=api`); its New chat picker shows the verified
+  directory, and the ✕ delete control appears only in mock mode.
+  Covered by `tests/test_chat_api.py`, `chatApi.test.ts`,
+  `ChatPage.test.tsx` and the `Chat (User ↔ Lawyer)` folder of the
+  Postman collection.
 - **Newly issued staff fall back to default authorities and no work
   assignment.** Staff issued during a session do not appear in the seeded
   account list until reload.

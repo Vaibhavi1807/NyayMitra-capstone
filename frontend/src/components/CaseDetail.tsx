@@ -19,10 +19,10 @@ import "./CaseDetail.css";
    MY CASES — ONE MATTER, IN FULL
 
    The screen behind a case card. It answers the four
-   questions a filer actually has about their own case: who
-   is on either side, where and when it is next heard, what
-   they have already filed, and how to reach the advocate
-   handling it.
+   questions a reader actually has about a case they are
+   tracking: who is on either side, where and when it is
+   next heard, what documents have been added, and how to
+   reach the advocate handling it.
 
    The last one matters most. The assigned lawyer is not a
    name in a footer — it is a button, and it opens the thread
@@ -266,9 +266,9 @@ export default function CaseDetail({
     (caseData.handling_lawyer_id ? "Assigned advocate" : "");
 
   /* The chat door. Present only when the matter actually has an
-     advocate on it — a case the citizen filed unrepresented has
-     nobody to message, and pretending otherwise would produce a
-     thread with an unknown party on the other end. */
+     advocate on it — a case tracked without one has nobody to
+     message, and pretending otherwise would produce a thread
+     with an unknown party on the other end. */
   const canChat =
     Boolean(onChat) && Boolean(caseData.handling_lawyer_id);
 
@@ -292,8 +292,9 @@ export default function CaseDetail({
 
   /* The whole journey as the case service orders it — filing,
      registration, sittings, orders, the next date, oldest first.
-     Absent for cases this browser filed, which have no court record
-     behind them and fall back to their hearing list above. */
+     Absent for cases saved from the browser's store, which have
+     no court record behind them and fall back to their hearing
+     list above. */
   const journey = caseData.timeline ?? [];
 
   return (
@@ -527,7 +528,7 @@ export default function CaseDetail({
           <div>
             <h3>Case documents</h3>
             <p>
-              Everything you have filed in this matter. The assigned lawyer
+              Everything added to this matter. The assigned lawyer
               sees the same list.
             </p>
           </div>
@@ -582,7 +583,7 @@ export default function CaseDetail({
         ) : (
           <div className="matter-empty">
             <span aria-hidden="true">📎</span>
-            <p>No documents filed in this matter yet.</p>
+            <p>No documents added to this matter yet.</p>
           </div>
         )}
       </article>
@@ -591,7 +592,7 @@ export default function CaseDetail({
           ORDERS THE COURT HAS PASSED
 
           Distinct from the documents above: those are files this
-          account filed, these are the court's own record of what
+          account added, these are the court's own record of what
           it has ruled. Cases opened from the browser's store have
           no such record, and the card is simply not rendered for
           them rather than appearing empty.
@@ -600,7 +601,7 @@ export default function CaseDetail({
           ORDERS THE COURT HAS PASSED
 
           Distinct from the documents above: those are files this
-          account filed, these are the court's own record of what
+          account added, these are the court's own record of what
           it has ruled.
 
           A record read from the case service always gets this card,
@@ -674,9 +675,10 @@ export default function CaseDetail({
 
           The case service returns the whole journey already in
           order — filed, registered, every sitting, every order, the
-          next date — so a service record shows that. Cases filed in
-          this browser have no court record to draw a journey from
-          and keep their hearing list, in the same shape.
+          next date — so a service record shows that. Cases saved
+          from the browser's store have no court record to draw a
+          journey from and keep their hearing list, in the same
+          shape.
           ------------------------------------------------- */}
       <article className="matter-card">
         <div className="matter-card-head">

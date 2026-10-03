@@ -17,6 +17,11 @@ import type { Role } from "./roles";
    - the role comes from the decoded JWT claims
    ========================================================= */
 
+export type VerificationStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
+
 export interface Session {
   userId: string;
   fullName: string;
@@ -29,6 +34,13 @@ export interface Session {
 
   /* Only present for LAWYER sessions. */
   lawyerId?: string;
+
+  /* Only present for LAWYER sessions: PENDING / APPROVED /
+     REJECTED, straight from the server's verification workflow.
+     The client never sets or changes it — login just echoes back
+     what the database says, so the UI can show "pending admin
+     verification" truthfully. */
+  verificationStatus?: VerificationStatus;
 }
 
 /* =========================================================

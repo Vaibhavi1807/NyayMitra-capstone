@@ -4,6 +4,7 @@ import "./App.css";
 // ================= AUTH =================
 
 import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
 import type { Session } from "./auth/session";
 import {
   loadSession,
@@ -166,6 +167,14 @@ function App() {
     useState<Session | null>(() => loadSession());
 
   /*
+   * Which screen to show while signed out: the door-picker login or
+   * citizen registration. Registration is the only public form —
+   * every dashboard behind it requires a server-validated session.
+   */
+  const [authView, setAuthView] =
+    useState<"login" | "register">("login");
+
+  /*
    * On a page refresh the session is restored from
    * storage, so the starting page must be derived from
    * the restored role — otherwise a lawyer refreshing
@@ -210,6 +219,7 @@ function App() {
     saveSession(next);
 
     setSession(next);
+    setAuthView("login");
     setSelectedLawyerId(null);
     setActivePage(homePageForRole(next.role));
 
@@ -220,6 +230,7 @@ function App() {
     clearSession();
 
     setSession(null);
+    setAuthView("login");
     setSelectedLawyerId(null);
     setActivePage("dashboard");
 
@@ -227,15 +238,23 @@ function App() {
   };
 
   /* =======================================================
-     NOT SIGNED IN → LOGIN PAGE
+     NOT SIGNED IN → LOGIN / REGISTER
      ======================================================= */
 
   if (!session) {
     return (
       <div className="app">
-        <LoginPage
-          onAuthenticated={handleAuthenticated}
-        />
+        {authView === "register" ? (
+          <RegisterPage
+            onAuthenticated={handleAuthenticated}
+            onBack={() => setAuthView("login")}
+          />
+        ) : (
+          <LoginPage
+            onAuthenticated={handleAuthenticated}
+            onRegister={() => setAuthView("register")}
+          />
+        )}
       </div>
     );
   }
@@ -334,7 +353,6 @@ function App() {
         page === "cases" && (
           <CaseSearchPage
             userId={session.userId}
-            userName={session.fullName}
             onBack={goBackToDashboard}
             onChat={startChat}
             /* An order opened from a case dashboard goes to the
@@ -413,6 +431,7 @@ function App() {
           <LawyerDashboardPage
             onNavigate={goToPage}
             lawyerId={lawyerId}
+            verificationStatus={session.verificationStatus}
           />
         )}
 

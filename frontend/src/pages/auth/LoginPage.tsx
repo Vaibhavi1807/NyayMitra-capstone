@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ROLES, type Role } from "../../auth/roles";
 import type { Session } from "../../auth/session";
-import { login, DEMO_ACCOUNTS } from "../../api/authApi";
+import { login, DEMO_ACCOUNTS, IS_MOCK_AUTH } from "../../api/authApi";
 import "./LoginPage.css";
 
 /* =========================================================
@@ -17,14 +17,18 @@ import "./LoginPage.css";
        STAFF  → Staff dashboard  (staff sign in through
                 the Admin door)
 
-   Authentication is currently MOCK (see api/authApi.ts).
-   When FastAPI ships, only authApi.ts changes.
+   Sign-in talks to the FastAPI auth API by default
+   (see api/authApi.ts); VITE_AUTH_MODE=mock keeps the
+   offline demo working during development.
    ========================================================= */
 
 type Door = "USER" | "LAWYER" | "ADMIN";
 
 type LoginPageProps = {
   onAuthenticated: (session: Session) => void;
+
+  /* Offered by App while signed out: switch to the register view. */
+  onRegister?: () => void;
 };
 
 /* =========================================================
@@ -67,7 +71,10 @@ const DOORS: Array<{
   },
 ];
 
-function LoginPage({ onAuthenticated }: LoginPageProps) {
+function LoginPage({
+  onAuthenticated,
+  onRegister,
+}: LoginPageProps) {
   const [door, setDoor] = useState<Door | null>(null);
 
   /* Inside the Admin door, staff have their own sign-in. */
@@ -248,17 +255,29 @@ function LoginPage({ onAuthenticated }: LoginPageProps) {
 
           </div>
 
-          <button
-            type="button"
-            className="login-demo-toggle"
-            onClick={() => setShowDemo((value) => !value)}
-          >
-            {showDemo
-              ? "Hide demo credentials"
-              : "Show demo credentials"}
-          </button>
+          {onRegister && (
+            <button
+              type="button"
+              className="login-staff-link"
+              onClick={onRegister}
+            >
+              New citizen? Create an account →
+            </button>
+          )}
 
-          {showDemo && (
+          {IS_MOCK_AUTH && DEMO_ACCOUNTS.length > 0 && (
+            <button
+              type="button"
+              className="login-demo-toggle"
+              onClick={() => setShowDemo((value) => !value)}
+            >
+              {showDemo
+                ? "Hide demo credentials"
+                : "Show demo credentials"}
+            </button>
+          )}
+
+          {IS_MOCK_AUTH && DEMO_ACCOUNTS.length > 0 && showDemo && (
             <div className="login-demo-panel">
 
               <span className="login-section-label">
@@ -459,7 +478,9 @@ function LoginPage({ onAuthenticated }: LoginPageProps) {
               placeholder={
                 effectiveRole === "STAFF"
                   ? "you@nyaymitra.in"
-                  : "you@example.com or USER_0001"
+                  : IS_MOCK_AUTH
+                    ? "you@example.com or USER_0001"
+                    : "you@example.com"
               }
               value={identifier}
               onChange={(event) =>
@@ -517,8 +538,9 @@ function LoginPage({ onAuthenticated }: LoginPageProps) {
           </button>
 
           <p className="login-note">
-            Authentication is running in mock mode. Your
-            role is detected on sign-in and the matching
+            {IS_MOCK_AUTH &&
+              "Authentication is running in mock mode. "}
+            Your role is detected on sign-in and the matching
             dashboard opens automatically.
           </p>
 

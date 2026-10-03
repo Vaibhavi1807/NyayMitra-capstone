@@ -1,16 +1,22 @@
 import { useState } from "react";
 
 import type { Case } from "../types/case";
-import { lookupCaseByCnr } from "../api/caseApi";
+import {
+  isSavedForUser,
+  lookupCaseByCnr,
+  saveCaseForUser,
+} from "../api/caseApi";
 
 /* =========================================================
    CNR LOOKUP
 
-   My Cases lists what this account filed. A CNR lookup asks
-   the case service about a number this account does not own —
-   the matter an advocate mentioned, a hearing notice that
-   arrived by post — and opens it for reading without filing
-   it into the local store as though it belonged here.
+   My Cases lists what this account saved. A CNR lookup asks
+   the case service about any number — the matter an advocate
+   mentioned, a hearing notice that arrived by post — and opens
+   it for reading. Nothing is saved behind the reader's back:
+   the record enters My Cases only through its own explicit
+   "Save to My Cases" step, and saving merely tags an existing
+   record — it never files a new case.
 
    The service writes its own refusals: a malformed CNR and an
    unknown CNR read differently, and both are shown as they
@@ -21,9 +27,9 @@ import { lookupCaseByCnr } from "../api/caseApi";
    ========================================================= */
 
 type CnrLookupProps = {
-  /* Signed-in account. The record is tagged with it so the detail
-     screen can offer the same documents and chat it always does,
-     without the lookup quietly becoming an "add to my cases". */
+  /* Signed-in account. Opening never saves; "Save to My Cases"
+     tags the record with this account so the detail screen can
+     offer the same documents and chat it always does. */
   userId: string;
 
   /* Hands the resolved record to the page, which opens the detail
@@ -91,6 +97,11 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
   const [error, setError] = useState<string | null>(null);
   const [found, setFound] = useState<Case | null>(null);
 
+  /* The CNR this reader saved most recently. It only forces the
+     re-render; the authoritative answer stays with the store, so
+     a record saved in an earlier session still reads as saved. */
+  const [savedCnr, setSavedCnr] = useState<string | null>(null);
+
   /* Checked before anything leaves the browser: an empty box and a
      malformed number are answered on the spot, and only a number that
      is shaped like a CNR is sent to the service — which validates it
@@ -98,6 +109,11 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
   const query = cleanCnr(cnr);
   const entered = query.length > 0;
   const wellFormed = CNR_PATTERN.test(query);
+
+  const isSaved = found
+    ? savedCnr === found.cnr_number ||
+      isSavedForUser(found.cnr_number, userId)
+    : false;
 
   const lookup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -129,6 +145,17 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
     }
   };
 
+  /* Saving is a tag on the record the service just returned —
+     every field stays as reported; only the owning account is
+     set. Saving twice changes nothing (the button is disabled
+     once saved), so My Cases never grows duplicates. */
+  const save = () => {
+    if (!found || isSaved) return;
+
+    saveCaseForUser(found, userId);
+    setSavedCnr(found.cnr_number);
+  };
+
   const hearings = found?.case_history_timeline?.length ?? 0;
   const orders = found?.orders?.length ?? 0;
 
@@ -142,8 +169,8 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
         <p>
           Every case carries one 16-character CNR — four letters, then
           twelve digits, as printed on a notice or order sheet. The
-          record opens here for reading; it is not added to your
-          account.
+          record opens here for reading; choose "Save to My Cases" to
+          start tracking it.
         </p>
       </div>
 
@@ -236,14 +263,25 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
               {orders} {orders === 1 ? "order" : "orders"} passed
             </span>
 
-            <button
-              type="button"
-              className="cnr-result-open"
-              onClick={() => onOpen(found)}
-            >
-              Open full case
-              <span aria-hidden="true">→</span>
-            </button>
+            <div className="cnr-result-actions">
+              <button
+                type="button"
+                className="cnr-result-save"
+                onClick={save}
+                disabled={isSaved}
+              >
+                {isSaved ? "Saved to My Cases ✓" : "Save to My Cases"}
+              </button>
+
+              <button
+                type="button"
+                className="cnr-result-open"
+                onClick={() => onOpen(found)}
+              >
+                Open full case
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
           </footer>
 
           {/* Provenance travels with the record, so this panel never

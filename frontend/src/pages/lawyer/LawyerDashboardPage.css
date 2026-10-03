@@ -1665,3 +1665,58 @@
   }
 
 }
+/* =========================================================
+   VERIFICATION STATUS NOTICE (auth session, not the directory)
+
+   PENDING / REJECTED / APPROVED — the account's own state from
+   the server, shown on every dashboard state (including loading
+   and the error card) so a lawyer always sees where they stand.
+   ========================================================= */
+
+.lawyer-status-notice {
+  padding: 15px clamp(18px, 4vw, 44px);
+
+  border-bottom: 1px solid transparent;
+
+  display: grid;
+
+  gap: 4px;
+}
+
+.lawyer-status-notice strong {
+  font-size: 14.5px;
+
+  letter-spacing: -0.2px;
+}
+
+.lawyer-status-notice span {
+  font-size: 13px;
+
+  line-height: 1.55;
+
+  opacity: 0.85;
+}
+
+.lawyer-status-notice--pending {
+  background: #fff7e6;
+
+  border-bottom-color: #f2d68c;
+
+  color: #7a5a10;
+}
+
+.lawyer-status-notice--rejected {
+  background: #fdecec;
+
+  border-bottom-color: #f3b9b9;
+
+  color: #8f2b2b;
+}
+
+.lawyer-status-notice--approved {
+  background: #e9f7ef;
+
+  border-bottom-color: #bfe6cf;
+
+  color: #1f6b45;
+}

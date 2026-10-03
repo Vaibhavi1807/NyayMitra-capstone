@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Page } from "../../App";
+import type { VerificationStatus } from "../../auth/session";
 import {
   getLawyerById,
   type Lawyer,
@@ -12,11 +13,17 @@ const DEFAULT_LAWYER_ID =
 type LawyerDashboardPageProps = {
   onNavigate: (page: Page) => void;
   lawyerId?: string;
+  /* PENDING / APPROVED / REJECTED from the login session —
+     the account's own verification state, echoed from the
+     server. Undefined for sessions created before the field
+     existed (treated as "nothing to warn about"). */
+  verificationStatus?: VerificationStatus;
 };
 
 function LawyerDashboardPage({
   onNavigate,
   lawyerId,
+  verificationStatus,
 }: LawyerDashboardPageProps) {
   const effectiveLawyerId =
     lawyerId?.trim() || DEFAULT_LAWYER_ID;
@@ -75,11 +82,63 @@ function LawyerDashboardPage({
   }, [effectiveLawyerId]);
 
   /*
+   * VERIFICATION STATUS NOTICE
+   *
+   * Shown in every state below (loading included) because it is a
+   * statement about the account, not about the directory data —
+   * a pending lawyer must see it even when the profile request
+   * behind the dashboard fails.
+   */
+  const statusNotice =
+    verificationStatus === "PENDING" ? (
+      <div
+        className="lawyer-status-notice lawyer-status-notice--pending"
+        role="status"
+      >
+        <strong>
+          Your lawyer registration is pending
+          admin verification.
+        </strong>
+        <span>
+          An admin must approve your licence before
+          verified-lawyer features — like receiving chats
+          from users — unlock.
+        </span>
+      </div>
+    ) : verificationStatus === "REJECTED" ? (
+      <div
+        className="lawyer-status-notice lawyer-status-notice--rejected"
+        role="alert"
+      >
+        <strong>
+          Your lawyer registration has been rejected.
+        </strong>
+        <span>
+          Contact the administrator for details. You can
+          still sign in to view your profile.
+        </span>
+      </div>
+    ) : verificationStatus === "APPROVED" ? (
+      <div
+        className="lawyer-status-notice lawyer-status-notice--approved"
+        role="status"
+      >
+        <strong>Verified advocate.</strong>
+        <span>
+          Your licence is approved — users can start chats
+          with you.
+        </span>
+      </div>
+    ) : null;
+
+  /*
    * LOADING
    */
   if (loading) {
     return (
       <div className="lawyer-dashboard-loading">
+        {statusNotice}
+
         <div className="lawyer-dashboard-spinner" />
 
         <p>
@@ -100,6 +159,8 @@ function LawyerDashboardPage({
   if (error || !lawyer) {
     return (
       <div className="lawyer-dashboard-page">
+
+        {statusNotice}
 
         <div className="lawyer-dashboard-error">
 
@@ -194,6 +255,8 @@ function LawyerDashboardPage({
 
   return (
     <div className="lawyer-dashboard-page">
+
+      {statusNotice}
 
       {/* =====================================================
           HERO

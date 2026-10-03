@@ -218,7 +218,7 @@ export default function DelayAnalysisPage({
               onAction={run}
               busyCnr={busyCnr}
               emptyTitle="No ongoing cases on this account"
-              emptyBody="Delay can only be predicted for a case that is still running. File a case from My Cases and it will appear here."
+              emptyBody="Delay can only be predicted for a case that is still running. Search a CNR in My Cases, save the case, and it will appear here."
             />
           </>
         ) : (

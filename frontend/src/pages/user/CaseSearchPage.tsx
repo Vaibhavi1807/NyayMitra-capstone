@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import CaseSearch from "../../components/CaseSearch";
-import AddCaseForm from "../../components/AddCaseForm";
 import CaseDetail from "../../components/CaseDetail";
 import CnrLookup from "../../components/CnrLookup";
 import type { ChatTarget } from "../../api/chatApi";
@@ -11,30 +10,28 @@ import type { Case } from "../../types/case";
 /* =========================================================
    MY CASES
 
-   Three screens behind one door: the list, the form that
-   adds to it, and the matter itself. Keeping them here
-   rather than in the router means the hero and the dashboard
-   back button belong to the list only — a detail view has
-   its own "All cases" link, and two competing back buttons
-   in the same corner would be worse than one clear one.
+   Two screens behind one door: the list — with the CNR
+   lookup above it, which is the only way a case enters
+   here — and the matter itself. Keeping them here rather
+   than in the router means the hero and the dashboard back
+   button belong to the list only — a detail view has its
+   own "All cases" link, and two competing back buttons in
+   the same corner would be worse than one clear one.
 
    Each is mounted only while it is on screen, so returning
    to the list re-reads the store and shows whatever was
-   filed in the meantime.
+   saved in the meantime. No screen here creates a court
+   case: cases are looked up by CNR and saved, never filed.
    ========================================================= */
 
 type View =
   | { kind: "list" }
-  | { kind: "add" }
   | { kind: "detail"; cnr: string };
 
 type CaseSearchPageProps = {
   /* Signed-in account — the list below is scoped to it, so one user can never
      see another user's cases. */
   userId: string;
-
-  /* Prefills the petitioner field when filing. */
-  userName?: string;
 
   onBack?: () => void;
 
@@ -49,23 +46,22 @@ type CaseSearchPageProps = {
 
 export default function CaseSearchPage({
   userId,
-  userName = "",
   onBack,
   onChat,
   onOpenCourtOrders,
 }: CaseSearchPageProps) {
   const [view, setView] = useState<View>({ kind: "list" });
 
-  /* A CNR looked up by number, not filed on this account. It is
-     kept beside the store rather than inside it: the detail view
-     opens on it, but My Cases never starts claiming a matter it
-     does not own. */
+  /* A CNR looked up by number, not yet saved on this account. It
+     is kept beside the store rather than inside it: the detail
+     view opens on it, but My Cases never starts claiming a matter
+     the reader has not chosen to save. */
   const [lookedUp, setLookedUp] = useState<Case | null>(null);
 
   /* Re-read on every render: the detail view must reflect a
      matter that was re-opened, not the last one it rendered.
      The lookup answer is the fallback when the CNR is not one
-     this account filed. */
+     this account saved. */
   const opened =
     view.kind === "detail"
       ? (getCase(view.cnr) ??
@@ -75,8 +71,8 @@ export default function CaseSearchPage({
   return (
     <main className="nyaymitra-page">
       {/* The dashboard back button belongs to the list. On the
-          form and the matter it would sit directly under the
-          component's own link and cover it. */}
+          matter it would sit directly under the component's own
+          link and cover it. */}
       {view.kind === "list" && onBack && (
         <div className="page-back-wrapper">
           <button className="page-back-button" onClick={onBack}>
@@ -103,16 +99,17 @@ export default function CaseSearchPage({
               </h1>
 
               <p>
-                Only cases filed on your account appear on this page — nobody
-                else's. Open a case to read it in full, add documents, and
-                speak to the advocate handling it.
+                Only cases you have saved appear on this page — nobody
+                else's. Search by CNR, open a case to read it in full,
+                add documents, and speak to the advocate handling it.
               </p>
             </div>
           </section>
 
-          {/* Reading a matter nobody filed here — the CNR from a
+          {/* Reading a matter nobody has saved here — the CNR from a
               notice — sits above the account's own list, where the
-              person who came for it will find it. */}
+              person who came for it will find it, with saving left
+              as an explicit choice rather than assumed. */}
           <CnrLookup
             userId={userId}
             onOpen={(record) => {
@@ -123,19 +120,9 @@ export default function CaseSearchPage({
 
           <CaseSearch
             userId={userId}
-            onAdd={() => setView({ kind: "add" })}
             onOpen={(cnr) => setView({ kind: "detail", cnr })}
           />
         </>
-      )}
-
-      {view.kind === "add" && (
-        <AddCaseForm
-          userId={userId}
-          defaultPetitioner={userName}
-          onCancel={() => setView({ kind: "list" })}
-          onCreated={(cnr) => setView({ kind: "detail", cnr })}
-        />
       )}
 
       {view.kind === "detail" && opened && (
@@ -164,7 +151,7 @@ export default function CaseSearchPage({
 
           <div className="matter-empty">
             <span aria-hidden="true">⚖</span>
-            <p>This case is no longer on your account.</p>
+            <p>This case is no longer in your saved cases.</p>
           </div>
         </section>
       )}

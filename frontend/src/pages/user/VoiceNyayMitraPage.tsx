@@ -611,9 +611,9 @@ export default function VoiceNyayMitraPage({
                   </label>
                 ) : (
                   <p>
-                    No case is filed on this account yet, so answers
-                    stay general. File a case under My Cases and it
-                    will be selectable here.
+                    No case is saved on this account yet, so answers
+                    stay general. Search a CNR in My Cases, save the
+                    case, and it will be selectable here.
                   </p>
                 )}
               </div>
