@@ -4,6 +4,21 @@ import OngoingCases from "../../components/OngoingCases";
 import { getOngoingCasesForUser } from "../../api/caseApi";
 import type { Case } from "../../types/case";
 
+import {
+  ModelApiError,
+  predictDelay,
+} from "../../services/modelApi";
+import type {
+  ModelApiErrorKind,
+  PredictDelayResponse,
+} from "../../services/modelApi";
+
+/* `wh-pending` (the in-flight row) and `wh-error` (the red
+   failure row) are the shared card styles, so this screen uses
+   the same vocabulary as Tell Us What Happened rather than
+   growing a second copy. */
+import "./WhatHappened.css";
+
 /* =========================================================
    DELAY ANALYSIS
 
@@ -12,13 +27,17 @@ import type { Case } from "../../types/case";
    should have to look up a number that the app already holds
    in order to ask a question about their own case.
 
-   What the analysis shows is split honestly in two. The
-   figures and the reasons below are derived from the record
-   itself — age, stage duration, listed dates, hearing count —
-   and are true today. The delay model that would rank them
-   against every other matter on the platform is not
-   connected yet, and the panel says so rather than
-   presenting a guess as a prediction.
+   Two things are shown, and they are kept apart on purpose.
+
+   THE ESTIMATES come from POST /predict-delay (src/api.py),
+   which returns both numbers in a single response: days to the
+   next hearing, and days to disposal. Both are labelled as
+   estimates, and both are read against closed cases, so the
+   real figure for a running case can be shorter.
+
+   THE REASONS below are derived from the record itself — age,
+   stage duration, listed dates, hearing count — and are true
+   today regardless of what the model says.
    ========================================================= */
 
 type DelayAnalysisPageProps = {
@@ -29,6 +48,20 @@ type DelayAnalysisPageProps = {
 type Reason = {
   title: string;
   body: string;
+};
+
+type Failure = {
+  kind: ModelApiErrorKind;
+  message: string;
+};
+
+const FAILURE_TITLES: Record<ModelApiErrorKind, string> = {
+  validation: "Those case details could not be accepted",
+  rate_limit: "Too many requests",
+  server: "The model could not predict",
+  unavailable: "The prediction service is not available",
+  network: "The model service could not be reached",
+  unknown: "That prediction could not be made",
 };
 
 function formatDate(iso: string): string {
@@ -140,19 +173,53 @@ export default function DelayAnalysisPage({
 
   const [selected, setSelected] = useState<Case | null>(null);
   const [busyCnr, setBusyCnr] = useState<string | null>(null);
+  const [prediction, setPrediction] =
+    useState<PredictDelayResponse | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
 
-  const run = (caseData: Case) => {
+  /*
+   * One round trip. /predict-delay answers with BOTH numbers —
+   * days to the next hearing and days to disposal — so a single
+   * call fills both cards below.
+   */
+  const run = async (caseData: Case) => {
     if (busyCnr) return;
 
     setBusyCnr(caseData.cnr_number);
+    setPrediction(null);
+    setFailure(null);
+    setSelected(caseData);
 
-    /* A stand-in for the round trip the model will make. The
-       screen already needs the pending state, so the switch
-       costs nothing now and does not have to be added later. */
-    window.setTimeout(() => {
-      setSelected(caseData);
+    try {
+      setPrediction(
+        await predictDelay({
+          case_type: caseData.case_type,
+          court: caseData.court_name,
+          district: caseData.court_district,
+          state: caseData.court_state,
+        }),
+      );
+    } catch (caught) {
+      const error =
+        caught instanceof ModelApiError
+          ? caught
+          : new ModelApiError(
+              caught instanceof Error
+                ? caught.message
+                : "That prediction could not be made.",
+              "unknown",
+            );
+
+      setFailure({ kind: error.kind, message: error.message });
+    } finally {
       setBusyCnr(null);
-    }, 450);
+    }
+  };
+
+  const reset = () => {
+    setSelected(null);
+    setPrediction(null);
+    setFailure(null);
   };
 
   const reasons = selected ? deriveReasons(selected) : [];
@@ -262,6 +329,89 @@ export default function DelayAnalysisPage({
               </div>
             </div>
 
+            {/* =================================================
+                ESTIMATES — POST /predict-delay
+
+                Both numbers arrive in one response. They are
+                estimates, not dates, and they are read against
+                closed cases, so a running case may well be
+                quicker than this.
+                ================================================= */}
+            <div className="delay-stat-grid">
+              <div className="delay-stat-card">
+                <span>ESTIMATED DAYS TO NEXT HEARING</span>
+
+                <strong>
+                  {busyCnr
+                    ? "…"
+                    : prediction
+                      ? `${prediction.predicted_next_hearing_days} days`
+                      : "—"}
+                </strong>
+
+                <small>Estimate — not a scheduled date</small>
+              </div>
+
+              <div className="delay-stat-card">
+                <span>ESTIMATED DAYS TO DISPOSAL</span>
+
+                <strong>
+                  {busyCnr
+                    ? "…"
+                    : !prediction
+                      ? "—"
+                      : prediction.predicted_disposal_days === null ||
+                          prediction.predicted_disposal_days === undefined
+                        ? "Not available"
+                        : `${prediction.predicted_disposal_days} days`}
+                </strong>
+
+                <small>
+                  {prediction &&
+                  (prediction.predicted_disposal_days === null ||
+                    prediction.predicted_disposal_days === undefined)
+                    ? "The disposal model has not been trained yet"
+                    : "Estimate — not a scheduled date"}
+                </small>
+              </div>
+            </div>
+
+            {prediction && (
+              <div className="delay-model-note">
+                <span aria-hidden="true">◷</span>
+
+                <div>
+                  <strong>These are estimates</strong>
+
+                  <p>
+                    They come from models trained on <em>closed</em> cases, so
+                    the real time for a case still running can be{" "}
+                    <em>shorter</em> than the figure above. Treat them as a
+                    rough indication of how such matters usually run, not as a
+                    date the court has fixed.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {busyCnr && (
+              <div className="wh-pending">
+                Asking the delay model for both estimates…
+              </div>
+            )}
+
+            {failure && (
+              <div className="delay-model-note wh-error">
+                <span aria-hidden="true">ⓘ</span>
+
+                <div>
+                  <strong>{FAILURE_TITLES[failure.kind]}</strong>
+
+                  <p>{failure.message}</p>
+                </div>
+              </div>
+            )}
+
             {/* STATS */}
             <div className="delay-stat-grid">
               <div className="delay-stat-card">
@@ -314,13 +464,14 @@ export default function DelayAnalysisPage({
               <span aria-hidden="true">⚙</span>
 
               <div>
-                <strong>The delay model is not connected yet</strong>
+                <strong>How this estimate is produced</strong>
 
                 <p>
-                  Ranking this matter against others of its kind — and a
-                  confidence score for the prediction — will come from the
-                  delay-analysis API when it is available. Until then the
-                  reasons above are read only from this case's own record.
+                  Both figures come from the delay models in{" "}
+                  <code>src/api.py</code>, ranked against other matters of the
+                  same kind. The reasons below are separate: they are read
+                  straight from this case's own record and are true whether or
+                  not a prediction was made.
                 </p>
               </div>
             </div>
@@ -346,7 +497,7 @@ export default function DelayAnalysisPage({
               <button
                 type="button"
                 className="delay-new-analysis-button"
-                onClick={() => setSelected(null)}
+                onClick={reset}
               >
                 Predict delay for another case
               </button>
