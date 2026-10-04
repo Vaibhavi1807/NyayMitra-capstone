@@ -1,5 +1,12 @@
 # Case data - never commit raw / processed / scraped datasets
-data/raw/
+# data/ stays ignored. The only exceptions are the three resource files the
+# intent + incident pipeline needs at runtime, un-ignored by exact path.
+data/*
+!data/raw/
+data/raw/*
+!data/raw/incident_examples.json
+!data/raw/incident_categories.json
+!data/raw/incident_facts.json
 data/processed/
 data/disposedata/
 

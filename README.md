@@ -385,3 +385,219 @@ curl -X POST http://localhost:8000/predict-delay \
 
 Training data (`data/raw/`, `data/processed/`, `data/disposedata/`, `*.csv`) is
 **not** shipped with this repository. See `.gitignore`.
+
+One narrow exception: the three JSON files the intent + incident pipeline
+needs at runtime (`data/raw/incident_examples.json`,
+`data/raw/incident_categories.json`, `data/raw/incident_facts.json`) are
+un-ignored by exact path. Every other file under `data/` stays ignored.
+
+---
+
+# NyayMitra - Tell Us What Happened (intent + incident pipeline)
+
+The ML layer that turns one free-text message into structured JSON for the
+NLP / legal-explanation layer: intent (INCIDENT | CASE_QUESTION | FOLLOW_UP),
+incident category (INC001..INC025), extracted facts and the list of missing
+information. It is a separate feature from the delay-prediction models above;
+`/predict-delay` is untouched by it.
+
+## Layout
+
+| Path | Description |
+|------|-------------|
+| `src/incident_pipeline.py` | `process_user_input(text)` - the single entry point |
+| `src/intent_classifier.py` | 3-way intent classifier (nearest neighbour over multilingual MiniLM embeddings) |
+| `src/incident_classifier.py` | 25-class incident category classifier, `resolve_category()` |
+| `src/fact_extractor.py` | `extract_facts(text, category_id, language="en")` - regex/keyword fact extraction, Devanagari + Hinglish aware (no trained model) |
+| `src/missing_info.py` | Expected facts minus found facts |
+| `src/text_validation.py` | Shared input validation (HTML strip, empty reject, 1000-char cap) |
+| `src/sentence_encoder.py` | Lazy `paraphrase-multilingual-MiniLM-L12-v2` singleton + embedding cache |
+| `src/incident_data.py` | JSON lookup: `resources/` -> `data/raw/` -> `TellUsWhatHappened/data/` |
+| `src/evaluate_intent.py` | Held-out evaluation: per-class accuracy, per-input confidence/margin table, guard grid |
+| `src/test_incident_pipeline.py` | 12-case end-to-end test |
+| `resources/intent_examples.json` | Training examples (65: 25 / 20 / 20) |
+| `resources/intent_test_examples.json` | Held-out test set (60: English 10/10/10 + 10 Hindi + 10 Marathi + 10 Hinglish), never used in training |
+| `resources/intent_ood_examples.json` | 15 out-of-scope inputs (en / hi / mr / hinglish) used only for guard calibration, never in training or in the 60-row test set |
+| `data/raw/incident_*.json` | Team incident data needed at runtime (see `.gitignore` exceptions) |
+| `models/intent_embeddings.npz`, `models/incident_category_embeddings.npz` | Cached training embeddings |
+
+## Synthetic-data warning (read before trusting any number here)
+
+**The 20 CASE_QUESTION and the 20 FOLLOW_UP examples in
+`resources/intent_examples.json` are synthetic and have NOT been reviewed by
+the team member who owns the incident data.** The 25 INCIDENT examples are
+copied from the team file `data/raw/incident_examples.json` (that file is
+itself flagged `is_synthetic=true` by its owner). All 60 held-out test
+questions are hand-written synthetic text as well, and the 30 non-English
+ones - 10 Hindi (Devanagari), 10 Marathi (Devanagari) and 10 Hinglish
+(Roman script), 4/3/3 across the three intents - are **synthetic and
+unreviewed by a native speaker** of those languages. The 15 out-of-scope
+inputs in `resources/intent_ood_examples.json` are synthetic too, and were
+written by the same process, so the guard cut-offs derived from them are
+indicative only.
+
+**Accuracy on the synthetic classes, and on Hindi / Marathi / Hinglish as a
+whole, is not real-world performance.** It is indicative only, until the
+incident-data owner (and a native speaker for the non-English rows) has
+reviewed the examples.
+
+## Held-out evaluation (`resources/intent_test_examples.json`)
+
+60 questions, none of them used in training, run through
+`src/evaluate_intent.py` on 2026-10-04 with the multilingual encoder
+(`paraphrase-multilingual-MiniLM-L12-v2`, guards at `CONFIDENCE_THRESHOLD =
+0.35` **and** `MARGIN_THRESHOLD = 0.16`):
+
+| Language | Rows | INCIDENT | CASE_QUESTION | FOLLOW_UP | Overall | Incident-category | Guarded* |
+|---|---|---|---|---|---|---|---|
+| English | 30 | 10/10 (100%) | 10/10 (100%) | 8/10 (80%) | **93.3%** | 9/10 (90%) | 60.0% |
+| Hindi (Devanagari) † | 10 | 4/4 (100%) | 1/3 (33%) | 3/3 (100%) | **80.0%** | 4/4 (100%) | 70.0% |
+| Marathi (Devanagari) † | 10 | 4/4 (100%) | 2/3 (67%) | 3/3 (100%) | **90.0%** | 3/4 (75%) | 70.0% |
+| Hinglish (Roman script) † | 10 | 3/4 (75%) | 2/3 (67%) | 3/3 (100%) | **80.0%** | 1/4 (25%) | 20.0% |
+
+\* "Guarded" = accuracy once **both** guards are applied (confidence below
+0.35 **or** class gap below 0.16 -> the pipeline answers `unclear`, which
+counts as a wrong answer). Pooled: **34/60 = 56.7%**, with 0 wrong answers
+and 0 out-of-scope inputs leaked through.
+† **Hindi, Marathi and Hinglish rows are synthetic and unreviewed by a
+native speaker - indicative only, not real-world performance.** CASE_QUESTION
+and FOLLOW_UP are synthetic in every language.
+
+Notable misses: English categorised the Instagram-takeover row as INC005
+(fake profile) instead of INC003 and lost two short follow-ups; two Hindi
+case questions came back as INCIDENT / FOLLOW_UP with *high* confidence
+(0.81 / 0.74) - no confidence cut-off can catch those (0.814 is the highest
+wrong confidence in the whole scan), but the class gap does (0.064 / 0.067,
+both below 0.16); most correct Hinglish answers score below 0.35, which is
+why its guarded accuracy is 20%.
+
+### Out-of-scope guard calibration (`resources/intent_ood_examples.json`)
+
+15 out-of-scope inputs (4 English, 4 Hindi, 4 Marathi, 3 Hinglish -
+greetings, small talk, unrelated questions) were scored alongside the 60
+test rows. Per input, `src/evaluate_intent.py` prints the confidence, the
+raw top-1 minus top-2 margin, and the **class gap** (score of the winning
+label's nearest neighbour minus the best neighbour of any *other* label -
+raw top1-top2 is misleading when the two top neighbours belong to the same
+class):
+
+| group | n | confidence min / mean / max | raw margin min / mean / max | class gap min / mean / max |
+|---|---|---|---|---|
+| correct | 53 | 0.208 / 0.481 / 0.738 | 0.001 / 0.120 / 0.336 | 0.009 / 0.225 / 0.455 |
+| wrong | 7 | 0.171 / 0.485 / **0.814** | 0.011 / 0.047 / 0.077 | 0.011 / 0.060 / **0.116** |
+| out-of-scope | 15 | 0.104 / 0.226 / **0.341** | 0.004 / 0.047 / 0.132 | 0.011 / 0.072 / **0.157** |
+
+The three numbers the cut-offs are built from:
+
+* minimum correct confidence **0.208**, maximum out-of-scope confidence
+  **0.341**, maximum wrong confidence **0.814**
+* maximum out-of-scope class gap **0.157**, maximum wrong class gap
+  **0.116**, minimum correct class gap 0.009
+
+Guard grid (answer only when `confidence >= thr AND class gap >= m`,
+`correct lost` = correct answers the guard turns into `unclear`):
+
+| thr | gap | correct kept | correct lost | wrong leaked | OOD leaked |
+|---|---|---|---|---|---|
+| 0.35 | 0.00 | 42 | 11 | 4 | 0 |
+| 0.35 | 0.12 | 36 | 17 | 0 | 0 |
+| **0.35** | **0.16** | **34** | **19** | **0** | **0** |
+| 0.30 | 0.16 | 36 | 17 | 0 | 0 |
+| 0.25 | 0.16 | 38 | 15 | 0 | 0 |
+| 0.45 | 0.00 (previous state) | 33 | 20 | 3 | 0 |
+
+**Applied** (`src/incident_pipeline.py`, constants, commented with this
+provenance): `CONFIDENCE_THRESHOLD = 0.35` - just above the highest
+out-of-scope confidence (0.341); `MARGIN_THRESHOLD = 0.16` - just above the
+highest class gap of a wrong answer (0.116) and of an out-of-scope input
+(0.157). **Each guard on its own already excludes all 15 out-of-scope
+inputs**; together they exclude all 15 OOD and all 7 wrong answers and keep
+34 of 53 correct answers (19 correct answers are lost to `unclear`, against
+20 lost by the previous 0.45-only guard, which leaked 3 wrong answers).
+
+Alternatives shown for the record, **not applied**: `0.25 / 0.16` is the
+zero-leak accuracy maximiser (38 kept, 15 lost, 0 wrong, 0 OOD); `0.35 /
+0.00` keeps 42 correct but leaks 4 wrong answers; the old `0.45`-only guard
+kept 33 correct and leaked 3 wrong. Confidence alone cannot separate the
+two high-confidence wrong Hindi answers (0.81 / 0.74), so raising the
+threshold is not the fix - those need training examples.
+
+
+## API
+
+`POST /understand-situation` (30 requests/minute) with `{"text": "..."}`:
+
+```json
+{
+  "intent": "incident",
+  "incident_category": "online_financial_fraud_unauthorized_digital_transaction",
+  "category_id": "INC001",
+  "confidence": 0.83,
+  "facts": {"amount": "5000"},
+  "missing_information": ["transaction_date"],
+  "message": null
+}
+```
+
+`incident_category` is a snake_case slug, `category_id` is the `INC001`-style
+id, and fact keys are the exact `fact_or_entity` names from
+`data/raw/incident_facts.json`. For CASE_QUESTION / FOLLOW_UP the
+`incident_category`, `category_id`, `facts` and `missing_information` fields
+are `null`. Empty input returns HTTP 400.
+
+**Guards.** `incident_pipeline` has two constants that decide whether the
+pipeline answers or asks again:
+
+```python
+CONFIDENCE_THRESHOLD = 0.35   # above max out-of-scope confidence (0.341)
+MARGIN_THRESHOLD     = 0.16   # above max wrong class gap (0.116) and max OOD class gap (0.157)
+```
+
+If the score that produced the answer (the incident category score for
+INCIDENT, the intent score otherwise) is below `CONFIDENCE_THRESHOLD`, **or**
+the class gap to the runner-up intent is below `MARGIN_THRESHOLD`, the
+response is `{"intent": "unclear", "confidence": <score>, "message":
+"…Please rephrase… (gap 0.10 to the runner-up intent is below the 0.16
+margin threshold)", "incident_category": null, "category_id": null, "facts":
+null, "missing_information": null}`. Tune both cut-offs in that one place;
+the end-to-end test asserts the contract (unclear iff below either
+threshold, and a message set exactly when unclear). The numbers behind
+0.35 / 0.16 are in "Out-of-scope guard calibration" above.
+
+**Fact extraction** (`extract_facts(text, category_id, language="en")`) is
+script-aware, not language-aware: Devanagari rules fire on Devanagari text
+even when `language` defaults to `"en"`, so a Hindi sentence typed into the
+English default still yields dates, amounts, payment method and reference
+number (Devanagari digits are normalised, and the amount rule picks the
+money cue closest to the number, so "20000 रुपये UPI से 14 सितंबर" extracts
+`20000`, not `14`). `language` only selects the relative-date vocabulary
+("kal"/"कल") and turns on the Hinglish roman terms. English text takes the
+original code path unchanged - verified byte-for-byte against the
+pre-change output for all 44 English probe inputs (SHA-256
+`8875f4c8fe8b059651e06250dec671c1372309736dfb979fc9990bfcf5413dce`).
+
+The models, the JSON data and the embedding matrices are loaded at **API
+startup** (FastAPI lifespan hook), not on the first request, so the first
+call does not pay the model-load cost. `/predict-delay` keeps its own
+defensive import and is unaffected if this feature fails to load.
+
+## Encoder and embeddings
+
+Encoder: **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`**
+(384-dim, 50 languages incl. Hindi and Marathi), set in
+`src/sentence_encoder.py::MODEL_NAME`. It replaced the English-only
+`all-MiniLM-L6-v2` so Hindi / Marathi / Hinglish input is embedded in the
+same space as the English training examples.
+
+**First run downloads ~480 MB** (479,729,050 bytes in the HuggingFace cache:
+`model.safetensors` 470,641,600 B plus the tokenizer files) from the
+HuggingFace hub; every later start reuses that local cache. The old
+`all-MiniLM-L6-v2` cache (~87 MB) is no longer used.
+
+`models/intent_embeddings.npz` (93,034 bytes) and
+`models/incident_category_embeddings.npz` (178,285 bytes) are the cached
+training embeddings for that encoder - both far below any repo size limit, so
+they are committed. If either file is deleted, `src/sentence_encoder.py`
+regenerates it on the next startup: the cache is keyed by a SHA-256 of the
+model name plus the exact texts, so editing a data file - or changing
+`MODEL_NAME` - invalidates both files and rewrites them automatically.
