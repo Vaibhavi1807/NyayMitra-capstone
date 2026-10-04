@@ -113,6 +113,51 @@ Then open **http://localhost:5173** — use `localhost`, not `127.0.0.1`.
 
 ---
 
+### 5. Model API (:8000 — Tell Us What Happened + delay prediction)
+
+This is `src/api.py`, the service behind **Tell Us What Happened** and
+**Delay Analysis**. It needs its own virtualenv.
+
+```powershell
+py -3.12 -m venv .venv          # once, from the repository root
+.\.venv\Scripts\pip install -r requirements.txt
+
+cd src
+..\.venv\Scripts\python -m uvicorn api:app --port 8000
+```
+
+Endpoints, both rate-limited to 30 requests/minute:
+
+| Endpoint | Request | Returns |
+|---|---|---|
+| `POST /understand-situation` | `{"text": "..."}` | `intent`, `incident_category`, `category_id`, `confidence`, `facts`, `missing_information`, `message` |
+| `POST /predict-delay` | `{"case_type", "court", "district", "state"}` | `predicted_next_hearing_days` **and** `predicted_disposal_days` in one response |
+| `GET /health` | — | `{"status": "ok"}` |
+
+> **First run downloads ~480 MB.** Startup loads
+> `paraphrase-multilingual-MiniLM-L12-v2` from the HuggingFace hub the
+> first time (about 480,000,000 bytes: the weights plus tokenizer) and
+> caches it, so every later start is fast. The models, the JSON data and
+> the embedding matrices are loaded in the FastAPI lifespan hook, before
+> the first request, not during it. Hindi, Marathi and Hinglish input
+> works because that encoder is multilingual — see "Encoder and
+> embeddings" below.
+
+> ⚠️ **Port clash — read before running two services.** The README above
+> puts the **Lawyer API on :8000**, and this service also uses **:8000**.
+> They cannot run at the same time. During model development the model
+> API owns :8000 (that is what `VITE_MODEL_API_URL` points at); start the
+> Lawyer API on `:8002` with an **uncommitted** `.env.local` override if
+> you need it alongside. Committed defaults are deliberately left
+> unchanged.
+
+CORS on this service allows **only** the exact Vite dev origin
+(`http://localhost:5173`) — a specific list, never `*`. Add your origin to
+`ALLOWED_ORIGINS` in `src/api.py` if you serve the frontend from
+somewhere else.
+
+---
+
 ## Demo credentials
 
 | Role | Email | Password | ID |
@@ -135,6 +180,7 @@ be set for the app to run.
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `VITE_API_BASE_URL` | `http://127.0.0.1:8000` | Lawyer service |
+| `VITE_MODEL_API_URL` | `http://127.0.0.1:8000` | Model API (`src/api.py`) — `/understand-situation` and `/predict-delay`. A **separate** variable from `VITE_API_BASE_URL` even though both default to port 8000: they are different processes, so only one can hold the port at a time (see the port-clash note above) |
 | `VITE_TRANSLATION_API_URL` | `http://127.0.0.1:8001` | NLP service |
 | `VITE_TRANSLATION_API_KEY` | `nyaymitra-local-test-2026` | Bearer key the NLP service expects |
 | `VITE_LAWYER_ID` | `LAWYER_0003` | Profile opened during development; the session overrides it after login |

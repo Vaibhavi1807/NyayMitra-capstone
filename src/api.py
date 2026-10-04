@@ -2,6 +2,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -47,6 +48,25 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="NyayMitra Delay Prediction Service", lifespan=lifespan)
+
+# Browsers refuse a cross-origin call unless the API says which origin
+# may make it, so the Vite dev server needs this to reach either endpoint.
+#
+# Exact origins only - never "*". The list must match the origin the
+# frontend is actually served from (Vite, port 5173; see README). Adding
+# "*" would let any website on the internet read these predictions using
+# the visitor's own network, so it is deliberately not used here.
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept"],
+)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter

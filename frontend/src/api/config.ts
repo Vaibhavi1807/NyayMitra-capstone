@@ -18,6 +18,14 @@ export const LAWYER_API_BASE_URL: string =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 /* =========================================================
+   MODEL API  (src/api.py)
+   /understand-situation + /predict-delay, port 8000
+   ========================================================= */
+
+export const MODEL_API_BASE_URL: string =
+  import.meta.env.VITE_MODEL_API_URL || "http://127.0.0.1:8000";
+
+/* =========================================================
    NLP / TRANSLATION SERVICE  (NyayMitra-feature-nlp-translation)
    FastAPI + IndicTrans2, port 8001
    ========================================================= */
