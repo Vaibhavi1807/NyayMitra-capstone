@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import OngoingCases from "../../components/OngoingCases";
-import { getOngoingCasesForUser } from "../../api/caseApi";
+import { getCasesForUser, getOngoingCasesForUser } from "../../api/caseApi";
 import type { Case } from "../../types/case";
 
 /* =========================================================
@@ -136,6 +136,11 @@ export default function DelayAnalysisPage({
   userId,
   onBack,
 }: DelayAnalysisPageProps) {
+  /* Every saved case belongs on My Cases, the timeline and court
+     orders — the record readers show the account's whole shelf.
+     Only delay prediction is about what happens next in a running
+     matter, so it — and it alone — filters to ongoing cases. */
+  const saved = getCasesForUser(userId);
   const cases = getOngoingCasesForUser(userId);
 
   const [selected, setSelected] = useState<Case | null>(null);
@@ -217,8 +222,16 @@ export default function DelayAnalysisPage({
               actionLabel="Predict Delay"
               onAction={run}
               busyCnr={busyCnr}
-              emptyTitle="No ongoing cases on this account"
-              emptyBody="Delay can only be predicted for a case that is still running. Search a CNR in My Cases, save the case, and it will appear here."
+              emptyTitle={
+                saved.length > 0
+                  ? "Every saved case has concluded"
+                  : "No ongoing cases on this account"
+              }
+              emptyBody={
+                saved.length > 0
+                  ? "Delay can only be predicted while a case is still running, and each case on this account has finished. Save the CNR of a running case in My Cases and it will appear here."
+                  : "Delay can only be predicted for a case that is still running. Search a CNR in My Cases, save the case, and it will appear here."
+              }
             />
           </>
         ) : (

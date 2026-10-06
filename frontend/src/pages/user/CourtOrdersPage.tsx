@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { getOngoingCasesForUser } from "../../api/caseApi";
+import { getCasesForUser } from "../../api/caseApi";
 import {
   addDocument,
   listDocuments,
@@ -252,7 +252,7 @@ export default function CourtOrdersPage({
   userId,
   onBack,
 }: CourtOrdersPageProps) {
-  const cases = getOngoingCasesForUser(userId);
+  const cases = getCasesForUser(userId);
 
   /* Bumped after every write so the grouped lists below re-read the
      store. Nothing here is derived once and cached — a document added
@@ -547,7 +547,7 @@ export default function CourtOrdersPage({
                 aria-label="Case this order belongs to"
               >
                 {cases.length === 0 && (
-                  <option value="">No ongoing cases</option>
+                  <option value="">No saved cases</option>
                 )}
 
                 {cases.map((caseData) => (
@@ -631,7 +631,7 @@ export default function CourtOrdersPage({
           <div className="empty-orders">
             <div>⚖</div>
 
-            <h3>No ongoing cases on this account</h3>
+            <h3>No saved cases on this account</h3>
 
             <p>
               Court orders are issued against a case. Search a CNR in

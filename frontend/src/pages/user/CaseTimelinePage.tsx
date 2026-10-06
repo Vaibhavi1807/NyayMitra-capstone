@@ -1,13 +1,13 @@
 import { useState } from "react";
 
 import OngoingCases from "../../components/OngoingCases";
-import { getOngoingCasesForUser } from "../../api/caseApi";
+import { getCasesForUser } from "../../api/caseApi";
 import type { Case } from "../../types/case";
 
 /* =========================================================
    CASE TIMELINE
 
-   No CNR field. The screen lists the account's live matters
+   No CNR field. The screen lists the account's saved matters
    with a "View Timeline" on each, and then draws that case's
    own history — the filing, every proceeding recorded against
    it, the stage it sits at today, and what is listed next.
@@ -147,7 +147,7 @@ export default function CaseTimelinePage({
   userId,
   onBack,
 }: CaseTimelinePageProps) {
-  const cases = getOngoingCasesForUser(userId);
+  const cases = getCasesForUser(userId);
 
   const [selected, setSelected] = useState<Case | null>(null);
   const [busyCnr, setBusyCnr] = useState<string | null>(null);
@@ -195,7 +195,7 @@ export default function CaseTimelinePage({
           </h1>
 
           <p>
-            Choose one of your ongoing cases to see its important events,
+            Choose one of your saved cases to see its important events,
             hearings and stages in the order they happened.
           </p>
         </div>
@@ -227,8 +227,8 @@ export default function CaseTimelinePage({
                 actionLabel="View Timeline"
                 onAction={show}
                 busyCnr={busyCnr}
-                emptyTitle="No ongoing cases on this account"
-                emptyBody="A timeline is built from a case that is still running. Search a CNR in My Cases, save the case, and it will appear here."
+                emptyTitle="No saved cases on this account"
+                emptyBody="A timeline is drawn from the case's own record, whether it is still running or finished. Search a CNR in My Cases, save the case, and it will appear here."
               />
             </>
           ) : (

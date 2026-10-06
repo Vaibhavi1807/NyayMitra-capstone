@@ -7,9 +7,11 @@ import "./OngoingCases.css";
 
    Three screens stopped asking for a CNR: delay prediction,
    the timeline and (in its own grouping) court orders. Two of
-   them need the same thing — the citizen's live matters, each
-   with one action on it — so the list lives here once instead
-   of being written three times and drifting.
+   them need the same thing — the account's cases, each with
+   one action on it — so the list lives here once instead of
+   being written three times and drifting. What arrives is the
+   caller's choice: delay passes only its ongoing cases, the
+   timeline every saved case.
 
    Deliberately not a picker: the row carries the stage, the
    court and the next hearing, because the reason to choose one

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   getCase,
   getCasesForUser,
+  getOngoingCasesForUser,
   isSavedForUser,
   resetCases,
   saveCaseForUser,
@@ -139,5 +140,60 @@ describe("saveCaseForUser", () => {
       (item) => item.cnr_number === record.cnr_number,
     )).toBe(true);
     expect(isSavedForUser(record.cnr_number, ME)).toBe(true);
+  });
+});
+
+/* =========================================================
+   A SAVED CASE REACHES EVERY MODULE THAT READS IT
+
+   The bug these guard against: My Cases showed a CNR the citizen
+   had saved while delay prediction, the timeline and court orders
+   showed nothing — because all three read the store through the
+   ongoing filter and the saved record had concluded. One store,
+   four readers; only delay prediction may narrow the list.
+   ========================================================= */
+
+describe("a saved case reaches every module that reads it", () => {
+  it("appears for delay, timeline and orders while still running", () => {
+    const running = makeCase({
+      cnr_number: "MHPU210000062026",
+      current_case_stage: "Evidence",
+    });
+
+    saveCaseForUser(running, ME);
+
+    const savedCnrs = getCasesForUser(ME).map(
+      (item) => item.cnr_number,
+    );
+    const ongoingCnrs = getOngoingCasesForUser(ME).map(
+      (item) => item.cnr_number,
+    );
+
+    /* The record readers (My Cases, timeline, court orders) and
+       the ongoing reader (delay prediction) both include it. */
+    expect(savedCnrs).toContain("MHPU210000062026");
+    expect(ongoingCnrs).toContain("MHPU210000062026");
+  });
+
+  it("stays visible to the record readers once concluded", () => {
+    const finished = makeCase({
+      cnr_number: "MHPU210000022026",
+      current_case_stage: "Case disposed",
+    });
+
+    saveCaseForUser(finished, ME);
+
+    /* The timeline and court orders show it: a concluded case's
+       journey and its final orders are exactly what a citizen
+       comes back for. */
+    expect(
+      getCasesForUser(ME).map((item) => item.cnr_number),
+    ).toContain("MHPU210000022026");
+
+    /* Only delay prediction skips it — there is no future to
+       predict in a matter that has finished. */
+    expect(
+      getOngoingCasesForUser(ME).map((item) => item.cnr_number),
+    ).not.toContain("MHPU210000022026");
   });
 });
