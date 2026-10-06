@@ -608,3 +608,22 @@
   background: #f0edff;
   border-color: #dcdcf4;
 }
+
+/* =========================================================
+   SERVER-BACKED VERIFICATION ACTIONS
+
+   A ruling is in flight until the server answers, so the
+   buttons grey out instead of firing twice — and the hover
+   tint stays off, because nothing is clickable there yet.
+   ========================================================= */
+
+.section-row-actions .section-action:disabled {
+  opacity: 0.55;
+
+  cursor: default;
+}
+
+.section-row-actions .section-action:disabled:hover {
+  background: #fff;
+  border-color: #dfe2ee;
+}

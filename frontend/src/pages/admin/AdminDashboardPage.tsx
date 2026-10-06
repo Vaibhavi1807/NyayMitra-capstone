@@ -21,12 +21,16 @@ import {
   setWorkFor,
 } from "../../api/authorityApi";
 import type { StaffWorkId } from "../../api/authorityApi";
-import {
-  getLawyers,
-  getLawyerById,
-  setLawyerVerification,
-} from "../../api/lawyerApi";
+import { getLawyerById } from "../../api/lawyerApi";
 import type { Lawyer, VerificationState } from "../../api/lawyerApi";
+import {
+  fetchVerificationDocument,
+  getAdminLawyers,
+  setAdminVerification,
+  toLabel,
+  toStatus,
+} from "../../api/adminApi";
+import type { AdminDocument, AdminLawyer } from "../../api/adminApi";
 import { getCases } from "../../api/caseApi";
 import "../../components/RoleDashboardShell.css";
 import "../../components/RoleSectionView.css";
@@ -55,15 +59,42 @@ type AdminDashboardPageProps = {
 /* =========================================================
    PAGE SIZE
 
-   Small on purpose: the summary endpoint's records are
-   sparse, and Lawyer Records resolves each one through a
-   second call, so this number is what the detail screen
-   costs as well as what the list shows.
+   Small on purpose: the directory, the registration rows
+   and the Platform Data card all read this first page, and
+   Lawyer Records resolves the same page through the detail
+   endpoint for the profile fields the registration list
+   does not carry.
    ========================================================= */
 
 const RECORD_PAGE_SIZE = 12;
 
 const SENIOR_YEARS = 15;
+
+/* =========================================================
+   REGISTRATION -> ROW
+
+   The admin registration response is already a full record;
+   the rows here read it as a Lawyer (the type every card
+   speaks) with the status in the dashboard's own words.
+   Fields the list does not carry — city, state — stay
+   absent, and the row guards for that.
+   ========================================================= */
+
+function fromAdminLawyer(registration: AdminLawyer): Lawyer {
+  return {
+    lawyer_id: registration.lawyer_id,
+    full_name: registration.full_name,
+    professional_email: registration.email,
+    enrollment_number: registration.license_id || null,
+    years_of_experience: registration.years_of_experience,
+    practice_areas: registration.practice_areas,
+    bar_council: registration.bar_council,
+    professional_phone_number: registration.professional_phone_number,
+    professional_bio: registration.professional_bio,
+    profile_status: toLabel(registration.verification_status),
+    created_at: registration.created_at,
+  };
+}
 
 /* =========================================================
    STAFF RECORD (read-only list built from mock data)
@@ -199,7 +230,8 @@ function AdminDashboardPage({
   };
 
   /* =====================================================
-     LAWYER DIRECTORY (real service, fetched on demand)
+     LAWYER DIRECTORY (the admin registration service,
+     fetched on demand)
 
      Three screens read this — Manage Lawyers, Lawyer
      Records and the lawyer count on Platform Data — but
@@ -218,6 +250,13 @@ function AdminDashboardPage({
 
   const [lawyerList, setLawyerList] = useState<Lawyer[]>([]);
   const [lawyerTotal, setLawyerTotal] = useState(0);
+
+  /* Document metadata per registration — it rides along in
+     the same list response and is what the "View document"
+     action on each row reads. */
+  const [documents, setDocuments] = useState<
+    Record<string, AdminDocument | null>
+  >({});
 
   /* "pending" covers both not-yet-started and in flight, so the effect
      never has to set state to say it has begun — only to report the
@@ -239,13 +278,18 @@ function AdminDashboardPage({
 
     void (async () => {
       try {
-        const response = await getLawyers({
+        const response = await getAdminLawyers({
           page: 1,
           limit: RECORD_PAGE_SIZE,
         });
 
-        setLawyerList(response.lawyers);
+        setLawyerList(response.lawyers.map(fromAdminLawyer));
         setLawyerTotal(response.total_count);
+        setDocuments(
+          Object.fromEntries(
+            response.lawyers.map((item) => [item.lawyer_id, item.document]),
+          ),
+        );
         setLawyerStatus("ready");
       } catch {
         lawyersRequested.current = false;
@@ -259,13 +303,13 @@ function AdminDashboardPage({
   /* =====================================================
      FULL RECORDS
 
-     GET /api/lawyers returns a summary only — enrollment
-     number, bar council, practice areas and status are all
-     blank in the list response. They exist on
+     The registration list carries status, ruling and the
+     uploaded papers' metadata itself; bar details, practice
+     areas and contact fields still live on
      GET /api/lawyers/{id}, so the Records screen resolves
-     each row itself once the summary has arrived, in
-     parallel, and falls back to the summary for any lawyer
-     whose detail call fails rather than dropping the card.
+     each row there once the list has arrived, in parallel,
+     and falls back to the list row for any lawyer whose
+     detail call fails rather than dropping the card.
      ===================================================== */
 
   const recordsRequested = useRef(false);
@@ -292,7 +336,21 @@ function AdminDashboardPage({
           ),
         );
 
-        setRecordDetails(resolved);
+        /* The registration list is the server's word on status —
+           the detail response may still be wearing a browser-local
+           verdict from an older screen — so the stored status is
+           stamped back over each record after every resolve. */
+        const storedStatus = new Map(
+          lawyerList.map((item) => [item.lawyer_id, item.profile_status]),
+        );
+
+        setRecordDetails(
+          resolved.map((record) => ({
+            ...record,
+            profile_status:
+              storedStatus.get(record.lawyer_id) ?? record.profile_status,
+          })),
+        );
         setRecordStatus("ready");
       } catch {
         recordsRequested.current = false;
@@ -304,39 +362,118 @@ function AdminDashboardPage({
   const retryRecords = () => setRecordStatus("pending");
 
   /* =====================================================
-     VERIFICATION
+     VERIFICATION (server-backed)
 
-     Ruling on an advocate writes to the store and repaints
-     the row here, so the pill changes under the button that
-     changed it rather than after a reload.
+     Ruling calls PATCH /api/admin/lawyers/{id} — ADMIN-only
+     on the server — and the row repaints from the answer
+     the server returns. A failure keeps the old status
+     standing and puts the reason on screen; nothing is
+     written to localStorage, because a status the database
+     does not hold is not a status.
      ===================================================== */
 
-  const decideVerification = (
+  const [ruling, setRuling] = useState<{
+    id: string;
+    action: VerificationState;
+  } | null>(null);
+  const [rulingError, setRulingError] = useState<string | null>(null);
+
+  const decideVerification = async (
     lawyerId: string,
     state: VerificationState,
-  ) => {
-    setLawyerVerification(lawyerId, state);
+  ): Promise<void> => {
+    if (ruling) return;
 
-    setRecordDetails((previous) =>
-      previous.map((item) =>
-        item.lawyer_id === lawyerId
-          ? { ...item, profile_status: state }
-          : item,
-      ),
-    );
+    setRuling({ id: lawyerId, action: state });
+    setRulingError(null);
+
+    try {
+      const updated = await setAdminVerification(lawyerId, toStatus(state));
+      const stored = toLabel(updated.verification_status);
+
+      setLawyerList((previous) =>
+        previous.map((item) =>
+          item.lawyer_id === lawyerId
+            ? { ...item, profile_status: stored }
+            : item,
+        ),
+      );
+
+      setRecordDetails((previous) =>
+        previous.map((item) =>
+          item.lawyer_id === lawyerId
+            ? { ...item, profile_status: stored }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setRulingError(
+        err instanceof Error
+          ? err.message
+          : "The ruling could not be saved.",
+      );
+    } finally {
+      setRuling(null);
+    }
   };
 
   const verificationOf = (lawyerId: string): string => {
+    /* The registration list carries the stored status itself —
+       read it first, so a row never shows a verdict some other
+       call happened to layer on. */
+    const row = lawyerList.find((item) => item.lawyer_id === lawyerId);
+    if (row?.profile_status) return row.profile_status;
+
     const detail = recordDetails.find(
       (item) => item.lawyer_id === lawyerId,
     );
-
     if (detail?.profile_status) return detail.profile_status;
 
-    if (recordStatus === "ready") return "Not recorded";
-    if (recordStatus === "error") return "Status unavailable";
+    if (lawyerStatus === "ready") return "Not recorded";
+    if (lawyerStatus === "error") return "Status unavailable";
 
     return "Checking…";
+  };
+
+  /* =====================================================
+     VERIFICATION DOCUMENT
+
+     The uploaded licence rides in the list response as
+     metadata; the bytes come from the ADMIN-only endpoint
+     and are shown from an object URL that is revoked
+     shortly after — the file never becomes a routable
+     address on our origin.
+     ===================================================== */
+
+  const [openingDocument, setOpeningDocument] =
+    useState<string | null>(null);
+  const [documentError, setDocumentError] = useState<string | null>(null);
+
+  const documentFor = (lawyerId: string): AdminDocument | null =>
+    documents[lawyerId] ?? null;
+
+  const openDocument = async (lawyerId: string): Promise<void> => {
+    if (openingDocument) return;
+
+    setOpeningDocument(lawyerId);
+    setDocumentError(null);
+
+    try {
+      const blob = await fetchVerificationDocument(lawyerId);
+      const url = URL.createObjectURL(blob);
+
+      window.open(url, "_blank", "noopener,noreferrer");
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setDocumentError(
+        err instanceof Error
+          ? err.message
+          : "The document could not be fetched.",
+      );
+    } finally {
+      setOpeningDocument(null);
+    }
   };
 
   /* One shared notice so Manage Lawyers, Lawyer Records and Platform Data
@@ -762,7 +899,7 @@ function AdminDashboardPage({
         portal="NYAYMITRA ADMIN PORTAL"
         title="Manage"
         titleAccent="lawyers."
-        heroDescription="The advocate directory, read live from the lawyer service — and the place where each registration is verified, rejected or left pending."
+        heroDescription="The advocate directory, read live from the admin verification service — and the place where each registration is verified, rejected or left pending."
         workspaceTitle="Review lawyer registrations"
         workspaceSubtitle="Verify or reject from the row"
         onBack={() => setActiveSection(null)}
@@ -800,14 +937,25 @@ function AdminDashboardPage({
           <div className="section-stat">
             <span>VERIFIED</span>
             <strong>
-              {recordStatus === "ready"
-                ? recordDetails.filter(
-                    (l) =>
-                      l.profile_status?.toLowerCase() === "verified",
+              {lawyerStatus === "ready"
+                ? lawyerList.filter(
+                    (l) => l.profile_status?.toLowerCase() === "verified",
                   ).length
                 : "—"}
             </strong>
             <small>Papers confirmed on this page</small>
+          </div>
+
+          <div className="section-stat">
+            <span>AWAITING REVIEW</span>
+            <strong>
+              {lawyerStatus === "ready"
+                ? lawyerList.filter(
+                    (l) => l.profile_status?.toLowerCase() === "pending",
+                  ).length
+                : "—"}
+            </strong>
+            <small>Registrations to rule on</small>
           </div>
 
         </div>
@@ -821,101 +969,150 @@ function AdminDashboardPage({
           <h3>Lawyer registrations</h3>
 
           <p>
-            The summary response carries identity, experience and
-            location only — each row is therefore resolved through the
-            detail endpoint to reach verification status. Ruling here
-            is the platform's decision, not the advocate's: it is
-            stored against the record and shown everywhere the status
+            Every row here is the registration record itself, read from
+            the admin verification service: status, ruling and the
+            uploaded papers' metadata all come from the server. Ruling
+            here is the platform's decision, not the advocate's: it is
+            written to the record and shown everywhere the status
             appears.
           </p>
 
           {lawyerNotice ?? (
-            <ul className="section-rows">
-              {lawyerList.map((lawyer) => {
-                const senior =
-                  (lawyer.years_of_experience ?? 0) >= SENIOR_YEARS;
-                const status = verificationOf(lawyer.lawyer_id);
+            <>
+              {rulingError && (
+                <div className="section-empty" role="alert">
+                  <span aria-hidden="true">⚠</span>
+                  <p>{rulingError}</p>
+                </div>
+              )}
 
-                return (
-                  <li key={lawyer.lawyer_id} className="section-row">
+              {documentError && (
+                <div className="section-empty" role="alert">
+                  <span aria-hidden="true">⚠</span>
+                  <p>{documentError}</p>
+                </div>
+              )}
 
-                    <span className="section-row-avatar">
-                      {initialsOf(lawyer.full_name)}
-                    </span>
+              <ul className="section-rows">
+                {lawyerList.map((lawyer) => {
+                  const senior =
+                    (lawyer.years_of_experience ?? 0) >= SENIOR_YEARS;
+                  const status = verificationOf(lawyer.lawyer_id);
+                  const documentMeta = documentFor(lawyer.lawyer_id);
+                  const busyRuling = ruling?.id === lawyer.lawyer_id;
+                  const busyOpening = openingDocument === lawyer.lawyer_id;
 
-                    <div className="section-row-body">
-                      <strong>{lawyer.full_name}</strong>
-                      <span>
-                        {lawyer.lawyer_id}
-                        {lawyer.city ? ` · ${lawyer.city}` : ""}
-                        {lawyer.state ? `, ${lawyer.state}` : ""}
-                        {lawyer.professional_email
-                          ? ` · ${lawyer.professional_email}`
-                          : ""}
-                      </span>
-                    </div>
+                  return (
+                    <li key={lawyer.lawyer_id} className="section-row">
 
-                    <div className="section-row-meta">
-                      <time>
-                        {lawyer.years_of_experience ?? 0} yrs
-                      </time>
-                      <span
-                        className={`section-pill ${senior ? "info" : ""}`}
-                      >
-                        {senior ? "Senior" : "Practising"}
-                      </span>
-                    </div>
-
-                    {/* ----------------------------------------
-                        VERIFICATION
-
-                        The decision itself, on the row it
-                        belongs to. Detail calls arrive in
-                        parallel, so the pill says so while
-                        they are still out rather than
-                        showing nothing.
-                        ---------------------------------------- */}
-
-                    <div className="section-row-actions">
-
-                      <span
-                        className={`section-pill ${
-                          status.toLowerCase() === "verified"
-                            ? "good"
-                            : status.toLowerCase() === "rejected"
-                              ? "warn"
-                              : "info"
-                        }`}
-                      >
-                        {status}
+                      <span className="section-row-avatar">
+                        {initialsOf(lawyer.full_name)}
                       </span>
 
-                      <button
-                        type="button"
-                        className="section-action"
-                        onClick={() =>
-                          decideVerification(lawyer.lawyer_id, "Verified")
-                        }
-                      >
-                        Verify
-                      </button>
+                      <div className="section-row-body">
+                        <strong>{lawyer.full_name}</strong>
+                        <span>
+                          {lawyer.lawyer_id}
+                          {lawyer.city ? ` · ${lawyer.city}` : ""}
+                          {lawyer.state ? `, ${lawyer.state}` : ""}
+                          {lawyer.professional_email
+                            ? ` · ${lawyer.professional_email}`
+                            : ""}
+                        </span>
+                      </div>
 
-                      <button
-                        type="button"
-                        className="section-action is-danger"
-                        onClick={() =>
-                          decideVerification(lawyer.lawyer_id, "Rejected")
-                        }
-                      >
-                        Reject
-                      </button>
+                      <div className="section-row-meta">
+                        <time>
+                          {lawyer.years_of_experience ?? 0} yrs
+                        </time>
+                        <span
+                          className={`section-pill ${senior ? "info" : ""}`}
+                        >
+                          {senior ? "Senior" : "Practising"}
+                        </span>
+                      </div>
 
-                    </div>
+                      {/* ----------------------------------------
+                          VERIFICATION
 
-                  </li>
-                );
-              })}
-            </ul>
+                          The decision itself, on the row it
+                          belongs to — written to the server
+                          and repainted from its answer, with
+                          the uploaded papers one click away.
+                          ---------------------------------------- */}
+
+                      <div className="section-row-actions">
+
+                        <span
+                          className={`section-pill ${
+                            status.toLowerCase() === "verified"
+                              ? "good"
+                              : status.toLowerCase() === "rejected"
+                                ? "warn"
+                                : "info"
+                          }`}
+                        >
+                          {status}
+                        </span>
+
+                        {documentMeta ? (
+                          <button
+                            type="button"
+                            className="section-action"
+                            title={`${documentMeta.filename} · ${Math.max(
+                              1,
+                              Math.ceil(documentMeta.size_bytes / 1024),
+                            )} KB`}
+                            disabled={openingDocument !== null}
+                            onClick={() =>
+                              void openDocument(lawyer.lawyer_id)
+                            }
+                          >
+                            {busyOpening ? "Opening…" : "View document"}
+                          </button>
+                        ) : (
+                          <span className="section-pill">No document</span>
+                        )}
+
+                        <button
+                          type="button"
+                          className="section-action"
+                          disabled={ruling !== null}
+                          onClick={() =>
+                            void decideVerification(
+                              lawyer.lawyer_id,
+                              "Verified",
+                            )
+                          }
+                        >
+                          {busyRuling && ruling?.action === "Verified"
+                            ? "Saving…"
+                            : "Verify"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="section-action is-danger"
+                          disabled={ruling !== null}
+                          onClick={() =>
+                            void decideVerification(
+                              lawyer.lawyer_id,
+                              "Rejected",
+                            )
+                          }
+                        >
+                          {busyRuling && ruling?.action === "Rejected"
+                            ? "Saving…"
+                            : "Reject"}
+                        </button>
+
+                      </div>
+
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
 
         </div>
@@ -950,8 +1147,10 @@ function AdminDashboardPage({
           <p>
             The same first page as Manage Lawyers, but resolved through
             the lawyer detail endpoint — that is the only way to see bar
-            details, practice areas and verification status, because the
-            list response leaves them blank.
+            details, practice areas and contact fields, because the
+            registration list leaves them blank. Verification status is
+            stamped from the registration list, so both screens read the
+            same stored ruling.
           </p>
 
           {recordNotice ?? (
@@ -980,7 +1179,12 @@ function AdminDashboardPage({
 
                     <span
                       className={`section-pill ${
-                        lawyer.profile_status ? "good" : "warn"
+                        lawyer.profile_status?.toLowerCase() === "verified"
+                          ? "good"
+                          : lawyer.profile_status?.toLowerCase() ===
+                              "rejected"
+                            ? "warn"
+                            : "info"
                       }`}
                     >
                       {lawyer.profile_status || "No status recorded"}
