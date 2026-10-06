@@ -8,35 +8,38 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import VoiceNyayMitraPage from "./VoiceNyayMitraPage";
-import { askWhatHappened } from "../../api/whatHappenedApi";
-import type {
-  WhatHappenedRequest,
-  WhatHappenedResponse,
-} from "../../api/whatHappenedApi";
+import { ModelApiError, understandSituation } from "../../services/modelApi";
+import { getGuidance } from "../../api/guidanceApi";
+import type { GuidanceResult } from "../../api/guidanceApi";
 
 /* =========================================================
-   WHAT HAPPENED? — the acceptance criteria at screen level.
+   TELL US WHAT HAPPENED — screen-level acceptance after the
+   merge with Member 2's model integration.
 
-   The endpoint is mocked, so what is under test is this page's
-   own behaviour:
+   The model client is mocked; the real adapter
+   (toWhatHappenedView) runs, so what is under test is this
+   page's own behaviour around POST /understand-situation:
 
-     * the first screen offers exactly two doors and sends
-       nothing;
-     * the incident flow asks for a description — never a court
-       stage — and renders the hedged answer with its plain
-       time-sensitivity note instead of an urgency band;
-     * the case flow reads the case store and sends the record
-       along, never incident mode;
-     * the microphone exists in BOTH workflows, the language
-       selector really switches the next turn, and an answer can
-       be read aloud — none of those send anything by themselves.
-
-   The service's real responses are covered by
-   `NyayMitra-feature-nlp-translation/test_what_happened.py`.
+     * nothing is sent on arrival;
+     * a description comes back as intent / category /
+       confidence / facts / missing information panels;
+     * the unclear case shows the rephrase prompt and never
+       renders a category the model declined to assign;
+     * each failure kind gets its own title, and a guidance
+       outage never costs the model result;
+     * the microphone and read-aloud are playback actions —
+       neither sends anything by itself.
    ========================================================= */
 
-vi.mock("../../api/whatHappenedApi", () => ({
-  askWhatHappened: vi.fn(),
+vi.mock("../../services/modelApi", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../services/modelApi")>();
+
+  return { ...actual, understandSituation: vi.fn() };
+});
+
+vi.mock("../../api/guidanceApi", () => ({
+  getGuidance: vi.fn(),
 }));
 
 vi.mock("../../api/translationApi", () => ({
@@ -47,363 +50,222 @@ vi.mock("../../components/ServiceStatus", () => ({
   default: () => null,
 }));
 
-vi.mock("../../api/caseApi", () => ({
-  getCasesForUser: vi.fn(() => [CASE_RECORD]),
-  isOngoing: vi.fn(() => true),
-}));
+type Wire = Awaited<ReturnType<typeof understandSituation>>;
 
-const CASE_RECORD = {
-  cnr_number: "MHPU210000042026",
-  case_type: "Civil Suit",
-  court_name: "Pune Civil Court",
-  filing_number: "CASE/2026/4471",
-  current_case_stage: "Case adjourned for want of time",
-  next_hearing_date: "15.10.2026",
-  petitioner_name: "Asha Patil",
-  respondents_list: ["Ramesh Kumar"],
-  case_history_timeline: [],
-  timeline: [],
-  orders: [],
+/* Exactly what POST /understand-situation returned in the live
+   API tests — fed through the real view adapter. */
+const INCIDENT_WIRE: Wire = {
+  intent: "incident",
+  incident_category: "threats_intimidation_or_intentional_insult",
+  category_id: "INC011",
+  confidence: 0.632,
+  facts: { threat: "threatened", "date/time": "last night" },
+  missing_information: ["person involved", "witnesses"],
+  message: null,
 };
 
-const mockedAsk = vi.mocked(askWhatHappened);
-
-/* A response shaped exactly like POST /api/what-happened returns,
-   with the time sensitivity in its plain "nothing marked" state. */
-const INCIDENT_ANSWER: WhatHappenedResponse = {
-  mode: "incident",
-  language: "en",
-  conversation_id: "c_inc_0001",
-  acknowledgement: "",
-  summary:
-    "From what you said, something that may be cheating appears to have happened.",
-  possible_issue:
-    "Possible cheating — only if what you described is what actually happened.",
-  explanation:
-    "Money was taken after an OTP was shared; nothing beyond that is assumed.",
-  next_steps: [
-    "Keep the messages and the payment record.",
-    "Consider reporting it to the police cyber cell.",
-  ],
-  preserve_information: ["Screenshots of the chat and the OTP message."],
-  follow_up_questions: ["When did this happen, and did you share anything else?"],
-  case_facts: [],
-  record_gaps: [],
-  warnings: [
-    "This reading is based only on what you described. It does not establish any fact, date or legal conclusion.",
-  ],
-  time_sensitive: false,
-  time_sensitivity_note:
-    "Nothing in what you said marks this as time-sensitive.",
-  matched_stage: null,
-  guidance: null,
-  legal_terms: [],
-  disclaimer: "This guidance is general legal information, not legal advice.",
+const UNCLEAR_WIRE: Wire = {
+  intent: "unclear",
+  incident_category: null,
+  category_id: null,
+  confidence: 0.29,
+  facts: null,
+  missing_information: null,
+  message:
+    "I could not understand that confidently. Please rephrase your message or add a few more details about what happened.",
 };
 
-const CASE_ANSWER: WhatHappenedResponse = {
-  mode: "case",
-  language: "en",
-  conversation_id: "c_case_0001",
-  acknowledgement: "",
-  summary: "The record shows the next hearing on 15.10.2026.",
-  possible_issue: "",
-  explanation:
-    "The case is listed for arguments on that date, recorded in the case information.",
-  next_steps: ["You may consider reaching the court before that date."],
-  preserve_information: [],
-  follow_up_questions: ["Was any order passed at the last hearing?"],
-  case_facts: [
-    "Next hearing: 15.10.2026",
-    "Stage: Case adjourned for want of time",
-  ],
-  record_gaps: ["The record does not say what was argued last time."],
-  warnings: [
-    "This answer is drawn only from the case information sent with the question.",
-  ],
-  time_sensitive: false,
-  time_sensitivity_note:
-    "The record marks a hearing date; keep track of it yourself.",
-  matched_stage: null,
-  guidance: null,
-  legal_terms: [],
-  disclaimer: "This guidance is general legal information, not legal advice.",
+const GUIDANCE: GuidanceResult = {
+  matched: true,
+  stage: "Case adjourned for want of time",
+  urgency: "medium",
+  why: "the words used match that stage",
+  what_to_do_next: "Confirm the next hearing date with the court record.",
+  related_terms: [{ term: "adjourn", plain: "postponed to another day" }],
+  candidates: [],
+  disclaimer: "General legal information, not legal advice.",
 };
+
+const mockedUnderstand = vi.mocked(understandSituation);
+const mockedGuidance = vi.mocked(getGuidance);
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-/* ---------------- first screen: exactly two doors ---------------- */
+const typeAndSend = (text: string) => {
+  fireEvent.change(screen.getByLabelText("WHAT YOU SAID"), {
+    target: { value: text },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /tell nyaymitra/i }));
+};
+
+/* ---------------- arrival ---------------- */
 
 describe("entry screen", () => {
-  it("offers the two workflows and calls nothing yet", () => {
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
+  it("offers the composer and calls nothing yet", () => {
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
 
     expect(
       screen.getByRole("heading", { name: /what happened\?/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/tell nyaymitra what happened/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/where would you like to start/i)).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /ask about your case/i }),
+      screen.getByText(/say what happened in your own words/i),
     ).toBeInTheDocument();
 
-    // Neither door has opened: no request, no composer.
-    expect(mockedAsk).not.toHaveBeenCalled();
-    expect(screen.queryByLabelText("WHAT HAPPENED")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("YOUR QUESTION")).not.toBeInTheDocument();
+    // One language selector, the microphone, an empty composer.
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.getByLabelText("Start voice input")).toBeInTheDocument();
+    expect(screen.getByLabelText("WHAT YOU SAID")).toBeInTheDocument();
+
+    expect(mockedUnderstand).not.toHaveBeenCalled();
   });
 });
 
-/* ---------------- workflow 1: tell us an incident ---------------- */
+/* ---------------- the model call ---------------- */
 
-describe("incident workflow", () => {
-  it("describes an incident, never a court stage, and hedges", async () => {
-    mockedAsk.mockResolvedValue(INCIDENT_ANSWER);
+describe("understand-situation flow", () => {
+  it("sends the description and renders what the model understood", async () => {
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("guidance down"));
 
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    );
-
-    // The composer for this door — no case-question box in sight.
-    expect(screen.getByText("TELL US WHAT HAPPENED")).toBeInTheDocument();
-    expect(screen.queryByLabelText("YOUR QUESTION")).not.toBeInTheDocument();
-
-    // No case-stage picker anywhere: only the LANGUAGE select exists.
-    expect(screen.getAllByRole("combobox")).toHaveLength(1);
-
-    fireEvent.change(screen.getByLabelText("WHAT HAPPENED"), {
-      target: { value: "Someone threatened me and demanded money from me." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
 
     await waitFor(() =>
-      expect(mockedAsk).toHaveBeenCalledWith(
-        expect.objectContaining({
-          mode: "incident",
-          text: "Someone threatened me and demanded money from me.",
-          language: "en",
-          case_context: null,
-        }),
+      expect(mockedUnderstand).toHaveBeenCalledWith(
+        "Someone threatened me and demanded money from me.",
       ),
     );
 
-    // The panels of the answer, in order.
+    // The panels, in the model's own vocabulary.
+    expect(await screen.findByText("CONFIDENCE")).toBeInTheDocument();
+    expect(screen.getByText("INCIDENT CATEGORY")).toBeInTheDocument();
     expect(
-      await screen.findByText(/something that may be cheating/i),
+      screen.getByText("threats intimidation or intentional insult"),
     ).toBeInTheDocument();
-    for (const label of [
-      "POSSIBLE LEGAL ISSUE",
-      "WHAT YOU CAN CONSIDER DOING",
-      "INFORMATION TO PRESERVE",
-      "WHAT ELSE WOULD HELP",
-    ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
+    expect(screen.getByText("INC011")).toBeInTheDocument();
+    expect(screen.getByText(/threat:\s*threatened/i)).toBeInTheDocument();
+    expect(screen.getByText("person involved")).toBeInTheDocument();
 
-    // Hedged: warnings shown, no matched stage, no invented court line.
-    expect(
-      screen.getByText(/based only on what you described/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/matched to the case stage/i),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/notice issued to respondent/i),
-    ).not.toBeInTheDocument();
+    // The chip carries the intent.
+    expect(document.querySelector(".wh-intent-chip")).not.toBeNull();
   });
 
-  it("shows time sensitivity as a plain note — never a band", async () => {
-    mockedAsk.mockResolvedValue(INCIDENT_ANSWER);
+  it("the unclear case rephrases and never invents a category", async () => {
+    mockedUnderstand.mockResolvedValue(UNCLEAR_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("guidance down"));
 
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    );
-    fireEvent.change(screen.getByLabelText("WHAT HAPPENED"), {
-      target: { value: "Someone threatened me and demanded money from me." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("xq9#vZ!pla?42 42 42 asdfghjkl;qwerty");
 
-    await screen.findByText(/nothing in what you said marks this as time-sensitive/i);
+    expect(
+      await screen.findByText(/i could not understand that confidently/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("WE COULD NOT TELL YET")).toBeInTheDocument();
 
-    // The note is a sentence, not a badge — this screen has no band.
-    expect(document.querySelector(".wh-time")).not.toBeNull();
-    expect(document.querySelector(".wh-urgency-badge")).toBeNull();
+    // The guard: no category, no facts, no missing-information panel.
+    expect(screen.queryByText("INCIDENT CATEGORY")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("WHAT WE FOUND IN YOUR ACCOUNT"),
+    ).not.toBeInTheDocument();
+    expect(document.querySelector(".wh-intent-chip.is-unclear")).not.toBeNull();
   });
 
-  it("switching language keeps the conversation and changes the next turn", async () => {
-    mockedAsk.mockResolvedValue(INCIDENT_ANSWER);
+  it("keeps the answers on a language switch and only sends the text", async () => {
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("guidance down"));
 
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    );
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
+    expect(await screen.findByText("CONFIDENCE")).toBeInTheDocument();
 
-    // The selector is here, with the three languages as they are written.
-    const languageSelect = screen.getByRole("combobox", {
-      name: /^language$/i,
-    });
-    expect(screen.getAllByRole("option")).toHaveLength(3);
-    expect(
-      screen.getByRole("option", { name: "हिन्दी" }),
-    ).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("WHAT HAPPENED"), {
-      target: { value: "Someone threatened me and demanded money from me." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
-    await waitFor(() => expect(mockedAsk).toHaveBeenCalledTimes(1));
-
-    // Switch to मराठी — the answer stays on screen, nothing re-sends.
+    // Switch to मराठी — the answer stays, nothing re-sends.
+    const languageSelect = screen.getAllByRole("combobox")[0];
     fireEvent.change(languageSelect, { target: { value: "mr" } });
     expect(languageSelect).toHaveValue("mr");
-    expect(
-      screen.getByText(/something that may be cheating/i),
-    ).toBeInTheDocument();
-    expect(mockedAsk).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText("CONFIDENCE")).toHaveLength(1);
+    expect(mockedUnderstand).toHaveBeenCalledTimes(1);
 
-    // The next turn goes out in the new language, same conversation.
-    fireEvent.change(screen.getByLabelText("WHAT HAPPENED"), {
-      target: { value: "Someone broke the window of my shop last night." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
-
-    await waitFor(() => expect(mockedAsk).toHaveBeenCalledTimes(2));
-    expect(mockedAsk).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        mode: "incident",
-        language: "mr",
-        conversation_id: "c_inc_0001",
-      }),
+    // The next turn goes out as text alone — no conversation to lose.
+    typeAndSend("Someone broke the window of my shop last night.");
+    await waitFor(() => expect(mockedUnderstand).toHaveBeenCalledTimes(2));
+    expect(mockedUnderstand).toHaveBeenLastCalledWith(
+      "Someone broke the window of my shop last night.",
     );
-    expect(
-      screen.getAllByText(/something that may be cheating/i),
-    ).toHaveLength(2);
+    expect(screen.getAllByText("CONFIDENCE")).toHaveLength(2);
   });
 });
 
-/* ---------------- workflow 2: ask about your case ---------------- */
+/* ---------------- failures ---------------- */
 
-describe("case workflow", () => {
-  it("asks with the case record from the store and renders the answer", async () => {
-    mockedAsk.mockResolvedValue(CASE_ANSWER);
-
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /ask about your case/i }),
+describe("failures", () => {
+  it("titles a network failure by its kind, never one generic message", async () => {
+    mockedUnderstand.mockRejectedValue(
+      new ModelApiError("Connection refused.", "network"),
     );
 
-    // The case picker lists the ongoing case…
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
+
     expect(
-      screen.getByRole("option", { name: /MHPU210000042026/ }),
+      await screen.findByText("The model service could not be reached:"),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("WHICH CASE?")).toBeInTheDocument();
-
-    // …the microphone is offered here too…
-    expect(screen.getByLabelText("Start voice input")).toBeInTheDocument();
-
-    // …and this door asks a question, not an incident description.
-    expect(screen.queryByLabelText("WHAT HAPPENED")).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("YOUR QUESTION"), {
-      target: { value: "When is my next hearing?" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
-
-    await waitFor(() => expect(mockedAsk).toHaveBeenCalledTimes(1));
-
-    const payload = mockedAsk.mock.calls[0][0];
-    expect(payload.mode).toBe("case");
-    expect(payload.text).toBe("When is my next hearing?");
-    expect(payload.case_id).toBe("MHPU210000042026");
-    const context = payload.case_context as Record<string, unknown>;
-    expect(context.cnr_number).toBe("MHPU210000042026");
-    expect(context.current_case_stage).toBe(
-      "Case adjourned for want of time",
-    );
-
-    // The answer renders with its grounding and its recorded gaps.
-    expect(
-      await screen.findByText(/record shows the next hearing/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("WHAT THE AVAILABLE RECORD SAYS"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("WHAT THE RECORD DOES NOT STATE"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Next hearing: 15.10.2026")).toBeInTheDocument();
-    expect(
-      screen.getByText(/drawn only from the case information/i),
-    ).toBeInTheDocument();
+    // Nothing rendered as a result.
+    expect(screen.queryByText("CONFIDENCE")).not.toBeInTheDocument();
   });
 
-  it("does not send incident mode from the case flow", async () => {
-    mockedAsk.mockResolvedValue(CASE_ANSWER);
+  it("a guidance outage never costs the model result", async () => {
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("nlp down"));
 
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /ask about your case/i }),
-    );
-    fireEvent.change(screen.getByLabelText("YOUR QUESTION"), {
-      target: { value: "What should I do next?" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
-    await waitFor(() => expect(mockedAsk).toHaveBeenCalled());
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
 
-    const modes = mockedAsk.mock.calls.map(
-      ([request]: WhatHappenedRequest[]) => request.mode,
-    );
-    expect(modes).not.toContain("incident");
-    expect(modes).toEqual(["case"]);
+    expect(await screen.findByText("CONFIDENCE")).toBeInTheDocument();
+    expect(
+      screen.queryByText("WHAT TO DO NEXT"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("MATCHED TO A CASE STAGE"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the guidance panel when the NLP service answers", async () => {
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockResolvedValue(GUIDANCE);
+
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
+
+    expect(await screen.findByText("CONFIDENCE")).toBeInTheDocument();
+    expect(
+      screen.getByText("MATCHED TO A CASE STAGE"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("URGENCY OF YOUR INCIDENT")).toBeInTheDocument();
   });
 });
 
-/* ---------------- voice: microphone + read aloud ---------------- */
+/* ---------------- voice ---------------- */
 
 describe("voice", () => {
-  it("offers the microphone in both workflows", () => {
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
+  it("offers the microphone without sending anything", () => {
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    );
     expect(screen.getByLabelText("Start voice input")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /^change$/i }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /ask about your case/i }),
-    );
-    expect(screen.getByLabelText("Start voice input")).toBeInTheDocument();
-
-    // Pressing it is a voice action, never a send.
-    expect(mockedAsk).not.toHaveBeenCalled();
+    expect(mockedUnderstand).not.toHaveBeenCalled();
   });
 
   it("reads an answer aloud without sending anything new", async () => {
     // jsdom has no speech synthesis; the page must degrade quietly.
     expect("speechSynthesis" in window).toBe(false);
 
-    mockedAsk.mockResolvedValue(INCIDENT_ANSWER);
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("guidance down"));
 
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    );
-    fireEvent.change(screen.getByLabelText("WHAT HAPPENED"), {
-      target: { value: "Someone threatened me and demanded money from me." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
 
     const readButton = await screen.findByRole("button", {
       name: /read aloud/i,
@@ -411,31 +273,27 @@ describe("voice", () => {
     fireEvent.click(readButton);
 
     // Reading aloud is playback only — still exactly one turn sent.
-    expect(mockedAsk).toHaveBeenCalledTimes(1);
+    expect(mockedUnderstand).toHaveBeenCalledTimes(1);
   });
 });
 
-/* ---------------- switching between the doors ---------------- */
+/* ---------------- clearing ---------------- */
 
-describe("workflow separation", () => {
-  it("returns to the two choices without sending anything", () => {
-    render(<VoiceNyayMitraPage userId="USER_0001" onBack={vi.fn()} />);
+describe("clear conversation", () => {
+  it("“Start a new account” empties the transcript without another call", async () => {
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("guidance down"));
+
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
+    expect(await screen.findByText("CONFIDENCE")).toBeInTheDocument();
+
     fireEvent.click(
-      screen.getByRole("button", { name: /tell us an incident/i }),
+      screen.getByRole("button", { name: /start a new account/i }),
     );
-    fireEvent.change(screen.getByLabelText("WHAT HAPPENED"), {
-      target: { value: "Someone threatened me and demanded money from me." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^change$/i }));
 
-    expect(screen.getByText(/where would you like to start/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /tell us an incident/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /ask about your case/i }),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText("WHAT HAPPENED")).not.toBeInTheDocument();
-    expect(mockedAsk).not.toHaveBeenCalled();
+    expect(screen.queryByText("CONFIDENCE")).not.toBeInTheDocument();
+    expect(screen.queryByText("What we understood")).not.toBeInTheDocument();
+    expect(mockedUnderstand).toHaveBeenCalledTimes(1);
   });
 });

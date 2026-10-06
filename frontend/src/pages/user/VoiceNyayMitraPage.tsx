@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { transcribeVoice } from "../../api/translationApi";
@@ -128,6 +128,39 @@ function nextTurnId(): string {
   return `t${turnSeq}`;
 }
 
+/* Browser TTS voice for the chosen language. Falls back to the
+   default voice when the language has none installed — speaking in
+   the wrong accent still beats not speaking at all. */
+function speechLang(code: LanguageCode): string {
+  if (code === "hi") return "hi-IN";
+  if (code === "mr") return "mr-IN";
+  return "en-IN";
+}
+
+/** What the read-aloud control actually says: the intent, the
+ *  category with its confidence, then what was found and what is
+ *  still missing. Long enough to be worth hearing, short enough
+ *  not to lose the listener. */
+function speakable(view: WhatHappenedView): string {
+  if (view.isUnclear) {
+    return `${view.intentLabel}. ${view.rephraseMessage ?? ""}`.trim();
+  }
+
+  const parts = [
+    view.intentLabel,
+    view.category ? `Category: ${view.category.slug.replace(/_/g, " ")}` : "",
+    `Confidence ${view.confidencePercent} percent`,
+    ...(view.facts ?? []).map((fact) => `${fact.key}: ${fact.value}`),
+    view.missingInformation && view.missingInformation.length > 0
+      ? `Still needed: ${view.missingInformation.join(", ")}`
+      : "",
+  ].filter(Boolean);
+
+  const text = parts.join(". ").replace(/\s+/g, " ").trim();
+
+  return text.length > 900 ? `${text.slice(0, 897)}…` : text;
+}
+
 export default function VoiceNyayMitraPage({
   onBack,
 }: VoiceNyayMitraPageProps) {
@@ -141,6 +174,41 @@ export default function VoiceNyayMitraPage({
 
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  /* Which turn is speaking — one id, so only that card shows
+     "Speaking…" and Stop only stops what is actually talking. */
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  const stopSpeaking = () => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingId(null);
+  };
+
+  /* Stop any playback when the page goes away, so a half-read
+     answer does not keep talking over the dashboard. */
+  useEffect(() => {
+    return () => {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const speak = (text: string, turnId: string) => {
+    if (!text.trim() || !("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = speechLang(language);
+    utterance.onstart = () => setSpeakingId(turnId);
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+
+    window.speechSynthesis.speak(utterance);
+  };
 
   const blobToWav = async (blob: Blob): Promise<Blob> => {
     const arrayBuffer = await blob.arrayBuffer();
@@ -322,6 +390,7 @@ export default function VoiceNyayMitraPage({
   };
 
   const clearConversation = () => {
+    stopSpeaking();
     setQuestion("");
     setTurns([]);
     setFailure(null);
@@ -525,7 +594,14 @@ export default function VoiceNyayMitraPage({
         {turns.length > 0 && (
           <div className="wh-transcript">
             {turns.map((turn) => (
-              <TurnCard key={turn.id} turn={turn} language={language} />
+              <TurnCard
+                key={turn.id}
+                turn={turn}
+                language={language}
+                speaking={speakingId === turn.id}
+                onRead={() => speak(speakable(turn.view), turn.id)}
+                onStop={stopSpeaking}
+              />
             ))}
           </div>
         )}
@@ -566,9 +642,15 @@ export default function VoiceNyayMitraPage({
 function TurnCard({
   turn,
   language,
+  speaking,
+  onRead,
+  onStop,
 }: {
   turn: Turn;
   language: LanguageCode;
+  speaking: boolean;
+  onRead: () => void;
+  onStop: () => void;
 }) {
   const { view, guidance } = turn;
 
@@ -592,6 +674,17 @@ function TurnCard({
           >
             {view.intentLabel}
           </span>
+
+          <button
+            type="button"
+            className={
+              speaking ? "voice-speak-button speaking" : "voice-speak-button"
+            }
+            onClick={speaking ? onStop : onRead}
+          >
+            <span>{speaking ? "🔊" : "🔈"}</span>
+            {speaking ? "Speaking…" : "Read aloud"}
+          </button>
         </div>
 
         {/* ---------- UNCLEAR: rephrase, and show no category ---------- */}

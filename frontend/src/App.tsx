@@ -408,7 +408,6 @@ function App() {
       {session.role === "USER" &&
         page === "voice" && (
           <VoiceNyayMitraPage
-            userId={session.userId}
             onBack={goBackToDashboard}
           />
         )}
