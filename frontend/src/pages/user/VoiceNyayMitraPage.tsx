@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
-import { transcribeVoice } from "../../api/translationApi";
+import { transcribeVoice, translateText } from "../../api/translationApi";
 import type { LanguageCode } from "../../api/translationApi";
 import { getGuidance } from "../../api/guidanceApi";
 import type { GuidanceResult } from "../../api/guidanceApi";
@@ -64,6 +64,94 @@ const languages: { code: LanguageCode; name: string }[] = [
 /* The pipeline truncates anything longer than this server-side,
    so the counter says so rather than letting the tail vanish. */
 const MAX_TEXT_LENGTH = 1000;
+
+/* =========================================================
+   WHAT EACH LANGUAGE ACTUALLY SUPPORTS
+
+   Verified against the real backends, not assumed:
+
+   * The speech-to-text checkpoint the /api/voice endpoint uses
+     (ai4bharat/indic-conformer-600m-multilingual) carries a
+     language mask for 22 Indian languages — हिन्दी and मराठी
+     among them, but NO English. So the microphone transcribes
+     हिन्दी and मराठी; English is typed, not spoken. When
+     English is chosen the mic says so instead of silently
+     sending audio the model cannot read.
+
+   * Read-aloud (browser TTS) works in all three. English is
+     spoken as the model answered it. हिन्दी/मराठी summaries
+     come back from the model in English, so they are run
+     through the existing IndicTrans2 translation service
+     first — translation only when it is actually needed. If
+     the device has no voice for the chosen language, that is
+     said plainly rather than falling back to an English voice.
+   ========================================================= */
+
+const ASR_LANGUAGES: LanguageCode[] = ["hi", "mr"];
+
+const LANGUAGE_NAMES: Record<LanguageCode, string> = {
+  en: "English",
+  hi: "हिन्दी",
+  mr: "मराठी",
+};
+
+function speechSynthesisSupported(): boolean {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
+/* The Web Speech API can only speak with a voice that exists on the
+   device or is shipped by the browser. Pick an explicit matching
+   voice; return null when there is none, so the caller can say so
+   instead of speaking in the wrong accent or staying silent. */
+function pickVoice(code: LanguageCode): SpeechSynthesisVoice | null {
+  if (!speechSynthesisSupported()) return null;
+
+  const voices = window.speechSynthesis.getVoices();
+
+  if (!voices.length) return null;
+
+  const wanted = speechLang(code).replace("_", "-");
+
+  return (
+    voices.find((voice) => voice.lang.replace("_", "-") === wanted) ||
+    voices.find((voice) =>
+      voice.lang.replace("_", "-").toLowerCase().startsWith(code),
+    ) ||
+    null
+  );
+}
+
+/* Chrome fills its voice list asynchronously; wait once for it. */
+function voicesReady(): Promise<SpeechSynthesisVoice[]> {
+  if (!speechSynthesisSupported()) return Promise.resolve([]);
+
+  const current = window.speechSynthesis.getVoices();
+
+  if (current.length) return Promise.resolve(current);
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.speechSynthesis.removeEventListener("voiceschanged", finish);
+      resolve(window.speechSynthesis.getVoices());
+    };
+
+    window.speechSynthesis.addEventListener("voiceschanged", finish);
+    window.setTimeout(finish, 1500);
+  });
+}
+
+/* A clear sentence for "no voice for this language", per language. */
+function noVoiceMessage(code: LanguageCode): string {
+  if (code === "en") {
+    return "No English voice is available on this device, so read aloud cannot speak. Turn on an English (India) speech voice in Windows Settings → Time & language → Speech.";
+  }
+
+  return `No ${LANGUAGE_NAMES[code]} voice is available on this device. Install a ${LANGUAGE_NAMES[code]} speech pack from Windows Settings → Time & language → Language & region, or open this page in Microsoft Edge, which ships ${LANGUAGE_NAMES[code]} voices online.`;
+}
 
 type Turn = {
   id: string;
@@ -178,34 +266,106 @@ export default function VoiceNyayMitraPage({
   /* Which turn is speaking — one id, so only that card shows
      "Speaking…" and Stop only stops what is actually talking. */
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  /* While a हिन्दी/मराठी summary is being translated for reading. */
+  const [preparingId, setPreparingId] = useState<string | null>(null);
+  /* Read-aloud could not happen — say why, right on the card. */
+  const [ttsNotice, setTtsNotice] = useState<string | null>(null);
+  /* The microphone was asked for a language the speech model cannot read. */
+  const [micNotice, setMicNotice] = useState<string | null>(null);
 
   const stopSpeaking = () => {
-    if ("speechSynthesis" in window) {
+    if (speechSynthesisSupported()) {
       window.speechSynthesis.cancel();
     }
     setSpeakingId(null);
+    setPreparingId(null);
   };
 
   /* Stop any playback when the page goes away, so a half-read
      answer does not keep talking over the dashboard. */
   useEffect(() => {
     return () => {
-      if ("speechSynthesis" in window) {
+      if (speechSynthesisSupported()) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
 
-  const speak = (text: string, turnId: string) => {
-    if (!text.trim() || !("speechSynthesis" in window)) return;
+  /* Read aloud in the SELECTED language.
+
+     English is spoken exactly as the model answered it — no
+     translation call, because none is needed. A हिन्दी/मराठी
+     summary comes back from the model in English, so it goes
+     through the existing IndicTrans2 service first, then is
+     spoken by the device's हिन्दी/मराठी voice.
+
+     Three things can go wrong, and each is said out loud on
+     the page rather than swallowed: no speech synthesis at all,
+     no voice for the chosen language, and a translation service
+     that did not answer. */
+  const speak = async (text: string, turnId: string) => {
+    setTtsNotice(null);
+
+    if (!text.trim()) return;
+
+    if (!speechSynthesisSupported()) {
+      setTtsNotice(
+        "Read aloud is not available — this browser has no speech synthesis.",
+      );
+      return;
+    }
+
+    /* Chrome fills its voice list asynchronously; wait once. */
+    await voicesReady();
+
+    const voice = pickVoice(language);
+
+    if (!voice) {
+      setTtsNotice(noVoiceMessage(language));
+      return;
+    }
+
+    let words = text;
+
+    setPreparingId(turnId);
+
+    try {
+      if (language !== "en") {
+        const translated = await translateText({
+          case_id: "",
+          source_text: text,
+          source_lang: "en",
+          target_lang: language,
+        });
+
+        words = translated.translated_text || text;
+      }
+    } catch {
+      setPreparingId(null);
+      setTtsNotice(
+        "The summary could not be translated for read aloud — the translation service did not answer. Try again once it is running, or read the English text above.",
+      );
+      return;
+    }
+
+    setPreparingId(null);
 
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(words);
+
+    utterance.voice = voice;
     utterance.lang = speechLang(language);
-    utterance.onstart = () => setSpeakingId(turnId);
+    /* Set immediately so Stop is available even if the browser
+       never fires onstart. */
+    setSpeakingId(turnId);
     utterance.onend = () => setSpeakingId(null);
-    utterance.onerror = () => setSpeakingId(null);
+    utterance.onerror = () => {
+      setSpeakingId(null);
+      setTtsNotice(
+        `The ${LANGUAGE_NAMES[language]} voice stopped before finishing — try Read aloud again.`,
+      );
+    };
 
     window.speechSynthesis.speak(utterance);
   };
@@ -271,6 +431,19 @@ export default function VoiceNyayMitraPage({
   };
 
   const startListening = async () => {
+    /* The speech checkpoint behind /api/voice reads 22 Indian
+       languages — हिन्दी and मराठी among them, English not among
+       them. Rather than record audio the model would refuse,
+       say so and let the account be typed. */
+    if (!ASR_LANGUAGES.includes(language)) {
+      setMicNotice(
+        `Speech input in ${LANGUAGE_NAMES[language]} is not available — the speech model transcribes हिन्दी and मराठी only. Type your account in ${LANGUAGE_NAMES[language]} below, or switch the language to speak it.`,
+      );
+      return;
+    }
+
+    setMicNotice(null);
+
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("Microphone access is not supported by this browser.");
@@ -394,6 +567,8 @@ export default function VoiceNyayMitraPage({
     setQuestion("");
     setTurns([]);
     setFailure(null);
+    setTtsNotice(null);
+    setMicNotice(null);
   };
 
   const selectedLanguage =
@@ -452,7 +627,11 @@ export default function VoiceNyayMitraPage({
 
           <select
             value={language}
-            onChange={(event) => setLanguage(event.target.value as LanguageCode)}
+            onChange={(event) => {
+              setLanguage(event.target.value as LanguageCode);
+              setMicNotice(null);
+              setTtsNotice(null);
+            }}
           >
             {languages.map((item) => (
               <option key={item.code} value={item.code}>
@@ -497,8 +676,18 @@ export default function VoiceNyayMitraPage({
             <p>
               {isListening
                 ? "Tell NyayMitra what has happened"
-                : "Speak naturally in your selected language"}
+                : language === "en"
+                  ? "Speak in हिन्दी or मराठी — English is typed below"
+                  : "Speak naturally in your selected language"}
             </p>
+
+            {/* THE MIC CANNOT READ THIS LANGUAGE — say so here,
+                next to the control, instead of failing silently. */}
+            {micNotice && (
+              <p className="voice-unavailable-note" role="status">
+                {micNotice}
+              </p>
+            )}
           </div>
 
           {/* WHAT THEY SAID */}
@@ -593,14 +782,32 @@ export default function VoiceNyayMitraPage({
         {/* RESULTS — newest last, so the conversation reads top down */}
         {turns.length > 0 && (
           <div className="wh-transcript">
+            {/* READ-ALOUD could not happen — say why, right here */}
+            {ttsNotice && (
+              <p className="voice-unavailable-note" role="status">
+                {ttsNotice}
+              </p>
+            )}
+
             {turns.map((turn) => (
               <TurnCard
                 key={turn.id}
                 turn={turn}
-                language={language}
                 speaking={speakingId === turn.id}
+                preparing={preparingId === turn.id}
                 onRead={() => speak(speakable(turn.view), turn.id)}
                 onStop={stopSpeaking}
+                guidanceSpeaking={speakingId === `${turn.id}-g`}
+                guidancePreparing={preparingId === `${turn.id}-g`}
+                onReadGuidance={() =>
+                  turn.guidance &&
+                  speak(
+                    turn.guidance.stage
+                      ? `${turn.guidance.stage}. ${turn.guidance.what_to_do_next}`
+                      : turn.guidance.what_to_do_next,
+                    `${turn.id}-g`,
+                  )
+                }
               />
             ))}
           </div>
@@ -641,16 +848,22 @@ export default function VoiceNyayMitraPage({
 
 function TurnCard({
   turn,
-  language,
   speaking,
+  preparing,
   onRead,
   onStop,
+  guidanceSpeaking,
+  guidancePreparing,
+  onReadGuidance,
 }: {
   turn: Turn;
-  language: LanguageCode;
   speaking: boolean;
+  preparing: boolean;
   onRead: () => void;
   onStop: () => void;
+  guidanceSpeaking: boolean;
+  guidancePreparing: boolean;
+  onReadGuidance: () => void;
 }) {
   const { view, guidance } = turn;
 
@@ -683,7 +896,11 @@ function TurnCard({
             onClick={speaking ? onStop : onRead}
           >
             <span>{speaking ? "🔊" : "🔈"}</span>
-            {speaking ? "Speaking…" : "Read aloud"}
+            {speaking
+              ? "Speaking…"
+              : preparing
+                ? "Translating…"
+                : "Read aloud"}
           </button>
         </div>
 
@@ -805,7 +1022,15 @@ function TurnCard({
         )}
 
         {/* ---------- GUIDANCE (optional, other service) ---------- */}
-        {guidance && <GuidanceBlock guidance={guidance} language={language} />}
+        {guidance && (
+          <GuidanceBlock
+            guidance={guidance}
+            speaking={guidanceSpeaking}
+            preparing={guidancePreparing}
+            onRead={onReadGuidance}
+            onStop={onStop}
+          />
+        )}
       </div>
     </>
   );
@@ -818,28 +1043,17 @@ function TurnCard({
 
 function GuidanceBlock({
   guidance,
-  language,
+  speaking,
+  preparing,
+  onRead,
+  onStop,
 }: {
   guidance: GuidanceResult;
-  language: LanguageCode;
+  speaking: boolean;
+  preparing: boolean;
+  onRead: () => void;
+  onStop: () => void;
 }) {
-  const speakResponse = () => {
-    if (!("speechSynthesis" in window)) return;
-
-    window.speechSynthesis.cancel();
-
-    const speech = new SpeechSynthesisUtterance(
-      guidance.stage
-        ? `${guidance.stage}. ${guidance.what_to_do_next}`
-        : guidance.what_to_do_next,
-    );
-
-    speech.lang =
-      language === "hi" ? "hi-IN" : language === "mr" ? "mr-IN" : "en-IN";
-
-    window.speechSynthesis.speak(speech);
-  };
-
   return (
     <>
       <div className="wh-panel">
@@ -850,11 +1064,11 @@ function GuidanceBlock({
         <button
           type="button"
           className="voice-ask-button wh-send"
-          onClick={speakResponse}
+          onClick={speaking ? onStop : onRead}
           style={{ marginTop: 8 }}
         >
           <span>🔊</span>
-          Read this out
+          {speaking ? "Speaking…" : preparing ? "Translating…" : "Read this out"}
         </button>
 
         <p className="wh-panel-lead">{guidance.what_to_do_next}</p>

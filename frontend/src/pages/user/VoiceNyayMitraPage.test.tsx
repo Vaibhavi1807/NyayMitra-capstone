@@ -11,6 +11,10 @@ import VoiceNyayMitraPage from "./VoiceNyayMitraPage";
 import { ModelApiError, understandSituation } from "../../services/modelApi";
 import { getGuidance } from "../../api/guidanceApi";
 import type { GuidanceResult } from "../../api/guidanceApi";
+import { transcribeVoice, translateText } from "../../api/translationApi";
+
+const mockedTranscribe = vi.mocked(transcribeVoice);
+const mockedTranslate = vi.mocked(translateText);
 
 /* =========================================================
    TELL US WHAT HAPPENED — screen-level acceptance after the
@@ -44,6 +48,7 @@ vi.mock("../../api/guidanceApi", () => ({
 
 vi.mock("../../api/translationApi", () => ({
   transcribeVoice: vi.fn(),
+  translateText: vi.fn(),
 }));
 
 vi.mock("../../components/ServiceStatus", () => ({
@@ -92,6 +97,7 @@ const mockedGuidance = vi.mocked(getGuidance);
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const typeAndSend = (text: string) => {
@@ -257,8 +263,8 @@ describe("voice", () => {
     expect(mockedUnderstand).not.toHaveBeenCalled();
   });
 
-  it("reads an answer aloud without sending anything new", async () => {
-    // jsdom has no speech synthesis; the page must degrade quietly.
+  it("says so plainly when the browser cannot read aloud", async () => {
+    // jsdom has no speech synthesis; the page must say so, not go quiet.
     expect("speechSynthesis" in window).toBe(false);
 
     mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
@@ -272,8 +278,253 @@ describe("voice", () => {
     });
     fireEvent.click(readButton);
 
+    // A message, right away — not silence.
+    expect(
+      await screen.findByText(/read aloud is not available/i),
+    ).toBeInTheDocument();
+
     // Reading aloud is playback only — still exactly one turn sent.
     expect(mockedUnderstand).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* ---------------- language support ----------------
+
+   The microphone and read-aloud do NOT support every language
+   identically, and the page must say so rather than fail silently:
+
+   * The ASR checkpoint (ai4bharat/indic-conformer-600m) transcribes
+     हिन्दी and मराठी only — verified against its language mask. There
+     is no English speech model, so choosing English shows a message
+     and the account is typed instead.
+   * Read-aloud covers all three, but हिन्दी/मराठी come back from the
+     model in English and need one translateText call first; English
+     is spoken as-is. A device with no voice for the language gets a
+     message, not a wrong-accent fallback.
+   ========================================================= */
+
+type FakeUtterance = {
+  text: string;
+  lang: string;
+  voice: SpeechSynthesisVoice | null;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+};
+
+/* A controllable stand-in for window.speechSynthesis. `voices` is
+   what getVoices() reports, so a test can simulate a device with or
+   without a हिन्दी/मराठी/English voice. Every spoken utterance is
+   recorded so the test can assert on language and text. */
+function installSpeech(voices: SpeechSynthesisVoice[]) {
+  const spoken: FakeUtterance[] = [];
+
+  const synthesis = {
+    getVoices: () => voices,
+    speak: (utterance: FakeUtterance) => {
+      spoken.push(utterance);
+      utterance.onstart?.();
+    },
+    cancel: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+
+  class FakeSpeechSynthesisUtterance {
+    text: string;
+    lang = "";
+    voice: SpeechSynthesisVoice | null = null;
+    onstart: (() => void) | null = null;
+    onend: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+
+    constructor(text: string) {
+      this.text = text;
+    }
+  }
+
+  vi.stubGlobal("speechSynthesis", synthesis);
+  vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+
+  return spoken;
+}
+
+const fakeVoice = (lang: string): SpeechSynthesisVoice =>
+  ({ lang, name: `${lang} voice`, default: false, localService: true, voiceURI: `${lang}-voice` }) as SpeechSynthesisVoice;
+
+/* jsdom has no MediaRecorder or AudioContext. Stub just enough that
+   the record → WAV → transcribeVoice path runs, so the test can check
+   WHICH language reaches the API. */
+function installMicrophone() {
+  Object.defineProperty(window.navigator, "mediaDevices", {
+    value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }) },
+    configurable: true,
+  });
+
+  vi.stubGlobal(
+    "MediaRecorder",
+    class {
+      state = "inactive";
+      mimeType = "audio/webm";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob(["audio"]) });
+        this.onstop?.();
+      }
+    },
+  );
+
+  vi.stubGlobal(
+    "AudioContext",
+    class {
+      async decodeAudioData() {
+        return {
+          numberOfChannels: 1,
+          sampleRate: 16000,
+          length: 160,
+          getChannelData: () => new Float32Array(160),
+        };
+      }
+      async close() {}
+    },
+  );
+}
+
+const chooseLanguage = (code: string) => {
+  fireEvent.change(screen.getAllByRole("combobox")[0], {
+    target: { value: code },
+  });
+};
+
+/* Start recording, wait until the UI flips to "listening", then
+   stop and let the recorder's async onstop/transcribe settle. */
+const recordOne = async () => {
+  fireEvent.click(screen.getByLabelText("Start voice input"));
+  await screen.findByLabelText("Stop listening");
+  fireEvent.click(screen.getByLabelText("Stop listening"));
+  await waitFor(() => expect(mockedTranscribe).toHaveBeenCalled());
+};
+
+describe("microphone language support", () => {
+  it("records हिन्दी and sends the हिन्दी code to the API", async () => {
+    installMicrophone();
+    mockedTranscribe.mockResolvedValue({
+      transcribed_text: "मुझे धमकी मिली",
+      language: "hi",
+    });
+
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    chooseLanguage("hi");
+    await recordOne();
+
+    expect(mockedTranscribe.mock.calls[0][1]).toBe("hi");
+    expect(screen.getByLabelText("Start voice input")).toBeInTheDocument();
+    expect(screen.queryByText(/not available/i)).not.toBeInTheDocument();
+  });
+
+  it("records मराठी and sends the मराठी code to the API", async () => {
+    installMicrophone();
+    mockedTranscribe.mockResolvedValue({
+      transcribed_text: "मला धमकी मिळाली",
+      language: "mr",
+    });
+
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    chooseLanguage("mr");
+    await recordOne();
+
+    expect(mockedTranscribe.mock.calls[0][1]).toBe("mr");
+    expect(screen.queryByText(/not available/i)).not.toBeInTheDocument();
+  });
+
+  it("English shows a message instead of recording (no English ASR model)", () => {
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+
+    // English is already the default choice.
+    fireEvent.click(screen.getByLabelText("Start voice input"));
+
+    expect(mockedTranscribe).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Start voice input")).toBeInTheDocument();
+    expect(
+      screen.getByText(/speech input in english is not available/i),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("read-aloud language support", () => {
+  const sendTurn = async () => {
+    mockedUnderstand.mockResolvedValue(INCIDENT_WIRE);
+    mockedGuidance.mockRejectedValue(new Error("guidance down"));
+
+    render(<VoiceNyayMitraPage onBack={vi.fn()} />);
+    typeAndSend("Someone threatened me and demanded money from me.");
+    await screen.findByText("CONFIDENCE");
+    return screen.findByRole("button", { name: /read aloud/i });
+  };
+
+  it("English is spoken as-is — no translation call", async () => {
+    const spoken = installSpeech([fakeVoice("en-IN")]);
+
+    const readButton = await sendTurn();
+    fireEvent.click(readButton);
+
+    await waitFor(() => expect(spoken).toHaveLength(1));
+    expect(mockedTranslate).not.toHaveBeenCalled();
+    expect(spoken[0].voice?.lang).toBe("en-IN");
+    expect(spoken[0].text).toMatch(/threat|category|confidence/i);
+  });
+
+  it("हिन्दी is translated first, then spoken by the हिन्दी voice", async () => {
+    const spoken = installSpeech([fakeVoice("hi-IN")]);
+    mockedTranslate.mockResolvedValue({
+      translation_id: "t_1",
+      case_id: "",
+      source_text: "x",
+      translated_text: "धमकी मिली",
+      language: "hi",
+      translated_at: "2026-10-10T00:00:00.000Z",
+      glossary_matches: [],
+    });
+
+    const readButton = await sendTurn();
+    chooseLanguage("hi");
+    fireEvent.click(readButton);
+
+    await waitFor(() => expect(spoken).toHaveLength(1));
+    expect(mockedTranslate).toHaveBeenCalledTimes(1);
+    expect(spoken[0].voice?.lang).toBe("hi-IN");
+    expect(spoken[0].text).toBe("धमकी मिली");
+  });
+
+  it("मराठी with no मराठी voice shows a message instead of a wrong-accent read", async () => {
+    installSpeech([fakeVoice("en-IN")]);
+
+    const readButton = await sendTurn();
+    chooseLanguage("mr");
+    fireEvent.click(readButton);
+
+    expect(
+      await screen.findByText(/no मराठी voice is available/i),
+    ).toBeInTheDocument();
+    expect(mockedTranslate).not.toHaveBeenCalled();
+  });
+
+  it("a translation outage gets a message, never a wrong-language read", async () => {
+    installSpeech([fakeVoice("mr-IN")]);
+    mockedTranslate.mockRejectedValue(new Error("nlp down"));
+
+    const readButton = await sendTurn();
+    chooseLanguage("mr");
+    fireEvent.click(readButton);
+
+    expect(
+      await screen.findByText(/could not be translated/i),
+    ).toBeInTheDocument();
   });
 });
 
