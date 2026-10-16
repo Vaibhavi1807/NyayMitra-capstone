@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Scale } from "lucide-react";
 
 import type { Session } from "../auth/session";
 import { initialsOf } from "../lib/initials";
@@ -66,7 +67,7 @@ function RoleSectionView({
         <div className="role-dashboard-hero-content">
 
           <div className="role-dashboard-eyebrow">
-            <span>⚖</span>
+            <Scale size={15} aria-hidden="true" />
             {portal}
           </div>
 

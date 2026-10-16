@@ -1,8 +1,8 @@
 /* =========================================================
    CHAT — shared inbox (every role)
 
-   Matches App.css tokens: page #f6f7fb, panel #f7f8fc,
-   border #e5e7ef, muted #777d91, indigo #4f46c5.
+   Matches App.css tokens: page var(--nm-bg), panel var(--nm-surface-2),
+   border var(--nm-border), muted var(--nm-text-mute), indigo var(--nm-primary).
    ========================================================= */
 
 .chat-page {
@@ -23,17 +23,20 @@
 .chat-hero h1 {
   margin: 10px 0 12px;
 
+  font-family: var(--nm-font-serif);
+  font-weight: 600;
+
   font-size: clamp(28px, 4vw, 40px);
   line-height: 1.08;
   letter-spacing: -0.02em;
 }
 
 .chat-hero h1 span {
-  color: #4f46c5;
+  color: var(--nm-primary);
 }
 
 .chat-hero p {
-  color: #777d91;
+  color: var(--nm-text-mute);
   font-size: 13.5px;
   line-height: 1.65;
 }
@@ -63,10 +66,10 @@
 
   padding: 16px;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 18px;
 
-  background: #ffffff;
+  background: var(--nm-surface);
   box-shadow: 0 6px 22px rgba(25, 30, 60, 0.05);
 }
 
@@ -89,11 +92,11 @@
   width: 100%;
   padding: 9px 12px;
 
-  border: 1px solid #dcdcf4;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #f0edff;
-  color: #4f46c5;
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary);
 
   font-size: 11.5px;
   font-weight: 750;
@@ -104,7 +107,7 @@
 }
 
 .chat-new-btn:hover {
-  background: #e5e1ff;
+  background: var(--nm-surface-3);
 }
 
 /* ---------- categories ---------- */
@@ -124,11 +127,11 @@
 
   padding: 6px 11px;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #ffffff;
-  color: #5b6076;
+  background: var(--nm-surface);
+  color: var(--nm-text-soft);
 
   font-size: 11px;
   font-weight: 650;
@@ -147,26 +150,26 @@
 
   border-radius: 999px;
 
-  background: #f1f2f8;
-  color: #777d91;
+  background: var(--nm-surface-3);
+  color: var(--nm-text-mute);
 
   font-size: 10px;
   font-weight: 750;
 }
 
 .chat-cat:hover {
-  background: #f7f8fc;
+  background: var(--nm-surface-2);
 }
 
 .chat-cat.is-on {
-  border-color: #c9c9ee;
-  background: #f0edff;
-  color: #4f46c5;
+  border-color: var(--nm-indigo-400);
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary);
 }
 
 .chat-cat.is-on span {
-  background: #4f46c5;
-  color: #ffffff;
+  background: var(--nm-primary);
+  color: var(--nm-on-primary);
 }
 
 .chat-center {
@@ -231,7 +234,7 @@
   border-radius: 9px;
 
   background: transparent;
-  color: #b3b7c7;
+  color: var(--nm-text-mute);
 
   font-size: 12px;
   font-weight: 700;
@@ -243,9 +246,9 @@
 }
 
 .chat-thread-delete:hover {
-  background: #fdf0f2;
-  border-color: #f4ccd4;
-  color: #b4243a;
+  background: var(--nm-danger-bg);
+  border-color: var(--nm-danger-border);
+  color: var(--nm-danger);
 }
 
 /* Second press. The label changes rather than opening a dialog, so
@@ -254,25 +257,25 @@
   width: auto;
   padding: 0 9px;
 
-  background: #b4243a;
-  border-color: #b4243a;
-  color: #ffffff;
+  background: var(--nm-danger);
+  border-color: var(--nm-danger);
+  color: var(--nm-on-primary);
   font-size: 10.5px;
 }
 
 .chat-thread-delete.is-armed:hover {
   background: #9c1d31;
   border-color: #9c1d31;
-  color: #ffffff;
+  color: var(--nm-on-primary);
 }
 
 .chat-thread-item:hover {
-  background: #f7f8fc;
+  background: var(--nm-surface-2);
 }
 
 .chat-thread-item.is-active {
-  border-color: #dcdcf4;
-  background: #f5f6ff;
+  border-color: var(--nm-border);
+  background: var(--nm-primary-soft);
 }
 
 .chat-avatar {
@@ -286,9 +289,9 @@
 
   border-radius: 50%;
 
-  background: linear-gradient(135deg, #4338ca, #6366f1);
+  background: var(--nm-primary-grad);
 
-  color: #ffffff;
+  color: var(--nm-on-primary);
   font-size: 13px;
   font-weight: 750;
 }
@@ -312,7 +315,7 @@
 .chat-thread-top strong {
   font-size: 12.5px;
   font-weight: 700;
-  color: #1f2333;
+  color: var(--nm-heading);
 
   white-space: nowrap;
   overflow: hidden;
@@ -323,18 +326,18 @@
 .chat-bubble time {
   flex: 0 0 auto;
 
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
   font-size: 10px;
 }
 
 .chat-thread-sub {
-  color: #4f46c5;
+  color: var(--nm-primary);
   font-size: 10.5px;
   font-weight: 650;
 }
 
 .chat-thread-preview {
-  color: #777d91;
+  color: var(--nm-text-mute);
   font-size: 11.5px;
 
   display: -webkit-box;
@@ -358,11 +361,11 @@
   margin: 0;
   font-size: 12.5px;
   font-weight: 650;
-  color: #1f2333;
+  color: var(--nm-heading);
 }
 
 .chat-muted {
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
   font-size: 12px;
   font-weight: 500;
 }
@@ -372,9 +375,9 @@
 .chat-picker {
   padding: 12px;
 
-  border: 1px dashed #dcdcf4;
+  border: 1px dashed var(--nm-border);
   border-radius: 13px;
-  background: #fafaff;
+  background: var(--nm-surface-2);
 }
 
 .chat-picker-title {
@@ -382,7 +385,7 @@
 
   font-size: 11px;
   font-weight: 750;
-  color: #4f46c5;
+  color: var(--nm-primary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   text-align: center;
@@ -409,28 +412,28 @@
 
   padding: 9px 11px;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 10px;
 
-  background: #ffffff;
+  background: var(--nm-surface);
 
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .chat-picker li button:hover {
-  border-color: #c9c9ee;
-  background: #f5f6ff;
+  border-color: var(--nm-indigo-400);
+  background: var(--nm-primary-soft);
 }
 
 .chat-picker li strong {
   font-size: 12.5px;
   font-weight: 650;
-  color: #1f2333;
+  color: var(--nm-heading);
 }
 
 .chat-picker li span {
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
   font-size: 11px;
 }
 
@@ -443,10 +446,10 @@
   min-height: 520px;
   max-height: 72vh;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 18px;
 
-  background: #f7f8fc;
+  background: var(--nm-surface-2);
   box-shadow: 0 6px 22px rgba(25, 30, 60, 0.05);
   overflow: hidden;
 }
@@ -456,11 +459,11 @@
 
   padding: 10px 13px;
 
-  border: 1px solid #f6d7d7;
+  border: 1px solid var(--nm-danger-border);
   border-radius: 11px;
 
-  background: #fff5f5;
-  color: #b42318;
+  background: var(--nm-danger-bg);
+  color: var(--nm-danger);
 
   font-size: 12px;
   font-weight: 650;
@@ -475,7 +478,7 @@
   flex: 1;
   gap: 10px;
 
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
 }
 
 .chat-placeholder span {
@@ -496,8 +499,8 @@
 
   padding: 15px 18px;
 
-  border-bottom: 1px solid #e5e7ef;
-  background: #ffffff;
+  border-bottom: 1px solid var(--nm-border);
+  background: var(--nm-surface);
   text-align: center;
 }
 
@@ -510,13 +513,13 @@
 
   font-size: 14px;
   font-weight: 750;
-  color: #1f2333;
+  color: var(--nm-heading);
 }
 
 .chat-panel-head p {
   margin: 2px 0 0;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
   font-size: 11.5px;
 }
 
@@ -539,10 +542,10 @@
 
   padding: 10px 13px;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 15px 15px 15px 4px;
 
-  background: #ffffff;
+  background: var(--nm-surface);
 }
 
 .chat-bubble p {
@@ -550,7 +553,7 @@
 
   font-size: 13px;
   line-height: 1.6;
-  color: #1f2333;
+  color: var(--nm-heading);
   overflow-wrap: anywhere;
 }
 
@@ -563,14 +566,14 @@
 .chat-bubble.is-mine {
   align-self: flex-end;
 
-  border-color: #4338ca;
+  border-color: var(--nm-primary-deep);
   border-radius: 15px 15px 4px 15px;
 
-  background: linear-gradient(135deg, #4338ca, #6366f1);
+  background: var(--nm-primary-grad);
 }
 
 .chat-bubble.is-mine p {
-  color: #ffffff;
+  color: var(--nm-on-primary);
 }
 
 .chat-bubble.is-mine time {
@@ -585,8 +588,8 @@
 
   padding: 13px 15px;
 
-  border-top: 1px solid #e5e7ef;
-  background: #ffffff;
+  border-top: 1px solid var(--nm-border);
+  background: var(--nm-surface);
 }
 
 .chat-composer input {
@@ -595,19 +598,19 @@
 
   padding: 11px 14px;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 12px;
 
-  background: #f7f8fc;
+  background: var(--nm-surface-2);
 
   font-size: 13px;
-  color: #1f2333;
+  color: var(--nm-heading);
 }
 
 .chat-composer input:focus {
   outline: none;
-  border-color: #a5aef0;
-  background: #ffffff;
+  border-color: var(--nm-indigo-400);
+  background: var(--nm-surface);
 }
 
 .chat-composer button {
@@ -616,8 +619,8 @@
   border: none;
   border-radius: 12px;
 
-  background: linear-gradient(135deg, #4338ca, #6366f1);
-  color: #ffffff;
+  background: var(--nm-primary-grad);
+  color: var(--nm-on-primary);
 
   font-size: 12.5px;
   font-weight: 750;

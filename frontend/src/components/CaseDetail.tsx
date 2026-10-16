@@ -1,8 +1,17 @@
 import { useMemo, useState } from "react";
+import {
+  Scale,
+  FileText,
+  Image as ImageIcon,
+  Paperclip,
+  MessageSquare,
+  Calendar,
+} from "lucide-react";
 
 import type { Case } from "../types/case";
 import type { ChatTarget } from "../api/chatApi";
 import { getGuidance, type GuidanceResult } from "../api/guidanceApi";
+import CaseDocumentsSection from "./CaseDocumentsSection";
 import {
   DOCUMENT_CATEGORIES,
   addDocument,
@@ -12,6 +21,7 @@ import {
   type CaseDocument,
   type DocumentCategory,
 } from "../api/documentApi";
+import { useT } from "../i18n/context";
 
 import "./CaseDetail.css";
 
@@ -70,10 +80,17 @@ function formatBytes(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function documentIcon(mime: string): string {
-  if (mime.startsWith("image/")) return "🖼";
-  if (mime === "application/pdf") return "📄";
-  return "📎";
+/* The right glyph for a stored document — a pure function of the
+   mime type, returning an element so nothing is created during
+   render (react-hooks/static-components). */
+function documentIcon(mime: string) {
+  if (mime.startsWith("image/")) {
+    return <ImageIcon size={16} />;
+  }
+  if (mime === "application/pdf") {
+    return <FileText size={16} />;
+  }
+  return <Paperclip size={16} />;
 }
 
 /* A date the court has not reached yet. An empty or unparseable date
@@ -106,6 +123,8 @@ function DocumentRow({
   onToggle: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useT();
+
   const previewable = document.dataUrl !== null;
 
   return (
@@ -119,7 +138,8 @@ function DocumentRow({
           <strong title={document.name}>{document.name}</strong>
 
           <span>
-            {document.category} · {formatBytes(document.size)} ·{" "}
+            {t(CATEGORY_KEYS[document.category] ?? document.category)} ·{" "}
+            {formatBytes(document.size)} ·{" "}
             {formatDate(document.uploadedAt.slice(0, 10))}
           </span>
         </div>
@@ -127,10 +147,10 @@ function DocumentRow({
         <div className="matter-doc-actions">
           {previewable ? (
             <button type="button" className="doc-ghost" onClick={onToggle}>
-              {expanded ? "Hide" : "Preview"}
+              {expanded ? t("detail.doc.hide") : t("detail.doc.preview")}
             </button>
           ) : (
-            <span className="doc-muted">Record only</span>
+            <span className="doc-muted">{t("detail.doc.recordOnly")}</span>
           )}
 
           <button
@@ -138,7 +158,7 @@ function DocumentRow({
             className="doc-ghost doc-ghost-danger"
             onClick={onRemove}
           >
-            Remove
+            {t("detail.doc.remove")}
           </button>
         </div>
       </div>
@@ -154,7 +174,7 @@ function DocumentRow({
               aria-label={document.name}
             >
               <a href={document.dataUrl ?? ""} download={document.name}>
-                Open {document.name}
+                {t("detail.doc.open")} {document.name}
               </a>
             </object>
           )}
@@ -169,6 +189,23 @@ function DocumentRow({
 }
 
 /* =========================================================
+   CATEGORY LABELS
+
+   Display-only keys for the stored category values — the value
+   stored on the document is never changed, only the words
+   shown for it.
+   ========================================================= */
+
+const CATEGORY_KEYS: Record<string, string> = {
+  Filing: "detail.cat.filing",
+  Evidence: "detail.cat.evidence",
+  Identity: "detail.cat.identity",
+  "Court order": "detail.cat.courtOrder",
+  Correspondence: "detail.cat.correspondence",
+  Other: "detail.cat.other",
+};
+
+/* =========================================================
    MAIN
    ========================================================= */
 
@@ -179,6 +216,8 @@ export default function CaseDetail({
   onChat,
   onOpenCourtOrders,
 }: CaseDetailProps) {
+  const { t } = useT();
+
   const cnr = caseData.cnr_number;
 
   const [documents, setDocuments] = useState<CaseDocument[]>(() =>
@@ -219,7 +258,7 @@ export default function CaseDetail({
       setGuidance(await getGuidance(parts.join(". ") + "."));
     } catch {
       setGuidanceError(
-        "Guidance could not be reached just now. Try again in a moment.",
+        t("detail.guidance.error"),
       );
     } finally {
       setGuidanceBusy(false);
@@ -263,7 +302,7 @@ export default function CaseDetail({
 
   const lawyerName =
     caseData.petitioner_advocate ||
-    (caseData.handling_lawyer_id ? "Assigned advocate" : "");
+    (caseData.handling_lawyer_id ? t("detail.assignedAdvocate") : "");
 
   /* The chat door. Present only when the matter actually has an
      advocate on it — a case tracked without one has nobody to
@@ -304,15 +343,15 @@ export default function CaseDetail({
           ------------------------------------------------- */}
       <div className="matter-head">
         <button type="button" className="matter-back" onClick={onBack}>
-          ← All cases
+          {t("cases.allCases")}
         </button>
 
         <div className="matter-head-main">
           <div>
-            <span className="matter-eyebrow">CNR NUMBER</span>
+            <span className="matter-eyebrow">{t("cases.label.cnr")}</span>
             <h2>{cnr}</h2>
             <p className="matter-type">
-              {caseData.case_type} · filed {formatDate(caseData.filing_date)}
+              {caseData.case_type} · {t("cases.filed")} {formatDate(caseData.filing_date)}
             </p>
           </div>
 
@@ -340,7 +379,8 @@ export default function CaseDetail({
                 className="matter-chat-btn"
                 onClick={openLawyerChat}
               >
-                💬 Chat with assigned lawyer
+                <MessageSquare size={14} aria-hidden="true" />
+                {t("detail.chat")}
               </button>
             )}
           </div>
@@ -360,8 +400,8 @@ export default function CaseDetail({
         <p className="matter-source">
           <span className="matter-source-tag">
             {caseData.data_source.live_ecourts_data
-              ? "Live court data"
-              : "Development data"}
+              ? t("detail.source.live")
+              : t("detail.source.dev")}
           </span>
 
           <span>
@@ -376,11 +416,11 @@ export default function CaseDetail({
           ------------------------------------------------- */}
       <div className="matter-grid">
         <article className="matter-card">
-          <h3>Parties</h3>
+          <h3>{t("detail.parties")}</h3>
 
           <div className="matter-parties">
             <div className="matter-party">
-              <span className="detail-label">PETITIONER</span>
+              <span className="detail-label">{t("cases.label.petitioner")}</span>
               <strong>{caseData.petitioner_name}</strong>
             </div>
 
@@ -389,23 +429,23 @@ export default function CaseDetail({
             </div>
 
             <div className="matter-party">
-              <span className="detail-label">RESPONDENTS</span>
+              <span className="detail-label">{t("cases.label.respondents")}</span>
               <strong>{caseData.respondents_list.join(", ")}</strong>
             </div>
           </div>
 
           <dl className="matter-fields">
             <div>
-              <dt>Petitioner's advocate</dt>
+              <dt>{t("detail.petAdvocate")}</dt>
               <dd>{caseData.petitioner_advocate || "—"}</dd>
             </div>
 
             <div>
-              <dt>Act applied</dt>
+              <dt>{t("detail.actApplied")}</dt>
               <dd>
                 {caseData.applied_act}
                 {caseData.applied_section
-                  ? `, Section ${caseData.applied_section}`
+                  ? t("detail.section", { n: caseData.applied_section })
                   : ""}
               </dd>
             </div>
@@ -413,49 +453,49 @@ export default function CaseDetail({
         </article>
 
         <article className="matter-card">
-          <h3>Court</h3>
+          <h3>{t("detail.court")}</h3>
 
           <dl className="matter-fields">
             <div>
-              <dt>Court</dt>
+              <dt>{t("detail.court")}</dt>
               <dd>{caseData.court_name}</dd>
             </div>
 
             <div>
-              <dt>District</dt>
+              <dt>{t("detail.district")}</dt>
               <dd>
                 {caseData.court_district}, {caseData.court_state}
               </dd>
             </div>
 
             <div>
-              <dt>Presiding judge</dt>
-              <dd>{caseData.presiding_judge || "Not yet listed"}</dd>
+              <dt>{t("detail.presidingJudge")}</dt>
+              <dd>{caseData.presiding_judge || t("detail.notListed")}</dd>
             </div>
 
             <div>
-              <dt>Filing number</dt>
+              <dt>{t("detail.filingNumber")}</dt>
               <dd>{caseData.filing_number || "—"}</dd>
             </div>
           </dl>
         </article>
 
         <article className="matter-card">
-          <h3>Schedule</h3>
+          <h3>{t("detail.schedule")}</h3>
 
           <div className="matter-hearing">
-            <span className="detail-label">NEXT HEARING</span>
+            <span className="detail-label">{t("cases.label.nextHearing")}</span>
             <strong>{formatDate(caseData.next_hearing_date)}</strong>
           </div>
 
           <dl className="matter-fields">
             <div>
-              <dt>First hearing</dt>
+              <dt>{t("detail.firstHearing")}</dt>
               <dd>{formatDate(caseData.first_hearing_date)}</dd>
             </div>
 
             <div>
-              <dt>Registration date</dt>
+              <dt>{t("detail.registrationDate")}</dt>
               <dd>{formatDate(caseData.registration_date)}</dd>
             </div>
           </dl>
@@ -464,21 +504,21 @@ export default function CaseDetail({
             <div className="matter-stats">
               <div>
                 <strong>{metrics.total_case_age_days}</strong>
-                <span>days on file</span>
+                <span>{t("detail.daysOnFile")}</span>
               </div>
 
               <div>
                 <strong>{metrics.respondent_count}</strong>
                 <span>
                   {metrics.respondent_count === 1
-                    ? "respondent"
-                    : "respondents"}
+                    ? t("detail.respondent.one")
+                    : t("detail.respondent.other")}
                 </span>
               </div>
 
               <div>
                 <strong>{metrics.current_stage_duration_days}</strong>
-                <span>days at this stage</span>
+                <span>{t("detail.daysAtStage")}</span>
               </div>
             </div>
           )}
@@ -495,7 +535,7 @@ export default function CaseDetail({
               onClick={askGuidance}
               disabled={guidanceBusy}
             >
-              {guidanceBusy ? "Asking…" : "What should I do next?"}
+              {guidanceBusy ? t("detail.guidance.asking") : t("detail.guidance.ask")}
             </button>
 
             {guidanceError && (
@@ -526,11 +566,8 @@ export default function CaseDetail({
       <article className="matter-card matter-documents">
         <div className="matter-card-head">
           <div>
-            <h3>Case documents</h3>
-            <p>
-              Everything added to this matter. The assigned lawyer
-              sees the same list.
-            </p>
+            <h3>{t("detail.docs.title")}</h3>
+            <p>{t("detail.docs.copy")}</p>
           </div>
         </div>
 
@@ -540,17 +577,17 @@ export default function CaseDetail({
             onChange={(event) =>
               setCategory(event.target.value as DocumentCategory)
             }
-            aria-label="Document category"
+            aria-label={t("detail.docs.categoryAria")}
           >
             {DOCUMENT_CATEGORIES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {t(CATEGORY_KEYS[item] ?? item)}
               </option>
             ))}
           </select>
 
           <label className="matter-upload-btn">
-            {uploading ? "Uploading…" : "＋ Add documents"}
+            {uploading ? t("detail.docs.uploading") : t("detail.docs.add")}
 
             <input
               type="file"
@@ -582,8 +619,8 @@ export default function CaseDetail({
           </ul>
         ) : (
           <div className="matter-empty">
-            <span aria-hidden="true">📎</span>
-            <p>No documents added to this matter yet.</p>
+            <span aria-hidden="true"><Paperclip size={18} /></span>
+            <p>{t("detail.docs.empty")}</p>
           </div>
         )}
       </article>
@@ -619,18 +656,15 @@ export default function CaseDetail({
         <article className="matter-card matter-orders">
           <div className="matter-card-head">
             <div>
-              <h3>Orders passed</h3>
-              <p>
-                Recorded by the court in this matter — the docket entry,
-                not a copy of the order itself.
-              </p>
+              <h3>{t("detail.orders.title")}</h3>
+              <p>{t("detail.orders.copy")}</p>
             </div>
           </div>
 
           {(caseData.orders?.length ?? 0) === 0 ? (
             <div className="matter-empty">
-              <span aria-hidden="true">⚖</span>
-              <p>No orders are recorded against this case yet.</p>
+              <span aria-hidden="true"><Scale size={18} /></span>
+              <p>{t("detail.orders.empty")}</p>
             </div>
           ) : (
             <ul className="matter-order-list">
@@ -638,7 +672,7 @@ export default function CaseDetail({
                 <li key={`${order.order_number}_${index}`}>
                   <div className="matter-order-line">
                     <strong>
-                      {order.order_type} Order No. {order.order_number || "—"}
+                      {order.order_type} {t("detail.orders.no", { n: order.order_number || "—" })}
                     </strong>
 
                     <span className="matter-order-date">
@@ -659,7 +693,7 @@ export default function CaseDetail({
                         className="doc-ghost"
                         onClick={onOpenCourtOrders}
                       >
-                        Explain this order
+                        {t("detail.orders.explain")}
                       </button>
                     </div>
                   )}
@@ -669,6 +703,18 @@ export default function CaseDetail({
           )}
         </article>
       )}
+
+      {/* -------------------------------------------------
+          COURT DOCUMENTS — actual files from the case service
+          (contract in caseDocumentApi). Rendered only for
+          service-backed records: a case saved in this browser
+          has no court service behind it, so there is nothing
+          to fetch and the section does not appear.
+          ------------------------------------------------- */}
+      <CaseDocumentsSection
+        cnr={cnr}
+        enabled={Boolean(caseData.data_source)}
+      />
 
       {/* -------------------------------------------------
           TIMELINE
@@ -683,12 +729,16 @@ export default function CaseDetail({
       <article className="matter-card">
         <div className="matter-card-head">
           <div>
-            <h3>{journey.length > 0 ? "Case timeline" : "Hearing history"}</h3>
+            <h3>
+              {journey.length > 0
+                ? t("detail.timeline.title")
+                : t("detail.timeline.history")}
+            </h3>
 
             <p>
               {journey.length > 0
-                ? "Oldest first, built only from dates the record carries."
-                : "What the court has listed in this matter."}
+                ? t("detail.timeline.intro")
+                : t("detail.timeline.introHistory")}
             </p>
           </div>
         </div>
@@ -713,7 +763,9 @@ export default function CaseDetail({
                     .join(" ")}
                 >
                   <span className="matter-timeline-date">
-                    {step.date ? formatDate(step.date) : "Date not recorded"}
+                    {step.date
+                      ? formatDate(step.date)
+                      : t("detail.timeline.noDate")}
                   </span>
 
                   <div>
@@ -741,8 +793,8 @@ export default function CaseDetail({
           </ol>
         ) : (
           <div className="matter-empty">
-            <span aria-hidden="true">🗓</span>
-            <p>No events are recorded for this case yet.</p>
+            <span aria-hidden="true"><Calendar size={18} /></span>
+            <p>{t("detail.timeline.empty")}</p>
           </div>
         )}
       </article>

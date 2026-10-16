@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Mail, X } from "lucide-react";
 
 import type { Session } from "../../auth/session";
 import {
@@ -18,6 +19,7 @@ import type {
   ChatParty,
   ChatTarget,
 } from "../../api/chatApi";
+import { useT } from "../../i18n/context";
 
 import "./ChatPage.css";
 
@@ -90,19 +92,67 @@ function categoryLabel(viewer: string, peer: string): string {
   );
 }
 
+/* The same chrome, as i18n keys. The English labels above stay the
+   source for the "From " sentence logic; these keys resolve the
+   display text in the active language. */
+type Translate = (
+  key: string,
+  params?: Record<string, string | number>,
+) => string;
+
+const CATEGORY_KEYS: Record<string, string> = {
+  Clients: "chat.category.clients",
+  Lawyers: "chat.category.lawyers",
+  Staff: "chat.category.staff",
+  Admin: "chat.category.admin",
+  "From lawyers": "chat.category.fromLawyers",
+  "From staff": "chat.category.fromStaff",
+  Admins: "chat.category.admins",
+};
+
+const ROLE_KEYS: Record<string, string> = {
+  USER: "chat.role.user",
+  LAWYER: "chat.role.lawyer",
+  STAFF: "chat.role.staff",
+  ADMIN: "chat.role.admin",
+};
+
+function categoryText(
+  viewer: string,
+  peer: string,
+  t: Translate,
+): string {
+  const label = categoryLabel(viewer, peer);
+  const key = CATEGORY_KEYS[label];
+  return key ? t(key) : label;
+}
+
+function roleText(role: string, t: Translate): string {
+  const key = ROLE_KEYS[role];
+  return key ? t(key) : roleLabel(role);
+}
+
 /* The empty-list sentence. It has to be built from the label because the
    label is a sentence fragment in two different ways: "clients" is a kind
    of person, "from lawyers" is a direction. */
-function emptyConversations(viewer: string, filter: string): string {
-  if (filter === "all") return "No conversations here yet.";
+function emptyConversations(
+  viewer: string,
+  filter: string,
+  t: Translate,
+): string {
+  if (filter === "all") return t("chat.empty.all");
 
   const label = categoryLabel(viewer, filter);
 
   if (label.startsWith("From ")) {
-    return `No messages ${label.toLowerCase()} yet.`;
+    return t("chat.empty.from", {
+      who: categoryText(viewer, filter, t).toLowerCase(),
+    });
   }
 
-  return `No conversations with ${label.toLowerCase()} yet.`;
+  return t("chat.empty.with", {
+    who: categoryText(viewer, filter, t).toLowerCase(),
+  });
 }
 
 /* The party on the other end of a thread. */
@@ -116,6 +166,8 @@ export default function ChatPage({
   target,
   onTargetConsumed,
 }: ChatPageProps) {
+  const { t, tm } = useT();
+
   /* Memoized so every downstream callback and effect sees a stable party
      object. An inline `partyFromSession(session)` would give `refresh` a
      fresh dep on every render, which re-runs the initial-load effect —
@@ -177,7 +229,7 @@ export default function ChatPage({
           setError(
             err instanceof Error
               ? err.message
-              : "Could not load conversations.",
+              : "chat.error.loadConversations",
           );
         }
       } finally {
@@ -214,7 +266,7 @@ export default function ChatPage({
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : "Could not open the chat.",
+            err instanceof Error ? err.message : "chat.error.openChat",
           );
         }
       } finally {
@@ -242,7 +294,7 @@ export default function ChatPage({
           setDirectoryError(
             err instanceof Error
               ? err.message
-              : "Could not load verified lawyers.",
+              : "chat.error.loadLawyers",
           );
         }
       });
@@ -283,7 +335,7 @@ export default function ChatPage({
       await refresh();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Message not sent.",
+        err instanceof Error ? err.message : "chat.error.send",
       );
     } finally {
       setSending(false);
@@ -305,7 +357,7 @@ export default function ChatPage({
       await refresh();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Conversation not deleted.",
+        err instanceof Error ? err.message : "chat.error.delete",
       );
     } finally {
       setPendingDelete(null);
@@ -317,10 +369,10 @@ export default function ChatPage({
      empty. Derived from the matrix rather than written into the JSX —
      when the rules change, these change with them. */
   const categories = [
-    { key: "all", label: "All", count: threads.length },
+    { key: "all", label: t("chat.category.all"), count: threads.length },
     ...visiblePartners(me.role).map((role) => ({
       key: role,
-      label: categoryLabel(me.role, role),
+      label: categoryText(me.role, role, t),
       count: threads.filter((thread) => peerOf(thread, me.id).role === role)
         .length,
     })),
@@ -358,7 +410,7 @@ export default function ChatPage({
         await refresh();
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Could not start the chat.",
+          err instanceof Error ? err.message : "chat.error.start",
         );
       }
     },
@@ -370,30 +422,38 @@ export default function ChatPage({
       {onBack && (
         <div className="page-back-wrapper">
           <button className="page-back-button" onClick={onBack}>
-            ← Back to Dashboard
+            {t("chat.backToDashboard")}
           </button>
         </div>
       )}
 
       <section className="chat-hero">
         <div className="eyebrow">
-          <span>✉</span>
-          NYAYMITRA MESSAGES
+          <Mail size={16} aria-hidden="true" />
+          {t("chat.eyebrow")}
         </div>
 
         <h1>
-          Your
+          {t("chat.title1")}
           <br />
-          <span>conversations</span>
+          <span>{t("chat.titleAccent")}</span>
         </h1>
 
         <p>
           {visiblePartners(me.role).length > 0
-            ? `As ${me.role === "USER" ? "a citizen" : roleLabel(me.role)}, you can message: ${visiblePartners(me.role)
-                .map((role) => CATEGORY_LABEL[role]?.toLowerCase() ?? roleLabel(role))
-                .join(", ")}.`
+            ? t("chat.hero.canMessage", {
+                role:
+                  me.role === "USER"
+                    ? t("chat.hero.citizen")
+                    : roleText(me.role, t),
+                list: visiblePartners(me.role)
+                  .map((role) =>
+                    categoryText(me.role, role, t).toLowerCase(),
+                  )
+                  .join(", "),
+              })
             : ""}{" "}
-          Every message stays inside the case record.
+          {t("chat.hero.recordNote")}
         </p>
       </section>
 
@@ -402,7 +462,7 @@ export default function ChatPage({
 
         <aside className="chat-sidebar">
           <div className="chat-sidebar-head">
-            <h2>Messages</h2>
+            <h2>{t("chat.sidebar.title")}</h2>
 
             <button
               type="button"
@@ -412,19 +472,16 @@ export default function ChatPage({
                 setPendingDelete(null);
               }}
             >
-              {picking ? "Close" : "＋ New chat"}
+              {picking ? t("chat.close") : t("chat.newChat")}
             </button>
           </div>
 
           {loading ? (
-            <p className="chat-muted chat-center">Loading conversations…</p>
+            <p className="chat-muted chat-center">{t("chat.loading")}</p>
           ) : threads.length === 0 ? (
             <div className="chat-empty">
-              <p>No conversations yet.</p>
-              <p className="chat-muted">
-                Start one below, or open a lawyer's profile from
-                Find a Lawyer and press “Chat”.
-              </p>
+              <p>{t("chat.empty.title")}</p>
+              <p className="chat-muted">{t("chat.empty.hint")}</p>
             </div>
           ) : (
             <>
@@ -450,7 +507,7 @@ export default function ChatPage({
 
               {visibleThreads.length === 0 ? (
                 <p className="chat-muted chat-center">
-                  {emptyConversations(me.role, filter)}
+                  {emptyConversations(me.role, filter, t)}
                 </p>
               ) : (
                 <ul className="chat-thread-list">
@@ -482,7 +539,7 @@ export default function ChatPage({
                             </span>
 
                             <span className="chat-thread-sub">
-                              {roleLabel(peer.role)}
+                              {roleText(peer.role, t)}
                               {thread.caseCnr
                                 ? ` · ${thread.caseCnr}`
                                 : ""}
@@ -490,8 +547,8 @@ export default function ChatPage({
 
                             <span className="chat-thread-preview">
                               {last
-                                ? `${last.senderId === me.id ? "You: " : ""}${last.body}`
-                                : "No messages yet"}
+                                ? `${last.senderId === me.id ? t("chat.you") : ""}${last.body}`
+                                : t("chat.noMessages")}
                             </span>
                           </span>
                         </button>
@@ -504,15 +561,15 @@ export default function ChatPage({
                             }`}
                             aria-label={
                               armed
-                                ? `Confirm deleting the conversation with ${peer.name}`
-                                : `Delete the conversation with ${peer.name}`
+                                ? t("chat.delete.confirm", { name: peer.name })
+                                : t("chat.delete.label", { name: peer.name })
                             }
                             onClick={() => {
                               if (armed) void remove(thread.id);
                               else setPendingDelete(thread.id);
                             }}
                           >
-                            {armed ? "Delete" : "✕"}
+                            {armed ? t("chat.delete.armed") : <X size={15} aria-hidden="true" />}
                           </button>
                         )}
                       </li>
@@ -525,16 +582,14 @@ export default function ChatPage({
 
           {picking && (
             <div className="chat-picker">
-              <p className="chat-picker-title">Start a conversation</p>
+              <p className="chat-picker-title">{t("chat.picker.title")}</p>
 
               {directoryError ? (
                 <p className="chat-error" role="alert">
-                  {directoryError}
+                  {tm(t(directoryError))}
                 </p>
               ) : startable.length === 0 ? (
-                <p className="chat-muted">
-                  No one new to message right now.
-                </p>
+                <p className="chat-muted">{t("chat.picker.empty")}</p>
               ) : (
                 <ul>
                   {startable.map((party) => (
@@ -545,7 +600,7 @@ export default function ChatPage({
                       >
                         <strong>{party.name}</strong>
                         <span>
-                          {roleLabel(party.role)}
+                          {roleText(party.role, t)}
                           {party.detail ? ` · ${party.detail}` : ""}
                         </span>
                       </button>
@@ -562,14 +617,14 @@ export default function ChatPage({
         <section className="chat-panel">
           {error && (
             <p className="chat-error" role="alert">
-              {error}
+              {tm(t(error))}
             </p>
           )}
 
           {!active ? (
             <div className="chat-placeholder">
-              <span aria-hidden="true">✉</span>
-              <p>Select a conversation to read it.</p>
+              <Mail size={22} aria-hidden="true" />
+              <p>{t("chat.placeholder")}</p>
             </div>
           ) : (
             <>
@@ -581,9 +636,9 @@ export default function ChatPage({
                 <div>
                   <h2>{other?.name}</h2>
                   <p>
-                    {other ? roleLabel(other.role) : ""}
+                    {other ? roleText(other.role, t) : ""}
                     {active.caseCnr
-                      ? ` · Case ${active.caseCnr}`
+                      ? ` · ${t("chat.case", { cnr: active.caseCnr })}`
                       : ""}
                   </p>
                 </div>
@@ -591,9 +646,7 @@ export default function ChatPage({
 
               <div className="chat-messages">
                 {active.messages.length === 0 && (
-                  <p className="chat-muted">
-                    No messages yet — say hello.
-                  </p>
+                  <p className="chat-muted">{t("chat.thread.empty")}</p>
                 )}
 
                 {active.messages.map((message) => {
@@ -618,15 +671,17 @@ export default function ChatPage({
                   type="text"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder={`Message ${other?.name ?? ""}…`}
-                  aria-label="Message"
+                  placeholder={t("chat.composer.placeholder", {
+                    name: other?.name ?? "",
+                  })}
+                  aria-label={t("chat.composer.aria")}
                 />
 
                 <button
                   type="submit"
                   disabled={!draft.trim() || sending}
                 >
-                  {sending ? "Sending…" : "Send"}
+                  {sending ? t("chat.sending") : t("chat.send")}
                 </button>
               </form>
             </>

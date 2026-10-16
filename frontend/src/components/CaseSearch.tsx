@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { Scale } from "lucide-react";
 import { getCasesForUser } from "../api/caseApi";
+import { useT } from "../i18n/context";
 import CaseCard from "./CaseCard";
 
 type CaseSearchProps = {
@@ -15,6 +17,8 @@ export default function CaseSearch({
   userId,
   onOpen,
 }: CaseSearchProps) {
+  const { t } = useT();
+
   const [search, setSearch] = useState("");
   const [caseType, setCaseType] = useState("All");
 
@@ -59,14 +63,14 @@ export default function CaseSearch({
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by CNR, petitioner, case type..."
+              placeholder={t("search.placeholder")}
             />
 
             {search && (
               <button
                 className="clear-search"
                 onClick={() => setSearch("")}
-                aria-label="Clear search"
+                aria-label={t("search.clear")}
               >
                 ×
               </button>
@@ -80,7 +84,7 @@ export default function CaseSearch({
           >
             {caseTypes.map((type) => (
               <option key={type} value={type}>
-                {type === "All" ? "All Case Types" : type}
+                {type === "All" ? t("search.allTypes") : type}
               </option>
             ))}
           </select>
@@ -90,18 +94,22 @@ export default function CaseSearch({
           <div>
             <h2>
               {myCases.length === filteredCases.length
-                ? `${myCases.length} ${
+                ? t(
                     myCases.length === 1
-                      ? "saved case"
-                      : "saved cases"
-                  }`
-                : `${filteredCases.length} of ${myCases.length} saved cases`}
+                      ? "search.saved.one"
+                      : "search.saved.other",
+                    { n: myCases.length },
+                  )
+                : t("search.saved.filtered", {
+                    shown: filteredCases.length,
+                    total: myCases.length,
+                  })}
             </h2>
 
             <p>
               {search
-                ? `Showing your saved cases matching "${search}"`
-                : "Only cases you saved to track are shown"}
+                ? t("search.showing", { q: search })
+                : t("search.noFilter")}
             </p>
           </div>
         </div>
@@ -119,22 +127,15 @@ export default function CaseSearch({
         ) : myCases.length === 0 ? (
           /* Nothing saved yet — filtering isn't the problem. */
           <div className="empty-state">
-            <div className="empty-icon">⚖</div>
-            <h3>No saved cases yet</h3>
-            <p>
-              Search for an existing case by its CNR number in the box
-              above, then choose "Save to My Cases" to track it here —
-              documents, hearings and orders follow the case.
-            </p>
+            <div className="empty-icon"><Scale size={24} aria-hidden="true" /></div>
+            <h3>{t("search.empty.savedTitle")}</h3>
+            <p>{t("search.empty.savedBody")}</p>
           </div>
         ) : (
           <div className="empty-state">
             <div className="empty-icon">⌕</div>
-            <h3>No cases found</h3>
-            <p>
-              We couldn't find any of your cases matching that search.
-              Try a different CNR number, petitioner name, or case type.
-            </p>
+            <h3>{t("search.empty.noneTitle")}</h3>
+            <p>{t("search.empty.noneBody")}</p>
 
             <button
               className="reset-search-btn"
@@ -143,7 +144,7 @@ export default function CaseSearch({
                 setCaseType("All");
               }}
             >
-              Clear search
+              {t("search.clear")}
             </button>
           </div>
         )}

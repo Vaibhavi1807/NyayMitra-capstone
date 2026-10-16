@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  Users,
+  Scale,
+  FileText,
+  Database,
+  TriangleAlert,
+} from "lucide-react";
 import type { Session } from "../../auth/session";
 import type { Page } from "../../App";
 import RoleDashboardShell, {
@@ -7,20 +14,8 @@ import RoleDashboardShell, {
 } from "../../components/RoleDashboardShell";
 import RoleSectionView from "../../components/RoleSectionView";
 import { initialsOf } from "../../lib/initials";
-import { issueStaffAccount, DEMO_ACCOUNTS } from "../../api/authApi";
+import { DEMO_ACCOUNTS } from "../../api/authApi";
 import { isDeactivated, toggleAccountStatus } from "../../api/accountApi";
-import {
-  AUTHORITY_CATALOG,
-  ADMIN_AUTHORITIES,
-  STAFF_WORK,
-  authoritiesByCategory,
-  getAuthoritiesFor,
-  getWorkFor,
-  setAuthorityFor,
-  setAuthoritiesFor,
-  setWorkFor,
-} from "../../api/authorityApi";
-import type { StaffWorkId } from "../../api/authorityApi";
 import { getLawyerById } from "../../api/lawyerApi";
 import type { Lawyer, VerificationState } from "../../api/lawyerApi";
 import {
@@ -96,20 +91,9 @@ function fromAdminLawyer(registration: AdminLawyer): Lawyer {
   };
 }
 
-/* =========================================================
-   STAFF RECORD (read-only list built from mock data)
-   ========================================================= */
-
-interface StaffRecord {
-  userId: string;
-  fullName: string;
-  email: string;
-}
-
 function AdminDashboardPage({
   session,
   onSignOut,
-  onNavigate,
 }: AdminDashboardPageProps) {
   /* =====================================================
      SECTION NAVIGATION
@@ -117,97 +101,6 @@ function AdminDashboardPage({
 
   const [activeSection, setActiveSection] =
     useState<string | null>(null);
-
-  /* =====================================================
-     STAFF MANAGEMENT STATE
-     ===================================================== */
-
-  const initialStaff: StaffRecord[] = DEMO_ACCOUNTS
-    .filter((account) => account.role === "STAFF")
-    .map((account, index) => ({
-      userId: `STAFF_${String(index + 1).padStart(4, "0")}`,
-      fullName: account.fullName,
-      email: account.email,
-    }));
-
-  const [staffList, setStaffList] =
-    useState<StaffRecord[]>(initialStaff);
-
-  const [inviteName, setInviteName] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [invitePassword, setInvitePassword] = useState("");
-
-  const [inviteError, setInviteError] = useState("");
-  const [inviteSuccess, setInviteSuccess] = useState("");
-
-  /* =====================================================
-     DELEGATED AUTHORITIES
-
-     What the admin has granted each staff member. Loaded
-     from authorityApi once, then kept in step locally so a
-     toggle repaints immediately instead of refetching.
-     ===================================================== */
-
-  const [grants, setGrants] = useState<Record<string, string[]>>(
-    () =>
-      Object.fromEntries(
-        initialStaff.map((member) => [
-          member.userId,
-          getAuthoritiesFor(member.userId),
-        ]),
-      ),
-  );
-
-  const toggleAuthority = (
-    staffUserId: string,
-    authorityId: string,
-    on: boolean,
-  ) => {
-    const next = setAuthorityFor(staffUserId, authorityId, on);
-
-    setGrants((previous) => ({
-      ...previous,
-      [staffUserId]: next,
-    }));
-  };
-
-  const bulkAuthorities = (
-    staffUserId: string,
-    authorityIds: string[],
-  ) => {
-    const next = setAuthoritiesFor(staffUserId, authorityIds);
-
-    setGrants((previous) => ({
-      ...previous,
-      [staffUserId]: next,
-    }));
-  };
-
-  /* =====================================================
-     STAFF WORK
-
-     Who does what, chosen once from the six areas and kept
-     in step here so the select repaints without a reload.
-     ===================================================== */
-
-  const [workAssignments, setWorkAssignments] = useState<
-    Record<string, string>
-  >(() =>
-    Object.fromEntries(
-      initialStaff.map((member) => [
-        member.userId,
-        getWorkFor(member.userId) ?? "",
-      ]),
-    ),
-  );
-
-  const assignWork = (staffUserId: string, workId: StaffWorkId | "") => {
-    setWorkFor(staffUserId, workId);
-    setWorkAssignments((previous) => ({
-      ...previous,
-      [staffUserId]: workId,
-    }));
-  };
 
   /* =====================================================
      ACCOUNT STATUS
@@ -486,7 +379,7 @@ function AdminDashboardPage({
       </div>
     ) : lawyerStatus === "error" ? (
       <div className="section-empty">
-        <span aria-hidden="true">⚠</span>
+        <span aria-hidden="true"><TriangleAlert size={18} /></span>
         <p>
           Could not reach the lawyer service. Start it on port 8000 and try
           again.
@@ -501,7 +394,7 @@ function AdminDashboardPage({
       </div>
     ) : lawyerList.length === 0 ? (
       <div className="section-empty">
-        <span aria-hidden="true">⚖</span>
+        <span aria-hidden="true"><Scale size={18} /></span>
         <p>The directory has no lawyer records yet.</p>
       </div>
     ) : null;
@@ -515,7 +408,7 @@ function AdminDashboardPage({
       lawyerNotice
     ) : recordStatus === "error" ? (
       <div className="section-empty">
-        <span aria-hidden="true">⚠</span>
+        <span aria-hidden="true"><TriangleAlert size={18} /></span>
         <p>The detail endpoint did not answer. Try again.</p>
         <button
           type="button"
@@ -546,128 +439,31 @@ function AdminDashboardPage({
      in through the admin door on the login page.
      ===================================================== */
 
-  const handleIssueStaff = (
-    event: React.FormEvent,
-  ) => {
-    event.preventDefault();
-
-    setInviteError("");
-    setInviteSuccess("");
-
-    if (!inviteName.trim()) {
-      setInviteError("Enter the staff member's name.");
-      return;
-    }
-
-    if (!inviteEmail.trim()) {
-      setInviteError("Enter the staff member's email.");
-      return;
-    }
-
-    if (invitePassword.trim().length < 4) {
-      setInviteError(
-        "Password must be at least 4 characters.",
-      );
-      return;
-    }
-
-    try {
-      const account = issueStaffAccount(
-        {
-          fullName: inviteName,
-          email: inviteEmail,
-          password: invitePassword,
-        },
-        session,
-      );
-
-      setStaffList((current) => [
-        ...current,
-        {
-          userId: account.userId,
-          fullName: account.fullName,
-          email: account.email,
-        },
-      ]);
-
-      setInviteName("");
-      setInviteEmail("");
-      setInvitePassword("");
-
-      setInviteSuccess(
-        `Staff account issued for ${account.fullName}. ` +
-          "They can now sign in through the Admin door.",
-      );
-    } catch (err) {
-      setInviteError(
-        err instanceof Error
-          ? err.message
-          : "Unable to issue staff account.",
-      );
-    }
-  };
-
   /* =====================================================
      CONFIG
      ===================================================== */
 
   const stats: DashboardStat[] = [
     {
-      icon: "🧑‍💼",
+      icon: Users,
       tone: "purple",
       label: "USERS",
       value: "—",
       detail: "Citizen accounts",
     },
     {
-      icon: "⚖️",
+      icon: Scale,
       tone: "blue",
       label: "LAWYERS",
       value: "—",
       detail: "Verified professionals",
     },
-    {
-      icon: "🗂️",
-      tone: "orange",
-      label: "STAFF",
-      value: String(staffList.length),
-      detail: "Issued by admin",
-    },
-    {
-      icon: "🛡️",
-      tone: "green",
-      label: "ACCESS",
-      value: "Active",
-      detail: "Platform access control",
-    },
   ];
 
   const sections: DashboardSection[] = [
     {
-      id: "staff",
-      icon: "🗂️",
-      title: "Staff Management",
-      description:
-        "Issue staff credentials and assign each member the " +
-        "work they are responsible for.",
-      status: "ready",
-      badge: "Open",
-      onOpen: () => setActiveSection("staff"),
-    },
-    {
-      id: "messages",
-      icon: "💬",
-      title: "Messages",
-      description:
-        "Reach the lawyers and staff directly. The admin " +
-        "holds authority across every dashboard.",
-      status: "ready",
-      badge: "Open",
-      onOpen: () => onNavigate("chat"),
-    },
-    {
       id: "users",
-      icon: "🧑‍💼",
+      icon: Users,
       title: "Manage Users",
       description:
         "View, verify and deactivate citizen accounts, and " +
@@ -678,7 +474,7 @@ function AdminDashboardPage({
     },
     {
       id: "lawyers",
-      icon: "⚖️",
+      icon: Scale,
       title: "Manage Lawyers",
       description:
         "Verify or reject advocate registrations, and review " +
@@ -689,7 +485,7 @@ function AdminDashboardPage({
     },
     {
       id: "records",
-      icon: "📄",
+      icon: FileText,
       title: "Lawyer Records",
       description:
         "Full lawyer records: enrollment details, practice " +
@@ -700,7 +496,7 @@ function AdminDashboardPage({
     },
     {
       id: "data",
-      icon: "🗄️",
+      icon: Database,
       title: "Platform Data",
       description:
         "Platform-level data: cases, court orders, " +
@@ -709,22 +505,7 @@ function AdminDashboardPage({
       badge: "Open",
       onOpen: () => setActiveSection("data"),
     },
-    {
-      id: "access",
-      icon: "🔐",
-      title: "Access & Roles",
-      description:
-        "Assign each staff member their work, then grant or " +
-        "revoke authorities by category.",
-      status: "ready",
-      badge: "Open",
-      onOpen: () => setActiveSection("access"),
-    },
   ];
-
-  /* =====================================================
-     STAFF MANAGEMENT SCREEN
-     ===================================================== */
 
   /* =====================================================
      MANAGE USERS
@@ -981,14 +762,14 @@ function AdminDashboardPage({
             <>
               {rulingError && (
                 <div className="section-empty" role="alert">
-                  <span aria-hidden="true">⚠</span>
+                  <span aria-hidden="true"><TriangleAlert size={18} /></span>
                   <p>{rulingError}</p>
                 </div>
               )}
 
               {documentError && (
                 <div className="section-empty" role="alert">
-                  <span aria-hidden="true">⚠</span>
+                  <span aria-hidden="true"><TriangleAlert size={18} /></span>
                   <p>{documentError}</p>
                 </div>
               )}
@@ -1419,643 +1200,6 @@ function AdminDashboardPage({
   }
 
   /* =====================================================
-     ACCESS & ROLES SCREEN
-
-     The administrator's own row is fixed — admin holds
-     everything by definition — so the only thing that can
-     change is what each staff account has been handed.
-     ===================================================== */
-
-  if (activeSection === "access") {
-    /* =================================================
-       STAFF IN CATEGORIES
-
-       Grouped by the work they were assigned on Staff
-       Management rather than by seniority or join date,
-       because that is the axis the admin is actually
-       deciding on: this row is the people who handle
-       documents, and here is what document people may do.
-       ================================================= */
-
-    const workOf = (userId: string) =>
-      workAssignments[userId] ?? getWorkFor(userId) ?? "";
-
-    const buckets = STAFF_WORK.map((work) => ({
-      key: work.id as string,
-      label: work.label,
-      note: work.description,
-      members: staffList.filter(
-        (member) => workOf(member.userId) === work.id,
-      ),
-    }))
-      .concat([
-        {
-          key: "unassigned",
-          label: "Unassigned",
-          note: "No work chosen yet — defaults only.",
-          members: staffList.filter(
-            (member) => workOf(member.userId) === "",
-          ),
-        },
-      ])
-      .filter((bucket) => bucket.members.length > 0);
-
-    return (
-      <div className="role-dashboard-page">
-
-        <section className="role-dashboard-hero">
-
-          <div className="role-dashboard-hero-glow" />
-
-          <div className="role-dashboard-hero-content">
-
-            <div className="role-dashboard-eyebrow">
-              <span>⚖</span>
-              NYAYMITRA ADMIN PORTAL
-            </div>
-
-            <h1>
-              Access
-              <br />
-              <span>&amp; roles.</span>
-            </h1>
-
-            <p>
-              You hold every authority across all four
-              dashboards. Delegate to each staff member only
-              what their work needs — changes take effect on
-              their dashboard straight away.
-            </p>
-
-          </div>
-
-        </section>
-
-        <main className="role-dashboard-main">
-
-          <section className="role-dashboard-welcome">
-
-            <div className="role-dashboard-profile">
-
-              <div className="role-dashboard-avatar">
-                {session.fullName
-                  .trim()
-                  .split(/\s+/)
-                  .slice(0, 2)
-                  .map((part) => part[0]?.toUpperCase() || "")
-                  .join("")}
-              </div>
-
-              <div>
-
-                <span className="role-dashboard-section-label">
-                  ADMIN WORKSPACE
-                </span>
-
-                <h2>Assign work, then delegate what it needs</h2>
-
-                <p>
-                  Signed in as {session.fullName} (
-                  {session.userId}))
-                </p>
-
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              className="role-dashboard-signout"
-              onClick={() => setActiveSection(null)}
-            >
-              ← Back to dashboard
-            </button>
-
-          </section>
-
-
-          {/* =========================================
-              ADMIN — LOCKED ON
-              ========================================= */}
-
-          <div className="admin-access-banner">
-
-            <div>
-
-              <span className="role-dashboard-section-label">
-                ADMINISTRATOR
-              </span>
-
-              <h3>You hold every authority</h3>
-
-              <p>
-                Admin authority is not grantable or revocable —
-                it covers every dashboard by definition.
-              </p>
-
-            </div>
-
-            <span className="admin-access-count">
-              {ADMIN_AUTHORITIES.length} of {AUTHORITY_CATALOG.length}
-            </span>
-
-          </div>
-
-
-          {/* =========================================
-              STAFF — GRANTABLE
-              ========================================= */}
-
-          {staffList.length === 0 ? (
-            <div className="admin-staff-card">
-
-              <span className="role-dashboard-section-label">
-                NO STAFF
-              </span>
-
-              <h3>No staff accounts yet</h3>
-
-              <p>
-                Issue a staff account first, then decide here
-                what that account is allowed to do.
-              </p>
-
-            </div>
-          ) : (
-            <div className="admin-access-groups">
-
-              {buckets.map((bucket) => (
-
-                <section
-                  key={bucket.key}
-                  className="admin-access-bucket"
-                >
-
-                  <header className="admin-access-bucket-head">
-
-                    <div>
-
-                      <span className="section-sublabel">
-                        {bucket.label}
-                      </span>
-
-                      <p>{bucket.note}</p>
-
-                    </div>
-
-                    <span className="admin-access-count">
-                      {bucket.members.length}{" "}
-                      {bucket.members.length === 1
-                        ? "person"
-                        : "people"}
-                    </span>
-
-                  </header>
-
-                  <div className="admin-access-grid">
-
-                    {bucket.members.map((member) => {
-
-                      const held =
-                        grants[member.userId] ??
-                        getAuthoritiesFor(member.userId);
-
-                      return (
-                        <div
-                          key={member.userId}
-                          className="admin-staff-card admin-access-card"
-                        >
-
-                          <header className="admin-access-card-head">
-
-                            <div>
-
-                              <span className="role-dashboard-section-label">
-                                STAFF
-                              </span>
-
-                              <h3>{member.fullName}</h3>
-
-                              <p>
-                                {member.email} · {member.userId}
-                              </p>
-
-                            </div>
-
-                            <span className="admin-access-count">
-                              {held.length} of {AUTHORITY_CATALOG.length}
-                            </span>
-
-                          </header>
-
-                          {/* --------------------------------
-                              AUTHORITIES BY CATEGORY
-                              -------------------------------- */}
-
-                          <div className="admin-access-categories">
-
-                            {authoritiesByCategory().map(
-                              (group) => {
-                                const ids = group.authorities.map(
-                                  (authority) => authority.id,
-                                );
-                                const inGroup = ids.filter((id) =>
-                                  held.includes(id),
-                                ).length;
-
-                                return (
-                                  <section
-                                    key={group.category}
-                                    className="admin-access-category"
-                                  >
-
-                                    <header>
-
-                                      <span className="section-sublabel">
-                                        {group.category}
-                                      </span>
-
-                                      <span className="admin-access-count">
-                                        {inGroup} of {ids.length}
-                                      </span>
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          bulkAuthorities(
-                                            member.userId,
-                                            [
-                                              ...new Set([
-                                                ...held,
-                                                ...ids,
-                                              ]),
-                                            ],
-                                          )
-                                        }
-                                      >
-                                        Grant
-                                      </button>
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          bulkAuthorities(
-                                            member.userId,
-                                            held.filter(
-                                              (id) => !ids.includes(id),
-                                            ),
-                                          )
-                                        }
-                                      >
-                                        Revoke
-                                      </button>
-
-                                    </header>
-
-                                    <ul className="admin-access-list">
-
-                                      {group.authorities.map(
-                                        (authority) => (
-                                          <li key={authority.id}>
-                                            <label>
-
-                                              <input
-                                                type="checkbox"
-                                                checked={held.includes(
-                                                  authority.id,
-                                                )}
-                                                onChange={(event) =>
-                                                  toggleAuthority(
-                                                    member.userId,
-                                                    authority.id,
-                                                    event.target
-                                                      .checked,
-                                                  )
-                                                }
-                                              />
-
-                                              <span>
-                                                <strong>
-                                                  {authority.label}
-                                                </strong>
-                                                <small>
-                                                  {authority.description}
-                                                </small>
-                                              </span>
-
-                                            </label>
-                                          </li>
-                                        ),
-                                      )}
-
-                                    </ul>
-
-                                  </section>
-                                );
-                              },
-                            )}
-
-                          </div>
-
-                          <footer className="admin-access-actions">
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                bulkAuthorities(
-                                  member.userId,
-                                  AUTHORITY_CATALOG.map((a) => a.id),
-                                )
-                              }
-                            >
-                              Grant all
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                bulkAuthorities(member.userId, [])
-                              }
-                            >
-                              Revoke all
-                            </button>
-
-                          </footer>
-
-                        </div>
-                      );
-                    })}
-
-                  </div>
-
-                </section>
-
-              ))}
-
-            </div>
-          )}
-
-        </main>
-
-      </div>
-    );
-  }
-
-  if (activeSection === "staff") {
-    return (
-      <div className="role-dashboard-page">
-
-        <section className="role-dashboard-hero">
-
-          <div className="role-dashboard-hero-glow" />
-
-          <div className="role-dashboard-hero-content">
-
-            <div className="role-dashboard-eyebrow">
-              <span>⚖</span>
-              NYAYMITRA ADMIN PORTAL
-            </div>
-
-            <h1>
-              Staff
-              <br />
-              <span>management.</span>
-            </h1>
-
-            <p>
-              Staff accounts are issued by the administrator.
-              A staff member signs in through the Admin door
-              on the login page using these credentials.
-            </p>
-
-          </div>
-
-        </section>
-
-        <main className="role-dashboard-main">
-
-          <section className="role-dashboard-welcome">
-
-            <div className="role-dashboard-profile">
-
-              <div className="role-dashboard-avatar">
-                {session.fullName
-                  .trim()
-                  .split(/\s+/)
-                  .slice(0, 2)
-                  .map((part) => part[0]?.toUpperCase() || "")
-                  .join("")}
-              </div>
-
-              <div>
-
-                <span className="role-dashboard-section-label">
-                  ADMIN WORKSPACE
-                </span>
-
-                <h2>Issue staff credentials</h2>
-
-                <p>
-                  Signed in as {session.fullName} (
-                  {session.userId})
-                </p>
-
-              </div>
-
-            </div>
-
-            <button
-              type="button"
-              className="role-dashboard-signout"
-              onClick={() => setActiveSection(null)}
-            >
-              ← Back to dashboard
-            </button>
-
-          </section>
-
-          <div className="admin-staff-grid">
-
-            {/* =========================================
-                ISSUE FORM
-                ========================================= */}
-
-            <form
-              className="admin-staff-card"
-              onSubmit={handleIssueStaff}
-            >
-
-              <span className="role-dashboard-section-label">
-                NEW STAFF ACCOUNT
-              </span>
-
-              <h3>Issue credentials</h3>
-
-              <label className="admin-staff-field">
-
-                <span>Full name</span>
-
-                <input
-                  type="text"
-                  placeholder="Staff member name"
-                  value={inviteName}
-                  onChange={(event) =>
-                    setInviteName(event.target.value)
-                  }
-                />
-
-              </label>
-
-              <label className="admin-staff-field">
-
-                <span>Email</span>
-
-                <input
-                  type="email"
-                  placeholder="staff@nyaymitra.in"
-                  value={inviteEmail}
-                  onChange={(event) =>
-                    setInviteEmail(event.target.value)
-                  }
-                />
-
-              </label>
-
-              <label className="admin-staff-field">
-
-                <span>Temporary password</span>
-
-                <input
-                  type="text"
-                  placeholder="At least 4 characters"
-                  value={invitePassword}
-                  onChange={(event) =>
-                    setInvitePassword(event.target.value)
-                  }
-                />
-
-              </label>
-
-              {inviteError && (
-                <div className="admin-staff-alert error">
-                  {inviteError}
-                </div>
-              )}
-
-              {inviteSuccess && (
-                <div className="admin-staff-alert success">
-                  {inviteSuccess}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="admin-staff-submit"
-              >
-                Issue staff account
-              </button>
-
-            </form>
-
-            {/* =========================================
-                STAFF LIST
-                ========================================= */}
-
-            <div className="admin-staff-card">
-
-              <span className="role-dashboard-section-label">
-                ACTIVE STAFF
-              </span>
-
-              <h3>Staff accounts</h3>
-
-              <p className="admin-staff-note">
-                Assign each member the work they are responsible for.
-                The assignment is what groups them on Access &amp;
-                Roles, and it is what they see at the top of their own
-                dashboard.
-              </p>
-
-              <div className="admin-staff-list">
-
-                {staffList.map((staff) => {
-                  const assigned =
-                    workAssignments[staff.userId] ??
-                    getWorkFor(staff.userId) ??
-                    "";
-
-                  return (
-                    <div
-                      key={staff.email}
-                      className="admin-staff-row"
-                    >
-
-                      <div className="admin-staff-row-icon">
-                        {staff.fullName
-                          .trim()
-                          .split(/\s+/)
-                          .slice(0, 2)
-                          .map(
-                            (part) =>
-                              part[0]?.toUpperCase() || "",
-                          )
-                          .join("")}
-                      </div>
-
-                      <div className="admin-staff-row-body">
-
-                        <strong>{staff.fullName}</strong>
-
-                        <span>{staff.email}</span>
-
-                        <select
-                          className="section-select"
-                          aria-label={`Work assigned to ${staff.fullName}`}
-                          value={assigned}
-                          onChange={(event) =>
-                            assignWork(
-                              staff.userId,
-                              event.target.value as StaffWorkId | "",
-                            )
-                          }
-                        >
-
-                          <option value="">
-                            Unassigned
-                          </option>
-
-                          {STAFF_WORK.map((work) => (
-                            <option
-                              key={work.id}
-                              value={work.id}
-                            >
-                              {work.label}
-                            </option>
-                          ))}
-
-                        </select>
-
-                      </div>
-
-                      <em>STAFF</em>
-
-                    </div>
-                  );
-                })}
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </main>
-
-      </div>
-    );
-  }
-
-  /* =====================================================
      DEFAULT — ADMIN DASHBOARD
      ===================================================== */
 
@@ -2069,8 +1213,8 @@ function AdminDashboardPage({
       heroTitleAccent="administration."
 
       heroDescription={
-        "Manage users, lawyers and staff records, control " +
-        "platform data and access — all from one console."
+        "Manage users and lawyers, review records and " +
+        "platform data — all from one console."
       }
 
       workspaceLabel="ADMIN WORKSPACE"

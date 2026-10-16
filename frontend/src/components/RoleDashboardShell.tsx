@@ -1,4 +1,8 @@
 import type { Session } from "../auth/session";
+import type { LucideIcon } from "lucide-react";
+import { Scale, User } from "lucide-react";
+import { useT } from "../i18n/context";
+import LanguageToggle from "../i18n/LanguageToggle";
 
 /* =========================================================
    ROLE DASHBOARD SHELL
@@ -19,7 +23,7 @@ import type { Session } from "../auth/session";
 
 export interface DashboardSection {
   id: string;
-  icon: string;
+  icon: LucideIcon;
   title: string;
   description: string;
   status: "ready" | "planned";
@@ -34,7 +38,7 @@ export interface DashboardSection {
 }
 
 export interface DashboardStat {
-  icon: string;
+  icon: LucideIcon;
   tone: "purple" | "blue" | "orange" | "green";
   label: string;
   value: string;
@@ -92,6 +96,15 @@ function RoleDashboardShell({
   sections,
   onSignOut,
 }: RoleDashboardShellProps) {
+  const { t } = useT();
+
+  const roleLabel =
+    session.role === "ADMIN"
+      ? t("app.role.admin")
+      : session.role === "STAFF"
+        ? t("app.role.staff")
+        : session.role;
+
   return (
     <div className="role-dashboard-page">
 
@@ -106,7 +119,7 @@ function RoleDashboardShell({
         <div className="role-dashboard-hero-content">
 
           <div className="role-dashboard-eyebrow">
-            <span>⚖</span>
+            <Scale size={15} aria-hidden="true" />
             {eyebrow}
           </div>
 
@@ -121,11 +134,13 @@ function RoleDashboardShell({
           <div className="role-dashboard-hero-meta">
 
             <span>
-              ⚖ {session.role}
+              <Scale size={13} aria-hidden="true" />
+              {roleLabel}
             </span>
 
             <span>
-              ♙ {session.fullName}
+              <User size={13} aria-hidden="true" />
+              {session.fullName}
             </span>
 
             <span>
@@ -171,13 +186,19 @@ function RoleDashboardShell({
 
           </div>
 
-          <button
-            type="button"
-            className="role-dashboard-signout"
-            onClick={onSignOut}
-          >
-            Sign out
-          </button>
+          <div className="role-dashboard-actions">
+
+            <LanguageToggle />
+
+            <button
+              type="button"
+              className="role-dashboard-signout"
+              onClick={onSignOut}
+            >
+              {t("app.signOut")}
+            </button>
+
+          </div>
 
         </section>
 
@@ -215,7 +236,7 @@ function RoleDashboardShell({
                 <div
                   className={`role-dashboard-stat-icon ${stat.tone}`}
                 >
-                  {stat.icon}
+                  <stat.icon size={20} aria-hidden="true" />
                 </div>
 
                 <div>
@@ -272,7 +293,7 @@ function RoleDashboardShell({
                   <div className="role-dashboard-section-top">
 
                     <div className="role-dashboard-section-icon">
-                      {section.icon}
+                      <section.icon size={22} aria-hidden="true" />
                     </div>
 
                     <span
@@ -283,7 +304,9 @@ function RoleDashboardShell({
                       }
                     >
                       {section.badge ||
-                        (isReady ? "Open" : "Coming soon")}
+                        (isReady
+                          ? t("roleDashboard.badge.open")
+                          : t("roleDashboard.badge.soon"))}
                     </span>
 
                   </div>
@@ -294,8 +317,9 @@ function RoleDashboardShell({
 
                   <div className="role-dashboard-section-cta">
                     {isReady
-                      ? "Open section →"
-                      : section.cta || "Under development"}
+                      ? t("roleDashboard.cta.open")
+                      : section.cta ||
+                        t("roleDashboard.cta.underDevelopment")}
                   </div>
 
                 </div>

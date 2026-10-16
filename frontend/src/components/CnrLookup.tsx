@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 
 import type { Case } from "../types/case";
+import { useT, type I18nValue } from "../i18n/context";
 import {
   isSavedForUser,
   lookupCaseByCnr,
@@ -63,35 +65,41 @@ function cleanCnr(raw: string): string {
   return raw.toUpperCase().replace(/[\s\-_]/g, "");
 }
 
-function cnrHint(query: string): string {
+function cnrHint(query: string, t: I18nValue["t"]): string {
   if (query.length < 16) {
     const missing = 16 - query.length;
-    return `A CNR is 16 characters — ${missing} more to go.`;
+    return t("cnr.hintShort", { n: missing });
   }
 
   if (query.length > 16) {
-    return `A CNR is 16 characters — ${query.length - 16} too many.`;
+    return t("cnr.hintLong", { n: query.length - 16 });
   }
 
-  return `Four letters then twelve digits, like ${CNR_EXAMPLE}.`;
+  return t("cnr.hintFormat", { example: CNR_EXAMPLE });
 }
 
 /* A TypeError is fetch's way of saying the request never left the
    browser. Everything else already carries a sentence written for
    the person reading it. */
-function messageFor(error: unknown): string {
+function messageFor(
+  error: unknown,
+  t: I18nValue["t"],
+  tm: I18nValue["tm"],
+): string {
   if (error instanceof TypeError) {
-    return "The case service could not be reached. Try again in a moment.";
+    return t("cnr.err.offline");
   }
 
   if (error instanceof Error && error.message.trim()) {
-    return error.message;
+    return tm(error.message);
   }
 
-  return "That CNR could not be looked up.";
+  return t("cnr.err.notFound");
 }
 
 export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
+  const { t, tm } = useT();
+
   const [cnr, setCnr] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,13 +130,13 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
 
     if (!entered) {
       setFound(null);
-      setError("Enter the CNR of the case you want to open.");
+      setError(t("cnr.err.empty"));
       return;
     }
 
     if (!wellFormed) {
       setFound(null);
-      setError(`That is not a CNR. ${cnrHint(query)}`);
+      setError(t("cnr.err.malformed", { hint: cnrHint(query, t) }));
       return;
     }
 
@@ -139,7 +147,7 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
     try {
       setFound(await lookupCaseByCnr(query, userId));
     } catch (err) {
-      setError(messageFor(err));
+      setError(messageFor(err, t, tm));
     } finally {
       setBusy(false);
     }
@@ -162,16 +170,11 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
   return (
     <section className="cnr-lookup" aria-labelledby="cnr-lookup-title">
       <div className="cnr-lookup-head">
-        <span className="section-label">LOOK UP A CASE</span>
+        <span className="section-label">{t("cnr.label")}</span>
 
-        <h2 id="cnr-lookup-title">Search by CNR number</h2>
+        <h2 id="cnr-lookup-title">{t("cnr.heading")}</h2>
 
-        <p>
-          Every case carries one 16-character CNR — four letters, then
-          twelve digits, as printed on a notice or order sheet. The
-          record opens here for reading; choose "Save to My Cases" to
-          start tracking it.
-        </p>
+        <p>{t("cnr.intro")}</p>
       </div>
 
       <form className="cnr-lookup-form" onSubmit={lookup}>
@@ -184,7 +187,7 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
               if (error) setError(null);
             }}
             placeholder={CNR_EXAMPLE}
-            aria-label="CNR number"
+            aria-label={t("cnr.inputLabel")}
             aria-invalid={entered && !wellFormed}
             spellCheck={false}
             autoComplete="off"
@@ -196,17 +199,17 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
               succeeded. The empty box gets an example instead. */}
           {!entered ? (
             <p className="cnr-lookup-hint">
-              Enter a CNR to search — for example {CNR_EXAMPLE}.
+              {t("cnr.hintEmpty", { example: CNR_EXAMPLE })}
             </p>
           ) : !wellFormed ? (
             <p className="cnr-lookup-hint cnr-lookup-hint-bad">
-              {cnrHint(query)}
+              {cnrHint(query, t)}
             </p>
           ) : null}
         </div>
 
         <button type="submit" disabled={!wellFormed || busy}>
-          {busy ? "Looking up…" : "Look up case"}
+          {busy ? t("cnr.busy") : t("cnr.submit")}
         </button>
       </form>
 
@@ -220,10 +223,10 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
         <article className="cnr-result">
           <header className="cnr-result-head">
             <div>
-              <span className="detail-label">CNR NUMBER</span>
+              <span className="detail-label">{t("cases.label.cnr")}</span>
               <h3>{found.cnr_number}</h3>
               <p>
-                {found.case_type} · filed {formatDate(found.filing_date)}
+                {found.case_type} · {t("cases.filed")} {formatDate(found.filing_date)}
               </p>
             </div>
 
@@ -234,33 +237,37 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
 
           <div className="cnr-result-grid">
             <div>
-              <span className="detail-label">PETITIONER</span>
+              <span className="detail-label">{t("cases.label.petitioner")}</span>
               <strong>{found.petitioner_name}</strong>
             </div>
 
             <div>
-              <span className="detail-label">RESPONDENTS</span>
+              <span className="detail-label">{t("cases.label.respondents")}</span>
               <strong>{found.respondents_list.join(", ") || "—"}</strong>
             </div>
 
             <div>
-              <span className="detail-label">COURT</span>
+              <span className="detail-label">{t("cases.label.court")}</span>
               <strong>
                 {found.court_name}, {found.court_district}
               </strong>
             </div>
 
             <div>
-              <span className="detail-label">NEXT HEARING</span>
+              <span className="detail-label">{t("cases.label.nextHearing")}</span>
               <strong>{formatDate(found.next_hearing_date)}</strong>
             </div>
           </div>
 
           <footer className="cnr-result-foot">
             <span className="cnr-result-counts">
-              {hearings} {hearings === 1 ? "hearing" : "hearings"} recorded
+              {hearings === 1
+                ? t("cnr.hearings.one", { n: hearings })
+                : t("cnr.hearings.other", { n: hearings })}
               {" · "}
-              {orders} {orders === 1 ? "order" : "orders"} passed
+              {orders === 1
+                ? t("cnr.orders.one", { n: orders })
+                : t("cnr.orders.other", { n: orders })}
             </span>
 
             <div className="cnr-result-actions">
@@ -270,7 +277,14 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
                 onClick={save}
                 disabled={isSaved}
               >
-                {isSaved ? "Saved to My Cases ✓" : "Save to My Cases"}
+                {isSaved ? (
+                  <>
+                    <Check size={13} aria-hidden="true" />
+                    {t("cnr.saved")}
+                  </>
+                ) : (
+                  t("cnr.save")
+                )}
               </button>
 
               <button
@@ -278,7 +292,7 @@ export default function CnrLookup({ userId, onOpen }: CnrLookupProps) {
                 className="cnr-result-open"
                 onClick={() => onOpen(found)}
               >
-                Open full case
+                {t("cnr.open")}
                 <span aria-hidden="true">→</span>
               </button>
             </div>

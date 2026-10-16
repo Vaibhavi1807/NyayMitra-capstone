@@ -2,8 +2,8 @@
    SHARED — "PICK ONE OF YOUR CASES" (OngoingCases)
 
    Palette matches the rest of the app: panel white, border
-   #e5e7ef, muted #777d91, indigo #4f46c5 over a gradient of
-   #4338ca to #6366f1.
+   var(--nm-border), muted var(--nm-text-mute), indigo var(--nm-primary) over a gradient of
+   var(--nm-primary-deep) to var(--nm-primary).
    ========================================================= */
 
 .ongoing-list {
@@ -20,8 +20,8 @@
 
   padding: 20px 22px;
 
-  background: #ffffff;
-  border: 1px solid #e5e7ef;
+  background: var(--nm-surface);
+  border: 1px solid var(--nm-border);
   border-radius: 18px;
 
   box-shadow: 0 8px 24px rgba(25, 30, 60, 0.05);
@@ -29,12 +29,12 @@
 }
 
 .ongoing-row:hover {
-  border-color: #c9c9ee;
+  border-color: var(--nm-indigo-400);
   box-shadow: 0 14px 32px rgba(25, 30, 60, 0.09);
 }
 
 .ongoing-row.is-busy {
-  border-color: #c9c9ee;
+  border-color: var(--nm-indigo-400);
 }
 
 .ongoing-main {
@@ -44,7 +44,7 @@
 .ongoing-cnr {
   display: block;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
   font-size: 10.5px;
   font-weight: 750;
   letter-spacing: 0.12em;
@@ -53,14 +53,14 @@
 .ongoing-main h3 {
   margin: 6px 0 0;
 
-  color: #20253a;
+  color: var(--nm-text);
   font-size: 17px;
 }
 
 .ongoing-parties {
   margin: 5px 0 0;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -79,11 +79,11 @@
   max-width: 100%;
   padding: 5px 11px;
 
-  background: #f7f8fc;
-  border: 1px solid #e9ebf3;
+  background: var(--nm-surface-2);
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  color: #5b6076;
+  color: var(--nm-text-soft);
   font-size: 11.5px;
   font-weight: 600;
 
@@ -93,9 +93,9 @@
 }
 
 .ongoing-chip-stage {
-  background: #eef0ff;
-  border-color: #d9dcff;
-  color: #4338ca;
+  background: var(--nm-primary-soft);
+  border-color: var(--nm-border);
+  color: var(--nm-primary-deep);
 }
 
 .ongoing-action {
@@ -103,7 +103,7 @@
 
   padding: 13px 24px;
 
-  background: linear-gradient(135deg, #4338ca, #6366f1);
+  background: var(--nm-primary-grad);
   border: 0;
   border-radius: 999px;
 
@@ -138,8 +138,8 @@
   padding: 44px 24px;
   text-align: center;
 
-  background: #ffffff;
-  border: 1px dashed #dfe2ed;
+  background: var(--nm-surface);
+  border: 1px dashed var(--nm-border);
   border-radius: 18px;
 }
 
@@ -150,7 +150,7 @@
 
 .ongoing-empty h3 {
   margin: 0;
-  color: #20253a;
+  color: var(--nm-text);
   font-size: 17px;
 }
 
@@ -158,7 +158,7 @@
   margin: 0;
   max-width: 520px;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
   font-size: 13.5px;
   line-height: 1.6;
 }

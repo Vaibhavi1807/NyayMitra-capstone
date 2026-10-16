@@ -1,4 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  Scale,
+  MessageSquare,
+  Mail,
+  Check,
+  GraduationCap,
+  MapPin,
+  type LucideIcon,
+} from "lucide-react";
 import type { Page } from "../../App";
 import type { VerificationStatus } from "../../auth/session";
 import {
@@ -269,7 +278,7 @@ function LawyerDashboardPage({
         <div className="lawyer-dashboard-hero-content">
 
           <div className="lawyer-dashboard-eyebrow">
-            <span>⚖</span>
+            <Scale size={15} aria-hidden="true" />
             NYAYMITRA LAWYER PORTAL
           </div>
 
@@ -288,7 +297,8 @@ function LawyerDashboardPage({
           <div className="lawyer-dashboard-hero-meta">
 
             <span>
-              ⚖ {lawyer.lawyer_id}
+              <Scale size={13} aria-hidden="true" />
+              {lawyer.lawyer_id}
             </span>
 
             {lawyer.city && (
@@ -390,7 +400,7 @@ function LawyerDashboardPage({
             <div className="lawyer-dashboard-card-heading">
 
               <div className="lawyer-dashboard-stat-icon purple">
-                ⚖
+                <Scale size={22} aria-hidden="true" />
               </div>
 
               <h3>
@@ -423,7 +433,7 @@ function LawyerDashboardPage({
             <div className="lawyer-dashboard-card-heading">
 
               <div className="lawyer-dashboard-stat-icon blue">
-                💬
+                <MessageSquare size={22} aria-hidden="true" />
               </div>
 
               <h3>
@@ -564,7 +574,7 @@ function LawyerDashboardPage({
 
             <InfoCard
               title="Location"
-              icon="⌖"
+              icon={MapPin}
               tone="blue"
               items={[
                 ["City", lawyer.city],
@@ -576,7 +586,7 @@ function LawyerDashboardPage({
 
             <InfoCard
               title="Professional Contact"
-              icon="✉"
+              icon={Mail}
               tone="green"
               items={[
                 [
@@ -600,7 +610,7 @@ function LawyerDashboardPage({
 
             <InfoCard
               title="Registration"
-              icon="⚖"
+              icon={Scale}
               tone="purple"
               items={[
                 [
@@ -694,7 +704,7 @@ function LawyerDashboardPage({
                 {courts.map(
                   (court) => (
                     <li key={court}>
-                      <span>✓</span>
+                      <Check size={13} aria-hidden="true" />
                       {court}
                     </li>
                   )
@@ -725,7 +735,7 @@ function LawyerDashboardPage({
           <div className="lawyer-dashboard-small-card">
 
             <div className="lawyer-dashboard-small-icon">
-              🎓
+              <GraduationCap size={20} aria-hidden="true" />
             </div>
 
             <span>
@@ -807,12 +817,12 @@ function getInitials(
 
 function InfoCard({
   title,
-  icon,
+  icon: Icon,
   tone,
   items,
 }: {
   title: string;
-  icon: string;
+  icon: LucideIcon;
   tone:
     | "purple"
     | "blue"
@@ -831,7 +841,7 @@ function InfoCard({
       <div
         className={`lawyer-dashboard-info-icon ${tone}`}
       >
-        {icon}
+        <Icon size={20} aria-hidden="true" />
       </div>
 
       <div>

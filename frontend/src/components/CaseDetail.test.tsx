@@ -20,6 +20,19 @@ vi.mock("../api/guidanceApi", () => ({
   getGuidance: vi.fn(),
 }));
 
+/*
+ * The Court documents section (added to the matter) fetches
+ * through caseDocumentApi — mocked so rendering a case here
+ * never reaches for a backend that unit tests do not run.
+ */
+vi.mock("../api/caseDocumentApi", () => ({
+  fetchCaseDocuments: vi.fn().mockResolvedValue({
+    status: "empty",
+    records: [],
+    demo: false,
+  }),
+}));
+
 const mockedGuidance = vi.mocked(getGuidance);
 
 afterEach(() => {

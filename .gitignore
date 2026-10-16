@@ -62,3 +62,7 @@ Thumbs.db
 # committed (written by auth/documents.py; readable only through
 # the authenticated own-document / ADMIN document endpoints)
 /NyayMitra-feature-lawyer-api/data/uploads/
+
+# Local court datasets and downloaded archives — do not commit
+/dev_data/
+/*.zip

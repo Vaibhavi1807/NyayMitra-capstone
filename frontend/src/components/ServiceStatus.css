@@ -23,19 +23,19 @@
 
   padding: 7px 13px;
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 999px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  color: #777d91;
+  color: var(--nm-text-mute);
 }
 
 .service-status-online {
-  border-color: #cdeeda;
+  border-color: var(--nm-success-border);
 
-  color: #17834c;
+  color: var(--nm-success);
 }
 
 .service-status-dot {
@@ -44,11 +44,11 @@
 
   border-radius: 50%;
 
-  background: #b6bac7;
+  background: var(--nm-text-mute);
 }
 
 .service-status-online .service-status-dot {
-  background: #21a866;
+  background: var(--nm-success);
 
   box-shadow: 0 0 0 3px rgba(33, 168, 102, 0.16);
 }
@@ -60,13 +60,13 @@
 
   padding: 15px 16px;
 
-  border: 1px solid #f6d7d7;
+  border: 1px solid var(--nm-danger-border);
 
   border-radius: 16px;
 
-  background: #fff5f5;
+  background: var(--nm-danger-bg);
 
-  color: #b42318;
+  color: var(--nm-danger);
 }
 
 .service-status-icon {
@@ -92,7 +92,7 @@
 .service-status-body p {
   margin: 0;
 
-  color: #8a5252;
+  color: var(--nm-danger);
 
   font-size: 12px;
   font-weight: 500;
@@ -105,7 +105,7 @@
 
   border-radius: 5px;
 
-  background: #fdeaea;
+  background: var(--nm-danger-bg);
 
   font-size: 11px;
 }
@@ -115,13 +115,13 @@
 
   padding: 8px 15px;
 
-  border: 1px solid #f0c4c4;
+  border: 1px solid var(--nm-danger-border);
 
   border-radius: 999px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  color: #b42318;
+  color: var(--nm-danger);
 
   font-size: 11px;
   font-weight: 750;
@@ -132,5 +132,5 @@
 }
 
 .service-status-offline button:hover {
-  border-color: #b42318;
+  border-color: var(--nm-danger);
 }

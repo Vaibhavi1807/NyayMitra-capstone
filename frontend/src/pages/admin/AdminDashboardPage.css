@@ -16,9 +16,9 @@
 .admin-staff-card {
   padding: 26px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 20px;
 
@@ -29,7 +29,7 @@
 .admin-staff-card h3 {
   margin: 0 0 20px;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 20px;
 
@@ -55,12 +55,12 @@
 
   padding: 22px 26px;
 
-  border: 1px solid #dcdcf4;
+  border: 1px solid var(--nm-border);
 
   border-radius: 20px;
 
   background:
-    linear-gradient(135deg, #f5f6ff, #fafaff);
+    linear-gradient(135deg, var(--nm-primary-soft), var(--nm-surface-2));
 
   box-shadow:
     0 8px 25px rgba(25, 30, 60, 0.05);
@@ -69,7 +69,7 @@
 .admin-access-banner h3 {
   margin: 6px 0;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 20px;
 
@@ -81,7 +81,7 @@
 
   max-width: 62ch;
 
-  color: #555b6f;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
   line-height: 1.6;
@@ -92,12 +92,12 @@
 
   padding: 7px 13px;
 
-  border: 1px solid #dcdcf4;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  color: #4338ca;
+  color: var(--nm-primary-deep);
 
   font-size: 11.5px;
   font-weight: 750;
@@ -132,13 +132,13 @@
 
   padding-bottom: 16px;
 
-  border-bottom: 1px solid #eef0f5;
+  border-bottom: 1px solid var(--nm-border-soft);
 }
 
 .admin-access-card-head p {
   margin: 0;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
 
   font-size: 12px;
 
@@ -165,10 +165,10 @@
 
   padding: 11px 13px;
 
-  border: 1px solid #eef0f5;
+  border: 1px solid var(--nm-border-soft);
   border-radius: 12px;
 
-  background: #fbfbfe;
+  background: var(--nm-surface-2);
 
   cursor: pointer;
 
@@ -178,9 +178,9 @@
 }
 
 .admin-access-list label:hover {
-  border-color: #dcdcf4;
+  border-color: var(--nm-border);
 
-  background: #f5f6ff;
+  background: var(--nm-primary-soft);
 }
 
 .admin-access-list input {
@@ -191,7 +191,7 @@
 
   margin-top: 2px;
 
-  accent-color: #4338ca;
+  accent-color: var(--nm-primary-deep);
 
   cursor: pointer;
 }
@@ -199,7 +199,7 @@
 .admin-access-list strong {
   display: block;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 13px;
   font-weight: 700;
@@ -210,7 +210,7 @@
 
   margin-top: 3px;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
 
   font-size: 11.5px;
   line-height: 1.55;
@@ -224,7 +224,7 @@
 
   padding-top: 16px;
 
-  border-top: 1px solid #eef0f5;
+  border-top: 1px solid var(--nm-border-soft);
 }
 
 .admin-access-actions button {
@@ -232,12 +232,12 @@
 
   padding: 9px 13px;
 
-  border: 1px solid #dcdcf4;
+  border: 1px solid var(--nm-border);
   border-radius: 11px;
 
-  background: #f5f6ff;
+  background: var(--nm-primary-soft);
 
-  color: #4338ca;
+  color: var(--nm-primary-deep);
 
   font-size: 12px;
   font-weight: 750;
@@ -248,10 +248,10 @@
 }
 
 .admin-access-actions button:hover {
-  border-color: #4338ca;
+  border-color: var(--nm-primary-deep);
 
   background:
-    linear-gradient(135deg, #4338ca, #6366f1);
+    var(--nm-primary-grad);
 
   color: white;
 }
@@ -272,7 +272,7 @@
 
   margin-bottom: 7px;
 
-  color: #555b6f;
+  color: var(--nm-text-soft);
 
   font-size: 11px;
   font-weight: 750;
@@ -285,13 +285,13 @@
 
   padding: 0 15px;
 
-  border: 1px solid #e1e4ec;
+  border: 1px solid var(--nm-border);
 
   border-radius: 12px;
 
-  background: #f8f9fc;
+  background: var(--nm-surface-2);
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 13px;
 
@@ -302,16 +302,16 @@
 }
 
 .admin-staff-field input:focus {
-  border-color: #818cf8;
+  border-color: var(--nm-indigo-400);
 
-  background: white;
+  background: var(--nm-surface);
 
   box-shadow:
     0 0 0 4px rgba(99, 102, 241, 0.10);
 }
 
 .admin-staff-field input::placeholder {
-  color: #a0a5b4;
+  color: var(--nm-text-mute);
 }
 
 
@@ -332,19 +332,19 @@
 }
 
 .admin-staff-alert.error {
-  border: 1px solid #fbd5d5;
+  border: 1px solid var(--nm-danger-border);
 
-  background: #fdf1f1;
+  background: var(--nm-danger-bg);
 
-  color: #b42318;
+  color: var(--nm-danger);
 }
 
 .admin-staff-alert.success {
-  border: 1px solid #cdeeda;
+  border: 1px solid var(--nm-success-border);
 
-  background: #eaf9f1;
+  background: var(--nm-success-bg);
 
-  color: #17834c;
+  color: var(--nm-success);
 }
 
 
@@ -362,11 +362,7 @@
   border-radius: 12px;
 
   background:
-    linear-gradient(
-      135deg,
-      #4338ca,
-      #6366f1
-    );
+    var(--nm-primary-grad);
 
   color: white;
 
@@ -408,9 +404,9 @@
 
   padding: 13px 15px;
 
-  background: #f8f9fc;
+  background: var(--nm-surface-2);
 
-  border: 1px solid #ecedf4;
+  border: 1px solid var(--nm-border);
 
   border-radius: 13px;
 }
@@ -431,7 +427,7 @@
     linear-gradient(
       135deg,
       #3730a3,
-      #6366f1
+      var(--nm-primary)
     );
 
   color: white;
@@ -449,7 +445,7 @@
 .admin-staff-row strong {
   display: block;
 
-  color: #30354a;
+  color: var(--nm-text);
 
   font-size: 13px;
 }
@@ -459,7 +455,7 @@
 
   margin-top: 2px;
 
-  color: #8a8fa0;
+  color: var(--nm-text-mute);
 
   font-size: 11px;
 }
@@ -471,9 +467,9 @@
 
   border-radius: 999px;
 
-  background: #f0edff;
+  background: var(--nm-primary-soft);
 
-  color: #6d4aff;
+  color: var(--nm-primary);
 
   font-size: 10px;
   font-style: normal;
@@ -505,7 +501,7 @@
 .admin-staff-note {
   margin: 6px 0 16px;
 
-  color: #7b8095;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
 
@@ -527,9 +523,9 @@
 .admin-access-bucket {
   padding: 22px;
 
-  background: #fdfdff;
+  background: var(--nm-surface-2);
 
-  border: 1px solid #e9ebf4;
+  border: 1px solid var(--nm-border);
   border-radius: 20px;
 }
 
@@ -543,13 +539,13 @@
   margin-bottom: 16px;
   padding-bottom: 14px;
 
-  border-bottom: 1px solid #eef0f6;
+  border-bottom: 1px solid var(--nm-border-soft);
 }
 
 .admin-access-bucket-head p {
   margin: 5px 0 0;
 
-  color: #7b8095;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
 
@@ -565,7 +561,7 @@
   margin-top: 18px;
   padding-top: 16px;
 
-  border-top: 1px solid #eef0f6;
+  border-top: 1px solid var(--nm-border-soft);
 }
 
 .admin-access-category header {
@@ -581,7 +577,7 @@
   flex: 1;
   min-width: 0;
 
-  color: #4f46c5;
+  color: var(--nm-primary);
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -591,12 +587,12 @@
 .admin-access-category header button {
   padding: 4px 10px;
 
-  border: 1px solid #dfe2ee;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #fff;
+  background: var(--nm-surface);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 10.5px;
   font-weight: 750;
@@ -605,8 +601,8 @@
 }
 
 .admin-access-category header button:hover {
-  background: #f0edff;
-  border-color: #dcdcf4;
+  background: var(--nm-primary-soft);
+  border-color: var(--nm-border);
 }
 
 /* =========================================================
@@ -624,6 +620,6 @@
 }
 
 .section-row-actions .section-action:disabled:hover {
-  background: #fff;
-  border-color: #dfe2ee;
+  background: var(--nm-surface);
+  border-color: var(--nm-border);
 }

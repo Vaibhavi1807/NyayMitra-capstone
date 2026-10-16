@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 
 import { TRANSLATION_API_BASE_URL } from "../api/config";
 import { getTranslationHealth } from "../api/translationApi";
@@ -93,7 +94,7 @@ export default function ServiceStatus() {
       className="service-status service-status-offline"
       role="alert"
     >
-      <span className="service-status-icon">⚠</span>
+      <span className="service-status-icon"><TriangleAlert size={18} aria-hidden="true" /></span>
 
       <div className="service-status-body">
         <strong>

@@ -12,9 +12,9 @@
       rgba(99, 102, 241, 0.10),
       transparent 28%
     ),
-    #f6f7fb;
+    var(--nm-bg);
 
-  color: #20253a;
+  color: var(--nm-text);
 }
 
 
@@ -34,12 +34,7 @@
   color: white;
 
   background:
-    linear-gradient(
-      135deg,
-      #171a3a 0%,
-      #24215a 45%,
-      #37338f 100%
-    );
+    var(--nm-hero-grad);
 }
 
 .role-dashboard-hero-glow {
@@ -187,9 +182,9 @@
 
   padding: 26px 30px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 22px;
 
@@ -223,7 +218,7 @@
     linear-gradient(
       135deg,
       #3730a3,
-      #6366f1
+      var(--nm-primary)
     );
 
   color: white;
@@ -240,7 +235,7 @@
 
   margin-bottom: 6px;
 
-  color: #858b9d;
+  color: var(--nm-text-mute);
 
   font-size: 9px;
   font-weight: 800;
@@ -251,7 +246,7 @@
 .role-dashboard-welcome h2 {
   margin: 0;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 23px;
 
@@ -261,7 +256,7 @@
 .role-dashboard-welcome p {
   margin: 5px 0 0;
 
-  color: #858b9e;
+  color: var(--nm-text-mute);
 
   font-size: 13px;
 }
@@ -271,13 +266,13 @@
 
   padding: 12px 20px;
 
-  border: 1px solid #e1e4ec;
+  border: 1px solid var(--nm-border);
 
   border-radius: 12px;
 
-  background: #f8f9fc;
+  background: var(--nm-surface-2);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 12px;
   font-weight: 750;
@@ -286,9 +281,9 @@
 }
 
 .role-dashboard-signout:hover {
-  background: #eeefff;
+  background: var(--nm-primary-soft);
 
-  border-color: #c7c9f7;
+  border-color: var(--nm-indigo-400);
 }
 
 
@@ -316,7 +311,7 @@
 .role-dashboard-heading h2 {
   margin: 0;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 24px;
 
@@ -326,7 +321,7 @@
 .role-dashboard-heading > p {
   margin: 0;
 
-  color: #858b9e;
+  color: var(--nm-text-mute);
 
   font-size: 12px;
 }
@@ -354,9 +349,9 @@
 
   padding: 20px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 18px;
 
@@ -380,29 +375,29 @@
 }
 
 .role-dashboard-stat-icon.purple {
-  background: #f0edff;
-  color: #6d4aff;
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary);
 }
 
 .role-dashboard-stat-icon.blue {
-  background: #eaf4ff;
-  color: #2879c7;
+  background: var(--nm-info-bg);
+  color: var(--nm-info);
 }
 
 .role-dashboard-stat-icon.orange {
-  background: #fff3e7;
-  color: #d97706;
+  background: var(--nm-warn-bg);
+  color: var(--nm-warn);
 }
 
 .role-dashboard-stat-icon.green {
-  background: #eaf9f1;
-  color: #17834c;
+  background: var(--nm-success-bg);
+  color: var(--nm-success);
 }
 
 .role-dashboard-stat-card span {
   display: block;
 
-  color: #9ba0b1;
+  color: var(--nm-text-mute);
 
   font-size: 9px;
   font-weight: 800;
@@ -415,7 +410,7 @@
 
   margin-top: 4px;
 
-  color: #292e46;
+  color: var(--nm-text);
 
   font-size: 19px;
 
@@ -427,7 +422,7 @@
 
   margin-top: 3px;
 
-  color: #858b9e;
+  color: var(--nm-text-mute);
 
   font-size: 10px;
 }
@@ -461,9 +456,9 @@
 
   padding: 24px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 20px;
 
@@ -477,7 +472,7 @@
   .role-dashboard-section-card {
   transform: translateY(-5px);
 
-  border-color: #c7c9f7;
+  border-color: var(--nm-indigo-400);
 
   box-shadow:
     0 20px 45px rgba(40, 40, 90, 0.11);
@@ -503,7 +498,7 @@
 
   border-radius: 14px;
 
-  background: #eeefff;
+  background: var(--nm-primary-soft);
 
   font-size: 21px;
 }
@@ -513,24 +508,24 @@
 
   border-radius: 999px;
 
-  background: #f0f1f4;
+  background: var(--nm-surface-3);
 
-  color: #626978;
+  color: var(--nm-text-soft);
 
   font-size: 10px;
   font-weight: 750;
 }
 
 .role-dashboard-section-badge.ready {
-  background: #eaf9f1;
+  background: var(--nm-success-bg);
 
-  color: #17834c;
+  color: var(--nm-success);
 }
 
 .role-dashboard-section-card h3 {
   margin: 18px 0 0;
 
-  color: #292e46;
+  color: var(--nm-text);
 
   font-size: 17px;
 
@@ -540,7 +535,7 @@
 .role-dashboard-section-card p {
   margin: 10px 0 0;
 
-  color: #7c8294;
+  color: var(--nm-text-mute);
 
   font-size: 13px;
 
@@ -552,9 +547,9 @@
 
   padding-top: 15px;
 
-  border-top: 1px solid #eef0f5;
+  border-top: 1px solid var(--nm-border-soft);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 11px;
   font-weight: 750;

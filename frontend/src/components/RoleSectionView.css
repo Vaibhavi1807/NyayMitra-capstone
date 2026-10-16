@@ -5,8 +5,8 @@
    welcome bar are already styled by the shell. Everything
    here is for the content that goes underneath them.
 
-   Kept deliberately flat and token-matched (page #f6f7fb,
-   border #e5e7ef, muted #777d91, indigo #4338ca) so screens
+   Kept deliberately flat and token-matched (page var(--nm-bg),
+   border var(--nm-border), muted var(--nm-text-mute), indigo var(--nm-primary-deep)) so screens
    built from these classes look like they belong beside the
    hand-written ones.
    ========================================================= */
@@ -30,16 +30,16 @@
 
   padding: 15px 17px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 15px;
 
   box-shadow: 0 5px 18px rgba(25, 30, 60, 0.04);
 }
 
 .section-stat span {
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
 
   font-size: 10px;
   font-weight: 750;
@@ -48,14 +48,14 @@
 }
 
 .section-stat strong {
-  color: #1f2333;
+  color: var(--nm-heading);
 
   font-size: 21px;
   font-weight: 750;
 }
 
 .section-stat small {
-  color: #777d91;
+  color: var(--nm-text-mute);
 
   font-size: 11.5px;
 }
@@ -65,9 +65,9 @@
 .section-card {
   padding: 24px 26px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 20px;
 
   box-shadow: 0 8px 25px rgba(25, 30, 60, 0.05);
@@ -77,7 +77,7 @@
 .section-card > h3 {
   margin: 6px 0 4px;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 20px;
 
@@ -89,7 +89,7 @@
 
   max-width: 68ch;
 
-  color: #555b6f;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
 
@@ -122,18 +122,18 @@
 
   padding: 13px 15px;
 
-  background: #fbfbfe;
+  background: var(--nm-surface-2);
 
-  border: 1px solid #eef0f5;
+  border: 1px solid var(--nm-border-soft);
   border-radius: 13px;
 
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .section-row:hover {
-  border-color: #dcdcf4;
+  border-color: var(--nm-border);
 
-  background: #f5f6ff;
+  background: var(--nm-primary-soft);
 }
 
 /* Fixed-initials avatar so rows line up without an image API. */
@@ -148,7 +148,7 @@
 
   border-radius: 50%;
 
-  background: linear-gradient(135deg, #4338ca, #6366f1);
+  background: var(--nm-primary-grad);
 
   color: white;
 
@@ -164,7 +164,7 @@
 .section-row-body strong {
   display: block;
 
-  color: #1f2333;
+  color: var(--nm-heading);
 
   font-size: 13.5px;
   font-weight: 700;
@@ -175,7 +175,7 @@
 
   margin-top: 3px;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
 
   font-size: 12px;
 
@@ -197,7 +197,7 @@
 }
 
 .section-row-meta time {
-  color: #555b6f;
+  color: var(--nm-text-soft);
 
   font-size: 12px;
   font-weight: 650;
@@ -213,12 +213,12 @@
 
   padding: 5px 11px;
 
-  background: #f0f1f4;
+  background: var(--nm-surface-3);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  color: #555b6f;
+  color: var(--nm-text-soft);
 
   font-size: 10.5px;
   font-weight: 750;
@@ -227,27 +227,27 @@
 }
 
 .section-pill.good {
-  background: #eaf9f1;
+  background: var(--nm-success-bg);
 
-  border-color: #d8ecdf;
+  border-color: var(--nm-success-border);
 
-  color: #17834c;
+  color: var(--nm-success);
 }
 
 .section-pill.warn {
-  background: #fff8e8;
+  background: var(--nm-warn-bg);
 
-  border-color: #f3e4bd;
+  border-color: var(--nm-warn-border);
 
-  color: #8a6412;
+  color: var(--nm-warn);
 }
 
 .section-pill.info {
-  background: #f0edff;
+  background: var(--nm-primary-soft);
 
-  border-color: #dcdcf4;
+  border-color: var(--nm-border);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 }
 
 /* ---------- chips ---------- */
@@ -262,12 +262,12 @@
 .section-chip {
   padding: 7px 13px;
 
-  background: #f5f6ff;
+  background: var(--nm-primary-soft);
 
-  border: 1px solid #dcdff5;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  color: #4338ca;
+  color: var(--nm-primary-deep);
 
   font-size: 11.5px;
   font-weight: 700;
@@ -289,9 +289,9 @@
 .section-record {
   padding: 20px;
 
-  background: #fbfbfe;
+  background: var(--nm-surface-2);
 
-  border: 1px solid #eef0f5;
+  border: 1px solid var(--nm-border-soft);
   border-radius: 15px;
 }
 
@@ -307,7 +307,7 @@
 
   padding-bottom: 15px;
 
-  border-bottom: 1px solid #eef0f5;
+  border-bottom: 1px solid var(--nm-border-soft);
 }
 
 .section-record-head > div {
@@ -318,7 +318,7 @@
 .section-record-head strong {
   display: block;
 
-  color: #1f2333;
+  color: var(--nm-heading);
 
   font-size: 15px;
   font-weight: 750;
@@ -329,7 +329,7 @@
 
   margin-top: 3px;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
 
   font-size: 12px;
 
@@ -346,7 +346,7 @@
 }
 
 .section-field-grid dt {
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
 
   font-size: 10.5px;
   font-weight: 650;
@@ -355,7 +355,7 @@
 .section-field-grid dd {
   margin: 3px 0 0;
 
-  color: #1f2333;
+  color: var(--nm-heading);
 
   font-size: 12.5px;
   font-weight: 600;
@@ -372,7 +372,7 @@
 .section-record-note {
   margin: 8px 0 0;
 
-  color: #9aa0b4;
+  color: var(--nm-text-mute);
 
   font-size: 12px;
 }
@@ -388,12 +388,12 @@
 
   padding: 44px 24px;
 
-  background: #fafaff;
+  background: var(--nm-surface-2);
 
-  border: 1px dashed #dcdcf4;
+  border: 1px dashed var(--nm-border);
   border-radius: 15px;
 
-  color: #777d91;
+  color: var(--nm-text-mute);
 
   text-align: center;
 }
@@ -415,12 +415,12 @@
 .section-retry {
   padding: 9px 18px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #dcdcf4;
+  border: 1px solid var(--nm-border);
   border-radius: 11px;
 
-  color: #4338ca;
+  color: var(--nm-primary-deep);
 
   font-size: 12px;
   font-weight: 750;
@@ -431,9 +431,9 @@
 }
 
 .section-retry:hover {
-  border-color: #4338ca;
+  border-color: var(--nm-primary-deep);
 
-  background: linear-gradient(135deg, #4338ca, #6366f1);
+  background: var(--nm-primary-grad);
 
   color: white;
 }
@@ -481,12 +481,12 @@
 .section-action {
   padding: 6px 12px;
 
-  border: 1px solid #dfe2ee;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #fff;
+  background: var(--nm-surface);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 11px;
   font-weight: 750;
@@ -498,12 +498,12 @@
 
 .section-toggle:hover,
 .section-action:hover {
-  background: #f0edff;
-  border-color: #dcdcf4;
+  background: var(--nm-primary-soft);
+  border-color: var(--nm-border);
 }
 
 .section-action.is-danger {
-  color: #b4243a;
+  color: var(--nm-danger);
 }
 
 .section-select {
@@ -512,12 +512,12 @@
   margin-top: 7px;
   padding: 8px 10px;
 
-  border: 1px solid #dfe2ee;
+  border: 1px solid var(--nm-border);
   border-radius: 10px;
 
-  background: #fff;
+  background: var(--nm-surface);
 
-  color: #1f2333;
+  color: var(--nm-heading);
 
   font-family: inherit;
   font-size: 12px;
@@ -528,7 +528,7 @@
 
 .section-select:focus {
   outline: none;
-  border-color: #4f46c5;
+  border-color: var(--nm-primary);
 }
 
 @media (max-width: 720px) {

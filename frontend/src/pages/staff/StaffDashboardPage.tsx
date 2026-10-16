@@ -1,4 +1,20 @@
 import { useState } from "react";
+import {
+  ClipboardList,
+  Calendar,
+  NotebookPen,
+  CircleCheck,
+  FileText,
+  Scale,
+  MessageSquare,
+  ChartColumn,
+  TriangleAlert,
+  FolderOpen,
+  ShieldCheck,
+  Lock,
+  Check,
+  Circle,
+} from "lucide-react";
 import type { Session } from "../../auth/session";
 import type { Page } from "../../App";
 import {
@@ -199,28 +215,28 @@ function StaffDashboardPage({
 
   const stats: DashboardStat[] = [
     {
-      icon: "📋",
+      icon: ClipboardList,
       tone: "purple",
       label: "CASES ON FILE",
       value: String(allCases.length),
       detail: "Records you may update",
     },
     {
-      icon: "📅",
+      icon: Calendar,
       tone: "blue",
       label: "HEARINGS AHEAD",
       value: String(upcomingHearings.length),
       detail: "Still to be held",
     },
     {
-      icon: "📝",
+      icon: NotebookPen,
       tone: "orange",
       label: "OPEN TASKS",
       value: String(openTasks.length),
       detail: "Assigned by admin",
     },
     {
-      icon: "✅",
+      icon: CircleCheck,
       tone: "green",
       label: "STATUS",
       value: "Active",
@@ -255,7 +271,7 @@ function StaffDashboardPage({
   const sections: DashboardSection[] = [
     {
       id: "caseFiles",
-      icon: "📋",
+      icon: ClipboardList,
       title: "Case Files",
       description:
         "Operational case management: update case records, " +
@@ -266,7 +282,7 @@ function StaffDashboardPage({
     },
     {
       id: "hearings",
-      icon: "📅",
+      icon: Calendar,
       title: "Hearings & Court Activities",
       description:
         "View upcoming hearings, cause lists and court " +
@@ -277,7 +293,7 @@ function StaffDashboardPage({
     },
     {
       id: "documents",
-      icon: "📄",
+      icon: FileText,
       title: "Document Processing",
       description:
         "Upload and process court orders and case " +
@@ -288,7 +304,7 @@ function StaffDashboardPage({
     },
     {
       id: "lawyers",
-      icon: "⚖️",
+      icon: Scale,
       title: "Lawyer Verification",
       description: has("lawyers.verify")
         ? "Confirm or reject an advocate's registration " +
@@ -303,7 +319,7 @@ function StaffDashboardPage({
     },
     {
       id: "communication",
-      icon: "💬",
+      icon: MessageSquare,
       title: "Client Communication",
       description: has("messages.send")
         ? "Handle authorized communication with users and " +
@@ -315,7 +331,7 @@ function StaffDashboardPage({
     },
     {
       id: "tasks",
-      icon: "📝",
+      icon: NotebookPen,
       title: "Task Queue",
       description:
         "Work through tasks assigned by the administrator, " +
@@ -326,7 +342,7 @@ function StaffDashboardPage({
     },
     {
       id: "reports",
-      icon: "📊",
+      icon: ChartColumn,
       title: "Operational Reports",
       description:
         "Daily activity summaries submitted to the " +
@@ -509,7 +525,7 @@ function StaffDashboardPage({
 
           {sorted.length === 0 ? (
             <div className="section-empty">
-              <span aria-hidden="true">📅</span>
+              <span aria-hidden="true"><Calendar size={16} /></span>
               <p>No hearings are scheduled. New dates will appear here.</p>
             </div>
           ) : (
@@ -521,7 +537,7 @@ function StaffDashboardPage({
                   <li key={item.cnr_number} className="section-row">
 
                     <span className="section-row-avatar" aria-hidden="true">
-                      ⚖
+                      <Scale size={15} />
                     </span>
 
                     <div className="section-row-body">
@@ -561,7 +577,7 @@ function StaffDashboardPage({
                 className="section-row"
               >
                 <span className="section-row-avatar" aria-hidden="true">
-                  ✓
+                  <Check size={14} />
                 </span>
 
                 <div className="section-row-body">
@@ -655,7 +671,7 @@ function StaffDashboardPage({
               <li key={doc.id} className="section-row">
 
                 <span className="section-row-avatar" aria-hidden="true">
-                  📄
+                  <FileText size={14} />
                 </span>
 
                 <div className="section-row-body">
@@ -762,7 +778,11 @@ function StaffDashboardPage({
                   <li key={task.id} className="section-row">
 
                     <span className="section-row-avatar" aria-hidden="true">
-                      {task.status === "Done" ? "✓" : "•"}
+                      {task.status === "Done" ? (
+                      <Check size={14} aria-hidden="true" />
+                    ) : (
+                      <Circle size={10} aria-hidden="true" />
+                    )}
                     </span>
 
                     <div className="section-row-body">
@@ -986,7 +1006,7 @@ function StaffDashboardPage({
 
           {lawyerStatus === "error" && (
             <div className="section-retry">
-              <span>⚠️</span>
+              <span><TriangleAlert size={18} aria-hidden="true" /></span>
               <p>
                 The lawyer service did not answer. It needs to be
                 running on port 8000.
@@ -1132,7 +1152,7 @@ function StaffDashboardPage({
 
       <div className="staff-dashboard-note staff-dashboard-assignment">
 
-        <span>🗂️</span>
+        <span><FolderOpen size={18} aria-hidden="true" /></span>
 
         <div>
 
@@ -1162,7 +1182,7 @@ function StaffDashboardPage({
 
       <div className="staff-dashboard-note">
 
-        <span>🛡️</span>
+        <span><ShieldCheck size={18} aria-hidden="true" /></span>
 
         <div>
 
@@ -1190,7 +1210,7 @@ function StaffDashboardPage({
 
         <div className="staff-dashboard-authorities-head">
 
-          <span>🔐</span>
+          <span><Lock size={18} aria-hidden="true" /></span>
 
           <div>
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Scale } from "lucide-react";
 
 import CaseSearch from "../../components/CaseSearch";
 import CaseDetail from "../../components/CaseDetail";
@@ -6,6 +7,7 @@ import CnrLookup from "../../components/CnrLookup";
 import type { ChatTarget } from "../../api/chatApi";
 import { getCase } from "../../api/caseApi";
 import type { Case } from "../../types/case";
+import { useT } from "../../i18n/context";
 
 /* =========================================================
    MY CASES
@@ -50,6 +52,8 @@ export default function CaseSearchPage({
   onChat,
   onOpenCourtOrders,
 }: CaseSearchPageProps) {
+  const { t } = useT();
+
   const [view, setView] = useState<View>({ kind: "list" });
 
   /* A CNR looked up by number, not yet saved on this account. It
@@ -76,7 +80,7 @@ export default function CaseSearchPage({
       {view.kind === "list" && onBack && (
         <div className="page-back-wrapper">
           <button className="page-back-button" onClick={onBack}>
-            ← Back to Dashboard
+            {t("cases.backToDashboard")}
           </button>
         </div>
       )}
@@ -88,21 +92,17 @@ export default function CaseSearchPage({
 
             <div className="hero-content">
               <div className="eyebrow">
-                <span>⚖</span>
-                NYAYMITRA MY CASES
+                <Scale size={15} aria-hidden="true" />
+                {t("cases.eyebrow")}
               </div>
 
               <h1>
-                Track
+                {t("cases.hero.title1")}
                 <br />
-                <span>your cases</span>
+                <span>{t("cases.hero.titleAccent")}</span>
               </h1>
 
-              <p>
-                Only cases you have saved appear on this page — nobody
-                else's. Search by CNR, open a case to read it in full,
-                add documents, and speak to the advocate handling it.
-              </p>
+              <p>{t("cases.hero.copy")}</p>
             </div>
           </section>
 
@@ -146,12 +146,12 @@ export default function CaseSearchPage({
             className="matter-back"
             onClick={() => setView({ kind: "list" })}
           >
-            ← All cases
+            {t("cases.allCases")}
           </button>
 
           <div className="matter-empty">
-            <span aria-hidden="true">⚖</span>
-            <p>This case is no longer in your saved cases.</p>
+            <span aria-hidden="true"><Scale size={18} /></span>
+            <p>{t("cases.gone")}</p>
           </div>
         </section>
       )}

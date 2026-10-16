@@ -1,5 +1,10 @@
 import { useCallback, useState } from "react";
+import { LogOut } from "lucide-react";
 import "./App.css";
+
+import ThemeToggle from "./components/ThemeToggle";
+import LanguageToggle from "./i18n/LanguageToggle";
+import { useT } from "./i18n/context";
 
 // ================= AUTH =================
 
@@ -83,6 +88,18 @@ export type Page =
 const FALLBACK_LAWYER_ID =
   import.meta.env.VITE_LAWYER_ID?.trim() || "LAWYER_0003";
 
+/* Initials for the session avatar — "Asha Verma" -> "AV". */
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 /* =========================================================
    HOME PAGE FOR EACH ROLE
 
@@ -154,6 +171,8 @@ function pageOwnedByRole(
    ========================================================= */
 
 function App() {
+
+  const { t } = useT();
 
   /*
    * ONE LOGIN SYSTEM
@@ -244,6 +263,12 @@ function App() {
   if (!session) {
     return (
       <div className="app">
+        {/* Theme control for every signed-out view (login door
+            picker, role form, all registration steps). */}
+        <div className="app-theme-corner">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
         {authView === "register" ? (
           <RegisterPage
             onAuthenticated={handleAuthenticated}
@@ -339,9 +364,7 @@ function App() {
 
       {session.role === "USER" &&
         page === "dashboard" && (
-          <DashboardPage
-            onNavigate={goToPage}
-          />
+          <DashboardPage onNavigate={goToPage} />
         )}
 
 
@@ -520,8 +543,21 @@ function App() {
         session.role === "LAWYER") && (
         <div className="app-session-bar">
 
+          <LanguageToggle />
+
+          <ThemeToggle />
+
+          <span
+            className="app-session-avatar"
+            aria-hidden="true"
+          >
+            {initialsFromName(session.fullName)}
+          </span>
+
           <span className="app-session-role">
-            {session.role}
+            {session.role === "LAWYER"
+              ? t("app.role.lawyer")
+              : t("app.role.user")}
           </span>
 
           <span className="app-session-name">
@@ -532,7 +568,8 @@ function App() {
             type="button"
             onClick={handleSignOut}
           >
-            Sign out
+            <LogOut size={13} aria-hidden="true" />
+            {t("app.signOut")}
           </button>
 
         </div>

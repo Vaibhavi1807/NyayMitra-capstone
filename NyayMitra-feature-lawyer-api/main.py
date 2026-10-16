@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from auth.routes import router as auth_router
 from cases.routes import router as cases_router
+from cases.saved_routes import router as saved_cases_router
 from chat.routes import router as chat_router
 from lawyer.routes import router as lawyer_router
 from lawyer.admin_routes import router as admin_router
@@ -63,6 +64,12 @@ app.include_router(admin_router)
 
 app.include_router(practice_area_router)
 app.include_router(cases_router)
+
+# Server-side My Cases (save / list / remove by CNR) — SQLite-backed
+# like auth and chat. The browser's own saved rows in
+# frontend/src/api/caseApi.ts are left untouched; see
+# cases/saved_routes.py for why both exist.
+app.include_router(saved_cases_router)
 
 # USER ↔ LAWYER chat (Phase 3) — SQLite-backed conversations/messages,
 # guarded by the same session/verification rules as everything else.

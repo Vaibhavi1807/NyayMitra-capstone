@@ -16,7 +16,7 @@
 .wh-intro p {
   margin-top: 6px;
 
-  color: #475569;
+  color: var(--nm-text);
 
   font-size: 15px;
   line-height: 1.6;
@@ -38,11 +38,11 @@
 
   padding: 28px 26px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 20px;
 
-  background: white;
-  color: #172554;
+  background: var(--nm-surface);
+  color: var(--nm-heading);
 
   text-align: left;
 
@@ -60,11 +60,11 @@
 }
 
 .wh-choice-incident {
-  border-top: 4px solid #4f46e5;
+  border-top: 4px solid var(--nm-primary);
 }
 
 .wh-choice-case {
-  border-top: 4px solid #0f766e;
+  border-top: 4px solid var(--nm-success);
 }
 
 .wh-choice-icon {
@@ -77,15 +77,15 @@
 
   border-radius: 16px;
 
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary);
 
   font-size: 24px;
 }
 
 .wh-choice-case .wh-choice-icon {
-  background: #ecfdf5;
-  color: #0f766e;
+  background: var(--nm-success-bg);
+  color: var(--nm-success);
 }
 
 .wh-choice-card h2 {
@@ -96,7 +96,7 @@
 }
 
 .wh-choice-card p {
-  color: #475569;
+  color: var(--nm-text);
 
   font-size: 14.5px;
   line-height: 1.65;
@@ -107,13 +107,13 @@
 
   align-self: center;
 
-  color: #94a3b8;
+  color: var(--nm-text-mute)
 
   font-size: 20px;
 }
 
 .wh-choice-card:hover b {
-  color: #4f46e5;
+  color: var(--nm-primary);
 }
 
 /* ---------------- MODE + LANGUAGE BAR ---------------- */
@@ -128,11 +128,11 @@
 .wh-change-mode {
   padding: 9px 15px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #f8fafc;
-  color: #475569;
+  background: var(--nm-surface-2);
+  color: var(--nm-text);
 
   font-size: 12px;
   font-weight: 700;
@@ -142,7 +142,7 @@
 
 .wh-change-mode:hover {
   border-color: #c7d2fe;
-  color: #4f46e5;
+  color: var(--nm-primary);
 }
 
 .wh-language {
@@ -152,7 +152,7 @@
 }
 
 .wh-language span {
-  color: #64748b;
+  color: var(--nm-text-soft);
 
   font-size: 10.5px;
   font-weight: 800;
@@ -163,11 +163,11 @@
 .wh-case-picker select {
   padding: 10px 14px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 12px;
 
-  background: white;
-  color: #172554;
+  background: var(--nm-surface);
+  color: var(--nm-heading);
 
   font-size: 14px;
   font-weight: 650;
@@ -182,10 +182,10 @@
 
   padding: 20px 22px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 18px;
 
-  background: white;
+  background: var(--nm-surface);
 
   box-shadow: 0 8px 30px rgba(30, 41, 59, 0.05);
 }
@@ -198,7 +198,7 @@
 }
 
 .wh-case-picker p {
-  color: #475569;
+  color: var(--nm-text);
 
   font-size: 14px;
   line-height: 1.6;
@@ -226,15 +226,15 @@
 
   padding: 16px 20px;
 
-  background: #eef2ff;
-  border: 1px solid #e0e7ff;
+  background: var(--nm-primary-soft);
+  border: 1px solid var(--nm-primary-soft);
 }
 
 .wh-turn-user span {
   display: block;
   margin-bottom: 6px;
 
-  color: #4f46e5;
+  color: var(--nm-primary);
 
   font-size: 10.5px;
   font-weight: 800;
@@ -242,7 +242,7 @@
 }
 
 .wh-turn-user p {
-  color: #1e293b;
+  color: var(--nm-heading);
 
   font-size: 15px;
   line-height: 1.65;
@@ -253,10 +253,10 @@
 .wh-turn-nyaymitra {
   padding: 24px 24px 20px;
 
-  border: 1px solid #e5e7eb;
-  border-top: 4px solid #4f46e5;
+  border: 1px solid var(--nm-border);
+  border-top: 4px solid var(--nm-primary);
 
-  background: white;
+  background: var(--nm-surface);
 
   box-shadow: 0 10px 34px rgba(30, 41, 59, 0.06);
 }
@@ -281,7 +281,7 @@
 .wh-ack {
   margin-bottom: 14px;
 
-  color: #4f46e5;
+  color: var(--nm-primary);
 
   font-size: 14.5px;
   font-weight: 650;
@@ -292,14 +292,14 @@
 .wh-panel {
   padding: 18px 0;
 
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--nm-border-soft);
 }
 
 .wh-panel-title {
   display: block;
   margin-bottom: 10px;
 
-  color: #4f46e5;
+  color: var(--nm-primary);
 
   font-size: 10.5px;
   font-weight: 800;
@@ -307,18 +307,18 @@
 }
 
 .wh-panel-gap .wh-panel-title {
-  color: #b45309;
+  color: var(--nm-warn);
 }
 
 .wh-panel p {
-  color: #334155;
+  color: var(--nm-text);
 
   font-size: 15px;
   line-height: 1.7;
 }
 
 .wh-panel-lead {
-  color: #172554 !important;
+  color: var(--nm-heading) !important;
   font-size: 16px !important;
   font-weight: 650;
 }
@@ -336,14 +336,14 @@
 }
 
 .wh-panel li {
-  color: #334155;
+  color: var(--nm-text);
 
   font-size: 14.5px;
   line-height: 1.65;
 }
 
 .wh-panel-gap li {
-  color: #7c2d12;
+  color: var(--nm-warn)
 }
 
 .wh-facts {
@@ -361,12 +361,12 @@
 .wh-facts li {
   padding: 6px 11px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #f8fafc;
+  background: var(--nm-surface-2);
 
-  color: #334155;
+  color: var(--nm-text);
 
   font-size: 12.5px;
   font-weight: 600;
@@ -375,13 +375,13 @@
 .wh-stage {
   margin-bottom: 8px;
 
-  color: #64748b !important;
+  color: var(--nm-text-soft) !important;
 
   font-size: 13px !important;
 }
 
 .wh-stage strong {
-  color: #172554;
+  color: var(--nm-heading);
 }
 
 .wh-term {
@@ -389,7 +389,7 @@
 }
 
 .wh-term strong {
-  color: #172554;
+  color: var(--nm-heading);
 }
 
 /* ---------------- TIME + WARNINGS ---------------- */
@@ -401,15 +401,15 @@
   margin-top: 6px;
   padding: 14px 16px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 14px;
 
-  background: #f8fafc;
+  background: var(--nm-surface-2);
 }
 
 .wh-time.is-soon {
-  border-color: #fde68a;
-  background: #fffbeb;
+  border-color: var(--nm-warn-border);
+  background: var(--nm-warn-bg);
 }
 
 .wh-time span {
@@ -417,7 +417,7 @@
 }
 
 .wh-time p {
-  color: #334155;
+  color: var(--nm-text);
 
   font-size: 13.5px;
   line-height: 1.6;
@@ -433,7 +433,7 @@
 }
 
 .wh-warnings p {
-  color: #92400e;
+  color: var(--nm-warn);
 
   font-size: 13px;
   line-height: 1.6;
@@ -442,7 +442,7 @@
 .wh-disclaimer {
   margin-top: 14px;
 
-  color: #94a3b8;
+  color: var(--nm-text-mute)
 
   font-size: 12.5px;
   line-height: 1.6;
@@ -459,7 +459,7 @@
   margin-top: 16px;
   padding-top: 18px;
 
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--nm-border-soft);
 }
 
 .wh-composer .voice-microphone {
@@ -472,7 +472,7 @@
 .wh-composer-hint {
   flex: 1;
 
-  color: #64748b;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
   font-weight: 650;
@@ -494,10 +494,10 @@
   margin-bottom: 26px;
   padding: 18px 20px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 18px;
 
-  background: white;
+  background: var(--nm-surface);
 
   box-shadow: 0 8px 30px rgba(30, 41, 59, 0.05);
 }
@@ -509,11 +509,11 @@
 
   padding: 10px 16px;
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
-  background: #f8fafc;
-  color: #475569;
+  background: var(--nm-surface-2);
+  color: var(--nm-text);
 
   font-size: 13px;
   font-weight: 700;
@@ -524,27 +524,27 @@
 
 .wh-voice-toggle:hover {
   border-color: #c7d2fe;
-  color: #4f46e5;
+  color: var(--nm-primary);
 }
 
 .wh-voice-toggle.on {
-  border-color: #4f46e5;
-  background: #eef2ff;
-  color: #4338ca;
+  border-color: var(--nm-primary);
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary-deep);
 }
 
 .wh-voice-bar p {
   flex: 1 1 260px;
 
-  color: #64748b;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
   line-height: 1.6;
 }
 
 .wh-error {
-  border-color: #fecaca !important;
-  background: #fef2f2 !important;
+  border-color: var(--nm-danger-border) !important;
+  background: var(--nm-danger-bg) !important;
 }
 
 /* ---------------- MODEL RESULT CARDS ----------------
@@ -566,7 +566,7 @@
 }
 
 .wh-conf-value {
-  color: #172554;
+  color: var(--nm-heading);
 
   font-size: 26px;
   font-weight: 800;
@@ -582,7 +582,7 @@
   overflow: hidden;
 
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--nm-surface-3);
 }
 
 .wh-conf-fill {
@@ -593,11 +593,11 @@
 
   /* Indigo at the top of the range, amber where the pipeline's
      own cut-off (0.35) sits, so a low score looks low. */
-  background: linear-gradient(90deg, #f59e0b 0%, #6366f1 60%);
+  background: linear-gradient(90deg, var(--nm-warn) 0%, var(--nm-primary) 60%);
 }
 
 .wh-conf-note {
-  color: #64748b;
+  color: var(--nm-text-soft);
 
   font-size: 12.5px;
   line-height: 1.6;
@@ -613,8 +613,8 @@
   border: 1px solid #c7d2fe;
   border-radius: 999px;
 
-  background: #eef2ff;
-  color: #4338ca;
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary-deep);
 
   font-size: 11.5px;
   font-weight: 800;
@@ -624,7 +624,7 @@
 }
 
 .wh-category-slug {
-  color: #172554;
+  color: var(--nm-heading);
 
   font-size: 15.5px;
   font-weight: 700;
@@ -635,15 +635,15 @@
 /* "Unclear" — the pipeline refused, so nothing downstream may be
    shown. Amber, and the only panel rendered in that case. */
 .wh-unclear {
-  border-top: 4px solid #f59e0b;
+  border-top: 4px solid var(--nm-warn);
 }
 
 .wh-unclear .wh-panel-title {
-  color: #b45309;
+  color: var(--nm-warn);
 }
 
 .wh-unclear p {
-  color: #78350f;
+  color: var(--nm-warn);
 
   font-size: 15.5px;
   font-weight: 600;
@@ -674,9 +674,9 @@
   border: 1px dashed #c7d2fe;
   border-radius: 12px;
 
-  background: #f8fafc;
+  background: var(--nm-surface-2);
 
-  color: #334155;
+  color: var(--nm-text);
 
   font-size: 14px;
   line-height: 1.5;
@@ -694,8 +694,8 @@
 
   border-radius: 50%;
 
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary);
 
   font-size: 13px;
   font-weight: 800;
@@ -709,8 +709,8 @@
 
   border-radius: 999px;
 
-  background: #eef2ff;
-  color: #4338ca;
+  background: var(--nm-primary-soft);
+  color: var(--nm-primary-deep);
 
   font-size: 11.5px;
   font-weight: 800;
@@ -719,8 +719,8 @@
 }
 
 .wh-intent-chip.is-unclear {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--nm-warn-bg);
+  color: var(--nm-warn);
 }
 
 /* Shown while the request is in flight. */
@@ -731,13 +731,13 @@
 
   padding: 18px 20px;
 
-  border: 1px solid #e5e7eb;
-  border-left: 4px solid #4f46e5;
+  border: 1px solid var(--nm-border);
+  border-left: 4px solid var(--nm-primary);
   border-radius: 14px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  color: #475569;
+  color: var(--nm-text);
 
   font-size: 14.5px;
   font-weight: 650;
@@ -753,7 +753,7 @@
   flex: 0 0 16px;
 
   border: 2px solid #c7d2fe;
-  border-top-color: #4f46e5;
+  border-top-color: var(--nm-primary);
 
   border-radius: 50%;
 

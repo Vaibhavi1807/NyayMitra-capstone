@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { Scale, Pencil, MapPin, SquarePen } from "lucide-react";
+
+import LawyerAvatar from "../../components/LawyerAvatar";
 import {
   getLawyerById,
   editableSnapshot,
@@ -10,6 +13,7 @@ import {
   type ProfileDraft,
   type Lawyer,
 } from "../../api/lawyerApi";
+import { useT } from "../../i18n/context";
 import "./LawyerProfilePage.css";
 
 interface LawyerProfilePageProps {
@@ -17,10 +21,35 @@ interface LawyerProfilePageProps {
   onBack: () => void;
 }
 
+/* The edit-form labels come from the api layer (PROFILE_*_FIELDS); map
+   their stable field keys to i18n keys so the page can translate them
+   at the render site without touching the api module. */
+const FIELD_LABEL_KEYS: Record<string, string> = {
+  professional_bio: "lawyerProfile.edit.field.professionalBio",
+  working_office_hours: "lawyerProfile.edit.field.workingOfficeHours",
+  professional_email: "lawyerProfile.edit.field.professionalEmail",
+  professional_phone_number: "lawyerProfile.edit.field.professionalPhone",
+  office_phone: "lawyerProfile.edit.field.officePhone",
+  preferred_contact_method: "lawyerProfile.edit.field.preferredContact",
+  website: "lawyerProfile.field.website",
+  city: "lawyerProfile.field.city",
+  district: "lawyerProfile.field.district",
+  state: "lawyerProfile.field.state",
+  pincode: "lawyerProfile.field.pincode",
+  office_address: "lawyerProfile.edit.field.officeAddress",
+  practice_areas: "lawyerProfile.edit.field.practiceAreas",
+  courts_of_practice: "lawyerProfile.edit.field.courtsOfPractice",
+  languages_known: "lawyerProfile.edit.field.languagesKnown",
+  education_qualifications:
+    "lawyerProfile.edit.field.educationQualifications",
+};
+
 function LawyerProfilePage({
   lawyerId,
   onBack,
 }: LawyerProfilePageProps) {
+  const { t, tm } = useT();
+
   const [lawyer, setLawyer] = useState<Lawyer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,7 +79,7 @@ function LawyerProfilePage({
           setError(
             err instanceof Error
               ? err.message
-              : "Unable to load lawyer profile."
+              : "lawyerProfile.error.load"
           );
         }
       } finally {
@@ -100,10 +129,8 @@ function LawyerProfilePage({
       <div className="lawyer-profile-page">
         <div className="lawyer-profile-loading">
           <div className="lawyer-profile-spinner" />
-          <h2>Loading lawyer profile...</h2>
-          <p>
-            Fetching professional information from NyayMitra.
-          </p>
+          <h2>{t("lawyerProfile.loading.title")}</h2>
+          <p>{t("lawyerProfile.loading.copy")}</p>
         </div>
       </div>
     );
@@ -117,16 +144,16 @@ function LawyerProfilePage({
             !
           </div>
 
-          <h2>Unable to load profile</h2>
+          <h2>{t("lawyerProfile.error.title")}</h2>
 
-          <p>{error}</p>
+          <p>{tm(t(error))}</p>
 
           <button
             type="button"
             onClick={onBack}
             className="lawyer-profile-back-button"
           >
-            ← Back to Dashboard
+            {t("lawyerProfile.backToDashboard")}
           </button>
         </div>
       </div>
@@ -137,18 +164,16 @@ function LawyerProfilePage({
     return (
       <div className="lawyer-profile-page">
         <div className="lawyer-profile-error">
-          <h2>Lawyer profile not found</h2>
+          <h2>{t("lawyerProfile.notFound.title")}</h2>
 
-          <p>
-            No lawyer information was returned by the API.
-          </p>
+          <p>{t("lawyerProfile.notFound.copy")}</p>
 
           <button
             type="button"
             onClick={onBack}
             className="lawyer-profile-back-button"
           >
-            ← Back to Dashboard
+            {t("lawyerProfile.backToDashboard")}
           </button>
         </div>
       </div>
@@ -177,12 +202,12 @@ function LawyerProfilePage({
               onClick={cancelEditing}
               className="lawyer-profile-back"
             >
-              ← Cancel
+              {t("lawyerProfile.edit.cancelBack")}
             </button>
 
             <div className="lawyer-profile-eyebrow">
-              <span>✎</span>
-              EDITING YOUR PROFILE
+              <Pencil size={14} aria-hidden="true" />
+              {t("lawyerProfile.edit.eyebrow")}
             </div>
 
             <div className="lawyer-profile-identity">
@@ -194,10 +219,7 @@ function LawyerProfilePage({
               <div className="lawyer-profile-title">
                 <h1>{lawyer.full_name}</h1>
 
-                <p>
-                  Corrections are kept on this device and read back
-                  everywhere your profile is shown.
-                </p>
+                <p>{t("lawyerProfile.edit.note")}</p>
               </div>
 
             </div>
@@ -210,20 +232,16 @@ function LawyerProfilePage({
 
             <div className="lawyer-section-heading">
               <span className="lawyer-section-label">
-                YOUR DETAILS
+                {t("lawyerProfile.edit.detailsLabel")}
               </span>
 
-              <h2>Correct what has changed</h2>
+              <h2>{t("lawyerProfile.edit.detailsHeading")}</h2>
             </div>
 
             <div className="lawyer-edit-note">
               <span>ⓘ</span>
 
-              <p>
-                Enrollment number, registration and bar council are
-                what the council has on record. They are shown for
-                reference and cannot be edited here.
-              </p>
+              <p>{t("lawyerProfile.edit.readonlyNote")}</p>
             </div>
 
             <div className="lawyer-edit-grid">
@@ -236,7 +254,7 @@ function LawyerProfilePage({
                     (field.lines ? " is-wide" : "")
                   }
                 >
-                  <span>{field.label}</span>
+                  <span>{FIELD_LABEL_KEYS[field.key] ? t(FIELD_LABEL_KEYS[field.key]) : field.label}</span>
 
                   {field.lines ? (
                     <textarea
@@ -267,7 +285,7 @@ function LawyerProfilePage({
                   key={field.key}
                   className="lawyer-edit-field is-wide"
                 >
-                  <span>{field.label}</span>
+                  <span>{FIELD_LABEL_KEYS[field.key] ? t(FIELD_LABEL_KEYS[field.key]) : field.label}</span>
 
                   <textarea
                     rows={4}
@@ -277,7 +295,7 @@ function LawyerProfilePage({
                     }
                   />
 
-                  <small>One entry per line</small>
+                  <small>{t("lawyerProfile.edit.onePerLine")}</small>
                 </label>
               ))}
 
@@ -290,7 +308,7 @@ function LawyerProfilePage({
                 onClick={saveEditing}
                 className="lawyer-edit-save"
               >
-                Save changes
+                {t("lawyerProfile.edit.save")}
               </button>
 
               <button
@@ -298,7 +316,7 @@ function LawyerProfilePage({
                 onClick={cancelEditing}
                 className="lawyer-edit-cancel"
               >
-                Discard
+                {t("lawyerProfile.edit.discard")}
               </button>
 
             </div>
@@ -328,28 +346,24 @@ function LawyerProfilePage({
             onClick={onBack}
             className="lawyer-profile-back"
           >
-            ← Dashboard
+            {t("lawyerProfile.back")}
           </button>
 
           <div className="lawyer-profile-eyebrow">
-            <span>⚖</span>
-            NYAYMITRA LAWYER PROFILE
+            <Scale size={15} aria-hidden="true" />
+            {t("lawyerProfile.eyebrow")}
           </div>
 
           <div className="lawyer-profile-identity">
 
-            <div className="lawyer-profile-avatar">
-              {lawyer.profile_image ? (
-                <img
-                  src={lawyer.profile_image}
-                  alt={lawyer.full_name}
-                />
-              ) : (
-                <span>
-                  {getInitials(lawyer.full_name)}
-                </span>
-              )}
-            </div>
+            <LawyerAvatar
+              className="lawyer-profile-avatar"
+              name={lawyer.full_name}
+              photo={
+                lawyer.profile_image ?? lawyer.profile_photo
+              }
+              lawyerId={lawyer.lawyer_id}
+            />
 
             <div className="lawyer-profile-title">
               <h1>{lawyer.full_name}</h1>
@@ -357,18 +371,18 @@ function LawyerProfilePage({
               <p>
                 {lawyer.practice_areas?.length
                   ? lawyer.practice_areas.join(" • ")
-                  : "Legal Professional"}
+                  : t("lawyerProfile.legalProfessional")}
               </p>
 
               <div className="lawyer-profile-location">
-                📍{" "}
+                <MapPin size={14} aria-hidden="true" />{" "}
                 {[
                   lawyer.city,
                   lawyer.district,
                   lawyer.state,
                 ]
                   .filter(Boolean)
-                  .join(", ") || "Location not available"}
+                  .join(", ") || t("lawyerProfile.locationUnavailable")}
               </div>
             </div>
 
@@ -389,13 +403,10 @@ function LawyerProfilePage({
           <div>
 
             <span className="lawyer-section-label">
-              YOUR RECORD
+              {t("lawyerProfile.record.label")}
             </span>
 
-            <p>
-              Everything below is what NyayMitra has on file for
-              you. If something has changed, correct it here.
-            </p>
+            <p>{t("lawyerProfile.record.copy")}</p>
 
           </div>
 
@@ -403,7 +414,8 @@ function LawyerProfilePage({
             type="button"
             onClick={startEditing}
           >
-            Edit profile ✎
+            {t("lawyerProfile.editProfile")}
+            <SquarePen size={14} aria-hidden="true" />
           </button>
 
         </div>
@@ -413,35 +425,35 @@ function LawyerProfilePage({
         <section className="lawyer-profile-summary">
 
           <div className="lawyer-summary-item">
-            <span>EXPERIENCE</span>
+            <span>{t("lawyerProfile.summary.experience")}</span>
             <strong>
               {lawyer.years_of_experience ?? "—"}
             </strong>
-            <small>years</small>
+            <small>{t("lawyerProfile.summary.years")}</small>
           </div>
 
           <div className="lawyer-summary-item">
-            <span>ENROLLMENT YEAR</span>
+            <span>{t("lawyerProfile.summary.enrollmentYear")}</span>
             <strong>
               {lawyer.year_of_enrollment ?? "—"}
             </strong>
-            <small>bar enrollment</small>
+            <small>{t("lawyerProfile.summary.barEnrollment")}</small>
           </div>
 
           <div className="lawyer-summary-item">
-            <span>BAR COUNCIL</span>
+            <span>{t("lawyerProfile.summary.barCouncil")}</span>
             <strong>
               {lawyer.bar_council || "—"}
             </strong>
-            <small>registration authority</small>
+            <small>{t("lawyerProfile.summary.registrationAuthority")}</small>
           </div>
 
           <div className="lawyer-summary-item">
-            <span>PROFILE STATUS</span>
+            <span>{t("lawyerProfile.summary.profileStatus")}</span>
             <strong>
               {lawyer.profile_status || "—"}
             </strong>
-            <small>current status</small>
+            <small>{t("lawyerProfile.summary.currentStatus")}</small>
           </div>
 
         </section>
@@ -454,31 +466,31 @@ function LawyerProfilePage({
 
           <div className="lawyer-section-heading">
             <span className="lawyer-section-label">
-              BASIC INFORMATION
+              {t("lawyerProfile.section.basic")}
             </span>
 
-            <h2>Personal Details</h2>
+            <h2>{t("lawyerProfile.section.personal")}</h2>
           </div>
 
           <div className="lawyer-info-grid">
 
             <InfoItem
-              label="Lawyer ID"
+              label={t("lawyerProfile.field.lawyerId")}
               value={lawyer.lawyer_id}
             />
 
             <InfoItem
-              label="Full Name"
+              label={t("lawyerProfile.field.fullName")}
               value={lawyer.full_name}
             />
 
             <InfoItem
-              label="Gender"
+              label={t("lawyerProfile.field.gender")}
               value={lawyer.gender}
             />
 
             <InfoItem
-              label="Date of Birth"
+              label={t("lawyerProfile.field.dob")}
               value={formatDate(lawyer.date_of_birth)}
             />
 
@@ -493,47 +505,49 @@ function LawyerProfilePage({
 
           <div className="lawyer-section-heading">
             <span className="lawyer-section-label">
-              PROFESSIONAL INFORMATION
+              {t("lawyerProfile.section.professional")}
             </span>
 
-            <h2>Legal Practice</h2>
+            <h2>{t("lawyerProfile.section.legalPractice")}</h2>
           </div>
 
           <div className="lawyer-info-grid">
 
             <InfoItem
-              label="Enrollment Number"
+              label={t("lawyerProfile.field.enrollmentNumber")}
               value={lawyer.enrollment_number}
             />
 
             <InfoItem
-              label="Registration Number"
+              label={t("lawyerProfile.field.registrationNumber")}
               value={lawyer.registration_number}
             />
 
             <InfoItem
-              label="Bar ID / Bar Code"
+              label={t("lawyerProfile.field.barId")}
               value={lawyer.bar_id_or_bar_code}
             />
 
             <InfoItem
-              label="Bar Council"
+              label={t("lawyerProfile.field.barCouncil")}
               value={lawyer.bar_council}
             />
 
             <InfoItem
-              label="Year of Enrollment"
+              label={t("lawyerProfile.field.yearOfEnrollment")}
               value={
                 lawyer.year_of_enrollment?.toString()
               }
             />
 
             <InfoItem
-              label="Years of Experience"
+              label={t("lawyerProfile.field.yearsOfExperience")}
               value={
                 lawyer.years_of_experience !== null &&
                 lawyer.years_of_experience !== undefined
-                  ? `${lawyer.years_of_experience} years`
+                  ? t("lawyerProfile.years", {
+                      n: lawyer.years_of_experience,
+                    })
                   : null
               }
             />
@@ -542,7 +556,7 @@ function LawyerProfilePage({
 
           <div className="lawyer-list-block">
 
-            <span>Practice Areas</span>
+            <span>{t("lawyerProfile.block.practiceAreas")}</span>
 
             <div className="lawyer-tags">
               {lawyer.practice_areas?.length ? (
@@ -550,7 +564,7 @@ function LawyerProfilePage({
                   <span key={area}>{area}</span>
                 ))
               ) : (
-                <em>Not available</em>
+                <em>{t("lawyerProfile.notAvailable")}</em>
               )}
             </div>
 
@@ -558,7 +572,7 @@ function LawyerProfilePage({
 
           <div className="lawyer-list-block">
 
-            <span>Courts of Practice</span>
+            <span>{t("lawyerProfile.block.courtsOfPractice")}</span>
 
             <div className="lawyer-tags blue-tags">
               {lawyer.courts_of_practice?.length ? (
@@ -566,7 +580,7 @@ function LawyerProfilePage({
                   <span key={court}>{court}</span>
                 ))
               ) : (
-                <em>Not available</em>
+                <em>{t("lawyerProfile.notAvailable")}</em>
               )}
             </div>
 
@@ -582,31 +596,31 @@ function LawyerProfilePage({
 
           <div className="lawyer-section-heading">
             <span className="lawyer-section-label">
-              OFFICE & LOCATION
+              {t("lawyerProfile.section.officeLocation")}
             </span>
 
-            <h2>Professional Location</h2>
+            <h2>{t("lawyerProfile.section.professionalLocation")}</h2>
           </div>
 
           <div className="lawyer-info-grid">
 
             <InfoItem
-              label="State"
+              label={t("lawyerProfile.field.state")}
               value={lawyer.state}
             />
 
             <InfoItem
-              label="District"
+              label={t("lawyerProfile.field.district")}
               value={lawyer.district}
             />
 
             <InfoItem
-              label="City"
+              label={t("lawyerProfile.field.city")}
               value={lawyer.city}
             />
 
             <InfoItem
-              label="Pincode"
+              label={t("lawyerProfile.field.pincode")}
               value={lawyer.pincode}
             />
 
@@ -614,11 +628,11 @@ function LawyerProfilePage({
 
           <div className="lawyer-address-card">
 
-            <span>OFFICE ADDRESS</span>
+            <span>{t("lawyerProfile.officeAddressLabel")}</span>
 
             <p>
               {lawyer.office_address ||
-                "Office address not available"}
+                t("lawyerProfile.officeAddressUnavailable")}
             </p>
 
           </div>
@@ -633,31 +647,31 @@ function LawyerProfilePage({
 
           <div className="lawyer-section-heading">
             <span className="lawyer-section-label">
-              CONTACT
+              {t("lawyerProfile.section.contact")}
             </span>
 
-            <h2>Professional Contact</h2>
+            <h2>{t("lawyerProfile.section.professionalContact")}</h2>
           </div>
 
           <div className="lawyer-info-grid">
 
             <InfoItem
-              label="Professional Phone"
+              label={t("lawyerProfile.field.professionalPhone")}
               value={lawyer.professional_phone_number}
             />
 
             <InfoItem
-              label="Professional Email"
+              label={t("lawyerProfile.field.professionalEmail")}
               value={lawyer.professional_email}
             />
 
             <InfoItem
-              label="Office Phone"
+              label={t("lawyerProfile.field.officePhone")}
               value={lawyer.office_phone}
             />
 
             <InfoItem
-              label="Preferred Contact"
+              label={t("lawyerProfile.field.preferredContact")}
               value={lawyer.preferred_contact_method}
             />
 
@@ -665,7 +679,7 @@ function LawyerProfilePage({
 
           {lawyer.website && (
             <div className="lawyer-website">
-              <span>Website</span>
+              <span>{t("lawyerProfile.field.website")}</span>
 
               <a
                 href={lawyer.website}
@@ -687,16 +701,16 @@ function LawyerProfilePage({
 
           <div className="lawyer-section-heading">
             <span className="lawyer-section-label">
-              EDUCATION & LANGUAGES
+              {t("lawyerProfile.section.educationLanguages")}
             </span>
 
-            <h2>Qualifications</h2>
+            <h2>{t("lawyerProfile.section.qualifications")}</h2>
           </div>
 
           <div className="lawyer-two-column">
 
             <div className="lawyer-list-block">
-              <span>Education Qualifications</span>
+              <span>{t("lawyerProfile.block.education")}</span>
 
               <div className="lawyer-tags">
                 {lawyer.education_qualifications?.length ? (
@@ -708,13 +722,13 @@ function LawyerProfilePage({
                     )
                   )
                 ) : (
-                  <em>Not available</em>
+                  <em>{t("lawyerProfile.notAvailable")}</em>
                 )}
               </div>
             </div>
 
             <div className="lawyer-list-block">
-              <span>Languages Known</span>
+              <span>{t("lawyerProfile.block.languages")}</span>
 
               <div className="lawyer-tags green-tags">
                 {lawyer.languages_known?.length ? (
@@ -726,7 +740,7 @@ function LawyerProfilePage({
                     )
                   )
                 ) : (
-                  <em>Not available</em>
+                  <em>{t("lawyerProfile.notAvailable")}</em>
                 )}
               </div>
             </div>
@@ -743,30 +757,30 @@ function LawyerProfilePage({
 
           <div className="lawyer-section-heading">
             <span className="lawyer-section-label">
-              ADDITIONAL INFORMATION
+              {t("lawyerProfile.section.additional")}
             </span>
 
-            <h2>Professional Overview</h2>
+            <h2>{t("lawyerProfile.section.overview")}</h2>
           </div>
 
           <div className="lawyer-bio-card">
 
-            <h3>Professional Bio</h3>
+            <h3>{t("lawyerProfile.bioLabel")}</h3>
 
             <p>
               {lawyer.professional_bio ||
-                "Professional biography not available."}
+                t("lawyerProfile.bioUnavailable")}
             </p>
 
           </div>
 
           <div className="lawyer-hours-card">
 
-            <span>WORKING OFFICE HOURS</span>
+            <span>{t("lawyerProfile.hoursLabel")}</span>
 
             <strong>
               {lawyer.working_office_hours ||
-                "Office hours not available"}
+                t("lawyerProfile.hoursUnavailable")}
             </strong>
 
           </div>
@@ -774,8 +788,7 @@ function LawyerProfilePage({
         </section>
 
         <div className="lawyer-profile-footer">
-          NyayMitra lawyer information is provided through
-          the connected backend API.
+          {t("lawyerProfile.footer")}
         </div>
 
       </main>
@@ -821,10 +834,12 @@ function InfoItem({
   label: string;
   value?: string | null;
 }) {
+  const { t } = useT();
+
   return (
     <div className="lawyer-info-item">
       <span>{label}</span>
-      <strong>{value || "Not available"}</strong>
+      <strong>{value || t("lawyerProfile.notAvailable")}</strong>
     </div>
   );
 }

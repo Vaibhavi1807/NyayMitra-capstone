@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { Scale, Check } from "lucide-react";
 
 import { getGuidance, type GuidanceResult } from "../api/guidanceApi";
 import type { LegalSimplifyResponse } from "../api/translationApi";
+import { useT } from "../i18n/context";
 
 import "./LegalOrderExplainer.css";
 
@@ -27,10 +29,10 @@ import "./LegalOrderExplainer.css";
    the guidance answer are all reported by the service.
    ========================================================= */
 
-const TARGET_LABELS: Record<string, string> = {
-  mar_Deva: "मराठी (Marathi)",
-  hin_Deva: "हिंदी (Hindi)",
-  eng_Latn: "English",
+const TARGET_LABEL_KEYS: Record<string, string> = {
+  mar_Deva: "explainer.lang.marathi",
+  hin_Deva: "explainer.lang.hindi",
+  eng_Latn: "explainer.lang.english",
 };
 
 const SPEECH_LOCALES: Record<string, string> = {
@@ -44,14 +46,17 @@ export default function LegalOrderExplainer({
 }: {
   result: LegalSimplifyResponse;
 }) {
+  const { t, tm } = useT();
+
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [guidance, setGuidance] = useState<GuidanceResult | null>(null);
   const [guidanceBusy, setGuidanceBusy] = useState(false);
   const [guidanceError, setGuidanceError] = useState("");
 
-  const targetLabel =
-    TARGET_LABELS[result.target_lang] ?? result.target_lang;
+  const targetLabel = TARGET_LABEL_KEYS[result.target_lang]
+    ? t(TARGET_LABEL_KEYS[result.target_lang]!)
+    : result.target_lang;
 
   const isEnglish = result.target_lang === "eng_Latn";
 
@@ -100,8 +105,8 @@ export default function LegalOrderExplainer({
     } catch (error) {
       setGuidanceError(
         error instanceof Error && error.message
-          ? error.message
-          : "The next step could not be worked out just now.",
+          ? tm(error.message)
+          : t("explainer.error"),
       );
     } finally {
       setGuidanceBusy(false);
@@ -112,20 +117,19 @@ export default function LegalOrderExplainer({
     <div className="legal-explainer">
       <header className="legal-explainer-head">
         <span className="legal-explainer-title">
-          ⚖ Legal Order Explainer
+          <Scale size={14} aria-hidden="true" />
+          {t("explainer.title")}
         </span>
 
         <span className="legal-explainer-target">
-          Step 3 in {targetLabel}
+          {t("explainer.step3", { lang: targetLabel })}
         </span>
       </header>
 
       {/* ---- the three layers ---- */}
       <div className="order-layers">
         <div className="order-layer order-layer-legal">
-          <span className="order-layer-tag">
-            1 · Original legal text
-          </span>
+          <span className="order-layer-tag">{t("explainer.layer1")}</span>
           <p>{result.original_text}</p>
         </div>
 
@@ -134,14 +138,11 @@ export default function LegalOrderExplainer({
         </span>
 
         <div className="order-layer order-layer-simple">
-          <span className="order-layer-tag">2 · Simple English</span>
+          <span className="order-layer-tag">{t("explainer.layer2")}</span>
           <p>{result.simple_english}</p>
 
           {result.simple_english === result.original_text && (
-            <em className="order-layer-note">
-              No plainer wording was found for this passage, so it is
-              shown exactly as written.
-            </em>
+            <em className="order-layer-note">{t("explainer.noPlainer")}</em>
           )}
         </div>
 
@@ -153,7 +154,7 @@ export default function LegalOrderExplainer({
 
             <div className="order-layer order-layer-translated">
               <span className="order-layer-tag">
-                3 · {targetLabel}, from the simple English
+                {t("explainer.layer3", { lang: targetLabel })}
               </span>
               <p>{result.translated_text}</p>
             </div>
@@ -161,9 +162,7 @@ export default function LegalOrderExplainer({
         )}
 
         {isEnglish && (
-          <em className="order-layer-note">
-            English was asked for, so step two is the finished answer.
-          </em>
+          <em className="order-layer-note">{t("explainer.englishDone")}</em>
         )}
       </div>
 
@@ -179,7 +178,7 @@ export default function LegalOrderExplainer({
       {/* ---- glossary terms the text matched ---- */}
       {result.glossary_terms_used.length > 0 && (
         <div className="legal-explainer-terms">
-          <span>Words from the legal glossary in this text</span>
+          <span>{t("explainer.glossary")}</span>
           <ul>
             {result.glossary_terms_used.map((term) => (
               <li key={term}>{term}</li>
@@ -191,11 +190,18 @@ export default function LegalOrderExplainer({
       {/* ---- actions ---- */}
       <div className="legal-explainer-actions">
         <button type="button" onClick={handleCopy} disabled={!spokenText}>
-          {copied ? "Copied ✓" : "Copy"}
+          {copied ? (
+            <>
+              <Check size={13} aria-hidden="true" />
+              {t("explainer.copied")}
+            </>
+          ) : (
+            t("explainer.copy")
+          )}
         </button>
 
         <button type="button" onClick={handleListen} disabled={!spokenText}>
-          {speaking ? "Stop ▪" : "Listen"}
+          {speaking ? t("explainer.stop") : t("explainer.listen")}
         </button>
 
         <button
@@ -205,10 +211,15 @@ export default function LegalOrderExplainer({
           disabled={guidanceBusy}
         >
           {guidanceBusy
-            ? "Working it out…"
+            ? t("explainer.working")
             : guidance
-              ? "Next step shown ✓"
-              : "Explain Next Step"}
+              ? (
+                <>
+                  <Check size={13} aria-hidden="true" />
+                  {t("explainer.shown")}
+                </>
+              )
+              : t("explainer.nextStep")}
         </button>
       </div>
 
@@ -221,13 +232,15 @@ export default function LegalOrderExplainer({
       {guidance && (
         <div className="legal-explainer-next">
           <strong>
-            {guidance.stage ? `Where your case stands: ${guidance.stage}` : "What to do next"}
+            {guidance.stage
+              ? t("explainer.whereStage", { stage: guidance.stage })
+              : t("explainer.whatNext")}
           </strong>
 
           <p>{guidance.what_to_do_next}</p>
 
           {guidance.urgency && (
-            <em>Urgency for this stage: {guidance.urgency}</em>
+            <em>{t("explainer.urgency", { level: guidance.urgency })}</em>
           )}
 
           <small>{guidance.disclaimer}</small>

@@ -1,4 +1,6 @@
 import type { Case } from "../types/case";
+import { Scale, Calendar } from "lucide-react";
+import { useT } from "../i18n/context";
 
 interface CaseCardProps {
   caseData: Case;
@@ -21,6 +23,8 @@ function getStatusClass(stage: string) {
 }
 
 export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
+  const { t } = useT();
+
   /* The whole card is the target, not just the footer link: a
      reader scanning their own list clicks the matter they are
      already looking at. The keyboard path is the same one. */
@@ -45,7 +49,7 @@ export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
     >
       <div className="case-card-top">
         <div>
-          <span className="case-label">CNR NUMBER</span>
+          <span className="case-label">{t("cases.label.cnr")}</span>
           <h3>{caseData.cnr_number}</h3>
         </div>
 
@@ -61,14 +65,14 @@ export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
 
       <div className="case-parties">
         <div className="party-block">
-          <span className="detail-label">PETITIONER</span>
+          <span className="detail-label">{t("cases.label.petitioner")}</span>
           <strong>{caseData.petitioner_name}</strong>
         </div>
 
         <div className="party-arrow">→</div>
 
         <div className="party-block">
-          <span className="detail-label">RESPONDENTS</span>
+          <span className="detail-label">{t("cases.label.respondents")}</span>
           <strong>
             {caseData.respondents_list.length === 1
               ? caseData.respondents_list[0]
@@ -81,17 +85,17 @@ export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
 
       <div className="case-info-grid">
         <div className="case-info">
-          <span className="info-icon">⚖</span>
+          <span className="info-icon"><Scale size={15} aria-hidden="true" /></span>
           <div>
-            <span className="detail-label">COURT</span>
+            <span className="detail-label">{t("cases.label.court")}</span>
             <p>{caseData.court_name}</p>
           </div>
         </div>
 
         <div className="case-info">
-          <span className="info-icon">📅</span>
+          <span className="info-icon"><Calendar size={15} aria-hidden="true" /></span>
           <div>
-            <span className="detail-label">NEXT HEARING</span>
+            <span className="detail-label">{t("cases.label.nextHearing")}</span>
             <p className="hearing-date">
               {new Date(caseData.next_hearing_date).toLocaleDateString(
                 "en-IN",
@@ -108,7 +112,7 @@ export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
 
       <div className="case-card-footer">
         <span>
-          Advocate: <strong>{caseData.petitioner_advocate}</strong>
+          {t("cases.card.advocate")}{" "}<strong>{caseData.petitioner_advocate}</strong>
         </span>
 
         <button
@@ -121,7 +125,7 @@ export default function CaseCard({ caseData, onOpen }: CaseCardProps) {
             open();
           }}
         >
-          View case
+          {t("cases.card.view")}
           <span>→</span>
         </button>
       </div>

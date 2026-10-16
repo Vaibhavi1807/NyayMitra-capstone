@@ -12,9 +12,9 @@
       rgba(99, 102, 241, 0.10),
       transparent 28%
     ),
-    #f6f7fb;
+    var(--nm-bg);
 
-  color: #20253a;
+  color: var(--nm-text);
 }
 
 
@@ -34,12 +34,7 @@
   color: white;
 
   background:
-    linear-gradient(
-      135deg,
-      #171a3a 0%,
-      #24215a 45%,
-      #37338f 100%
-    );
+    var(--nm-hero-grad);
 }
 
 .login-hero-glow {
@@ -94,8 +89,8 @@
   background:
     linear-gradient(
       135deg,
-      #6366f1,
-      #818cf8
+      var(--nm-primary),
+      var(--nm-indigo-400)
     );
 
   color: white;
@@ -205,9 +200,9 @@
 .login-door-heading {
   padding: 26px 30px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 22px;
 
@@ -220,7 +215,7 @@
 
   margin-bottom: 7px;
 
-  color: #858b9d;
+  color: var(--nm-text-mute);
 
   font-size: 9px;
   font-weight: 800;
@@ -231,7 +226,7 @@
 .login-door-heading h2 {
   margin: 0;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 25px;
 
@@ -241,7 +236,7 @@
 .login-door-heading p {
   margin: 6px 0 0;
 
-  color: #858b9e;
+  color: var(--nm-text-mute);
 
   font-size: 13px;
 }
@@ -269,9 +264,9 @@
 
   text-align: left;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 20px;
 
@@ -284,7 +279,7 @@
 .login-door-card:hover {
   transform: translateY(-5px);
 
-  border-color: #c7c9f7;
+  border-color: var(--nm-indigo-400);
 
   box-shadow:
     0 20px 45px rgba(40, 40, 90, 0.11);
@@ -299,7 +294,7 @@
 
   border-radius: 16px;
 
-  background: #eeefff;
+  background: var(--nm-primary-soft);
 
   font-size: 25px;
 }
@@ -309,7 +304,7 @@
 
   margin-top: 18px;
 
-  color: #5b55c7;
+  color: var(--nm-primary);
 
   font-size: 9px;
   font-weight: 800;
@@ -322,7 +317,7 @@
 .login-door-card h3 {
   margin: 7px 0 0;
 
-  color: #292e46;
+  color: var(--nm-text);
 
   font-size: 19px;
 
@@ -332,7 +327,7 @@
 .login-door-card p {
   margin: 11px 0 0;
 
-  color: #7c8294;
+  color: var(--nm-text-mute);
 
   font-size: 13px;
 
@@ -344,9 +339,9 @@
 
   padding-top: 15px;
 
-  border-top: 1px solid #eef0f5;
+  border-top: 1px solid var(--nm-border-soft);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 12px;
   font-weight: 750;
@@ -364,13 +359,13 @@
 
   padding: 10px 18px;
 
-  border: 1px dashed #c7c9f7;
+  border: 1px dashed var(--nm-indigo-400);
 
   border-radius: 999px;
 
-  background: #f4f4ff;
+  background: var(--nm-surface-2);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 11px;
   font-weight: 700;
@@ -381,9 +376,9 @@
 
   padding: 22px 24px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 20px;
 
@@ -413,9 +408,9 @@
 
   padding: 13px 15px;
 
-  background: #f8f9fc;
+  background: var(--nm-surface-2);
 
-  border: 1px solid #ecedf4;
+  border: 1px solid var(--nm-border);
 
   border-radius: 13px;
 }
@@ -423,7 +418,7 @@
 .login-demo-row strong {
   display: block;
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 10px;
   font-weight: 800;
@@ -436,7 +431,7 @@
 
   margin-top: 3px;
 
-  color: #30354a;
+  color: var(--nm-text);
 
   font-size: 12px;
   font-weight: 650;
@@ -447,7 +442,7 @@
 
   margin-top: 3px;
 
-  color: #8a8fa0;
+  color: var(--nm-text-mute);
 
   font-size: 10px;
 }
@@ -462,11 +457,7 @@
   border-radius: 10px;
 
   background:
-    linear-gradient(
-      135deg,
-      #4338ca,
-      #6366f1
-    );
+    var(--nm-primary-grad);
 
   color: white;
 
@@ -518,9 +509,9 @@
 
   padding: 30px 30px 32px;
 
-  background: white;
+  background: var(--nm-surface);
 
-  border: 1px solid #e5e7ef;
+  border: 1px solid var(--nm-border);
 
   border-radius: 22px;
 
@@ -543,7 +534,7 @@
 
   background: transparent;
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 12px;
   font-weight: 700;
@@ -552,7 +543,7 @@
 .login-form-heading h2 {
   margin: 0;
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 24px;
 
@@ -570,7 +561,7 @@
 
   background: transparent;
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 12px;
   font-weight: 700;
@@ -598,7 +589,7 @@
 
   margin-bottom: 8px;
 
-  color: #555b6f;
+  color: var(--nm-text-soft);
 
   font-size: 11px;
   font-weight: 750;
@@ -613,13 +604,13 @@
 
   padding: 0 15px;
 
-  border: 1px solid #e1e4ec;
+  border: 1px solid var(--nm-border);
 
   border-radius: 13px;
 
-  background: #f8f9fc;
+  background: var(--nm-surface-2);
 
-  color: #252a40;
+  color: var(--nm-text);
 
   font-size: 13px;
 
@@ -630,16 +621,16 @@
 }
 
 .login-field input:focus {
-  border-color: #818cf8;
+  border-color: var(--nm-indigo-400);
 
-  background: white;
+  background: var(--nm-surface);
 
   box-shadow:
     0 0 0 4px rgba(99, 102, 241, 0.10);
 }
 
 .login-field input::placeholder {
-  color: #a0a5b4;
+  color: var(--nm-text-mute);
 }
 
 /* Password */
@@ -666,9 +657,9 @@
 
   border-radius: 9px;
 
-  background: #eeefff;
+  background: var(--nm-primary-soft);
 
-  color: #4f46c5;
+  color: var(--nm-primary);
 
   font-size: 10px;
   font-weight: 750;
@@ -684,13 +675,13 @@
 
   padding: 13px 15px;
 
-  border: 1px solid #fbd5d5;
+  border: 1px solid var(--nm-danger-border);
 
   border-radius: 12px;
 
-  background: #fdf1f1;
+  background: var(--nm-danger-bg);
 
-  color: #b42318;
+  color: var(--nm-danger);
 
   font-size: 12px;
 
@@ -712,11 +703,7 @@
   border-radius: 13px;
 
   background:
-    linear-gradient(
-      135deg,
-      #4338ca,
-      #6366f1
-    );
+    var(--nm-primary-grad);
 
   color: white;
 
@@ -745,7 +732,7 @@
 .login-note {
   margin: 16px 0 0;
 
-  color: #8a8fa0;
+  color: var(--nm-text-mute);
 
   font-size: 11px;
 
@@ -770,7 +757,7 @@
 .register-optional-heading {
   margin: 18px 0 0;
 
-  color: #5b55c7;
+  color: var(--nm-primary);
 
   font-size: 10px;
   font-weight: 800;
@@ -781,7 +768,7 @@
 }
 
 .register-optional-heading span {
-  color: #a4a9bb;
+  color: var(--nm-text-mute);
 
   font-weight: 600;
 
@@ -794,7 +781,7 @@
 
   margin-top: 7px;
 
-  color: #9499ab;
+  color: var(--nm-text-mute);
 
   font-size: 11px;
 
@@ -806,13 +793,13 @@
 
   padding: 13px 15px;
 
-  border: 1px solid #e2e4ee;
+  border: 1px solid var(--nm-border);
 
   border-radius: 14px;
 
-  background: #fafaff;
+  background: var(--nm-surface-2);
 
-  color: #292e46;
+  color: var(--nm-text);
 
   font: inherit;
 
@@ -826,7 +813,7 @@
 .login-field textarea:focus {
   outline: none;
 
-  border-color: #8b83e8;
+  border-color: var(--nm-indigo-400);
 
   box-shadow: 0 0 0 4px rgba(99, 91, 220, 0.12);
 }
@@ -834,34 +821,61 @@
 .login-field input[type="file"] {
   padding: 12px 14px;
 
-  background: #fafaff;
+  background: var(--nm-surface-2);
 
-  color: #5c6274;
+  color: var(--nm-text-soft);
 
   font-size: 13px;
 }
 
 .register-file-name {
-  color: #4f46c5 !important;
+  color: var(--nm-primary) !important;
 
   font-weight: 650;
+}
+
+.register-photo-error {
+  color: var(--nm-danger, #b42318) !important;
+
+  font-weight: 650;
+}
+
+.register-photo-preview {
+  display: block;
+
+  margin-top: 10px;
+}
+
+.register-photo-preview img {
+  display: block;
+
+  width: 76px;
+  height: 76px;
+
+  border-radius: 50%;
+
+  object-fit: cover;
+
+  border: 2px solid var(--nm-border);
+
+  box-shadow: 0 6px 16px rgba(25, 30, 60, 0.14);
 }
 
 /* "Your registration is pending admin verification." */
 .register-pending {
   padding: 22px 22px;
 
-  border: 1px solid #f4d58c;
+  border: 1px solid var(--nm-warn-border);
 
   border-radius: 16px;
 
-  background: #fff9ea;
+  background: var(--nm-warn-bg);
 }
 
 .register-pending strong {
   display: block;
 
-  color: #8a6412;
+  color: var(--nm-warn);
 
   font-size: 15px;
 
@@ -871,7 +885,7 @@
 .register-pending p {
   margin: 11px 0 0;
 
-  color: #7c6a42;
+  color: var(--nm-warn);
 
   font-size: 13px;
 
@@ -883,17 +897,56 @@
 .register-note {
   padding: 12px 15px;
 
-  border: 1px solid #cfd0f5;
+  border: 1px solid var(--nm-border);
 
   border-radius: 12px;
 
-  background: #f5f5ff;
+  background: var(--nm-primary-soft);
 
-  color: #4a4587;
+  color: var(--nm-primary-deep);
 
   font-size: 12px;
 
   line-height: 1.6;
+}
+
+
+/* =========================================================
+   POLISH — ENTRANCE & MICRO-INTERACTIONS
+   One gentle rise as each step mounts (staggered across the
+   door cards), a softer press on the password toggle, and a
+   settle-in for the error banner. All of it collapses under
+   the global prefers-reduced-motion guard in index.css.
+   ========================================================= */
+
+.login-door-card {
+  animation: nm-fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-door-card:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.login-door-card:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.login-form {
+  animation: nm-fade-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-error {
+  animation: nm-fade-up 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-password button {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.login-password button:hover {
+  background: var(--nm-primary-soft);
 }
 
 

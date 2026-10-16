@@ -1,4 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  Sparkles,
+  Check,
+  TriangleAlert,
+  Scale,
+  MessageSquare,
+} from "lucide-react";
+
+import LawyerAvatar from "../../components/LawyerAvatar";
 
 import {
   getLawyers,
@@ -12,6 +21,8 @@ import type {
 } from "../../api/lawyerApi";
 
 import type { ChatTarget } from "../../api/chatApi";
+
+import { useT } from "../../i18n/context";
 
 /* =========================================================
    PROPS
@@ -54,24 +65,6 @@ const SENIOR_YEARS = 15;
    HELPERS
    ========================================================= */
 
-function initialsOf(name: string): string {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) return "—";
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  return (
-    parts[0][0] +
-    parts[parts.length - 1][0]
-  ).toUpperCase();
-}
-
 function practiceAreasOf(lawyer: Lawyer): string[] {
   return (lawyer.practice_areas ?? []).filter(Boolean);
 }
@@ -85,7 +78,9 @@ function errorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "Unable to reach the NyayMitra lawyer service.";
+  /* A backend message passes through as-is; the frontend fallback
+     is stored as an i18n key and resolved with t() where it renders. */
+  return "lawyer.error.service";
 }
 
 /* =========================================================
@@ -137,6 +132,8 @@ export default function LawyerPage({
   onViewProfile,
   onChat,
 }: LawyerPageProps) {
+  const { t, tm } = useT();
+
   /* ---------- FILTER STATE ---------- */
 
   const [searchInput, setSearchInput] = useState("");
@@ -406,7 +403,7 @@ export default function LawyerPage({
           className="page-back-button"
           onClick={onBack}
         >
-          ← Back to Dashboard
+          {t("lawyer.backToDashboard")}
         </button>
       </div>
 
@@ -416,20 +413,16 @@ export default function LawyerPage({
 
         <div className="lawyer-hero-content">
           <div className="lawyer-eyebrow">
-            <span>✦</span>
-            LEGAL PROFESSIONAL NETWORK
+            <Sparkles size={14} aria-hidden="true" />
+            {t("lawyer.eyebrow")}
           </div>
 
           <h1>
-            Find the right
-            <span> legal expert.</span>
+            {t("lawyer.title1")}
+            <span>{t("lawyer.titleAccent")}</span>
           </h1>
 
-          <p>
-            Search verified lawyers by name, practice
-            area and location — live from the NyayMitra
-            advocate registry.
-          </p>
+          <p>{t("lawyer.heroCopy")}</p>
         </div>
       </section>
 
@@ -451,7 +444,7 @@ export default function LawyerPage({
                 onChange={(event) =>
                   setSearchInput(event.target.value)
                 }
-                placeholder="Search lawyer by name..."
+                placeholder={t("lawyer.search.placeholder")}
               />
 
               {searchInput && (
@@ -473,7 +466,7 @@ export default function LawyerPage({
               className="lawyer-filter"
             >
               <option value={ALL_PRACTICE_AREAS}>
-                {ALL_PRACTICE_AREAS}
+                {t("lawyer.filter.allPracticeAreas")}
               </option>
 
               {practiceAreaOptions.map((area) => (
@@ -494,7 +487,7 @@ export default function LawyerPage({
               className="lawyer-filter"
             >
               <option value={ALL_CITIES}>
-                {ALL_CITIES}
+                {t("lawyer.filter.allCities")}
               </option>
 
               {cityOptions.map((item) => (
@@ -509,11 +502,11 @@ export default function LawyerPage({
           <div className="lawyer-filter-summary">
             <div>
               <strong>{totalCount}</strong>{" "}
-              lawyers found
+              {t("lawyer.results.found")}
               {lawyers.length > 0 && (
                 <>
                   {" "}
-                  · showing {firstIndex}–{lastIndex}
+                  · {t("lawyer.results.showing", { first: firstIndex, last: lastIndex })}
                 </>
               )}
             </div>
@@ -523,7 +516,7 @@ export default function LawyerPage({
                 type="button"
                 onClick={resetFilters}
               >
-                Reset filters
+                {t("lawyer.filters.reset")}
               </button>
             )}
           </div>
@@ -537,17 +530,15 @@ export default function LawyerPage({
 
             <div>
               <p className="lawyer-section-label">
-                VERIFIED ADVOCATES
+                {t("lawyer.results.label")}
               </p>
 
-              <h2>
-                Lawyers for your legal needs
-              </h2>
+              <h2>{t("lawyer.results.heading")}</h2>
             </div>
 
             <div className="verified-note">
-              <span>✓</span>
-              Verified profiles
+              <Check size={13} aria-hidden="true" />
+              {t("lawyer.results.verified")}
             </div>
 
           </div>
@@ -577,18 +568,15 @@ export default function LawyerPage({
           {!loading && error && (
             <div className="lawyer-error">
               <div className="lawyer-error-icon">
-                ⚠
+                <TriangleAlert size={24} aria-hidden="true" />
               </div>
 
-              <h3>
-                Lawyer service unavailable
-              </h3>
+              <h3>{t("lawyer.error.title")}</h3>
 
-              <p>{error}</p>
+              <p>{tm(t(error))}</p>
 
               <p className="lawyer-error-hint">
-                Start the FastAPI service on port 8000,
-                then try again.
+                {t("lawyer.error.hint")}
               </p>
 
               <button
@@ -597,7 +585,7 @@ export default function LawyerPage({
                   setRetryToken((token) => token + 1)
                 }
               >
-                Retry
+                {t("lawyer.error.retry")}
               </button>
             </div>
           )}
@@ -606,20 +594,17 @@ export default function LawyerPage({
 
           {!loading && !error && lawyers.length === 0 && (
             <div className="lawyer-empty">
-              <div>⚖</div>
+              <div><Scale size={24} aria-hidden="true" /></div>
 
-              <h3>No lawyers found</h3>
+              <h3>{t("lawyer.empty.title")}</h3>
 
-              <p>
-                Try changing your search or selecting
-                another practice area or city.
-              </p>
+              <p>{t("lawyer.empty.copy")}</p>
 
               <button
                 type="button"
                 onClick={resetFilters}
               >
-                Clear filters
+                {t("lawyer.empty.clear")}
               </button>
             </div>
           )}
@@ -651,20 +636,26 @@ export default function LawyerPage({
 
                       {isSenior && (
                         <div className="suggested-badge">
-                          ✦ Senior counsel
+                          <Sparkles size={12} aria-hidden="true" /> {t("lawyer.card.senior")}
                         </div>
                       )}
 
                       <div className="lawyer-card-top">
 
-                        <div className="lawyer-avatar">
-                          {initialsOf(lawyer.full_name)}
-                        </div>
+                        <LawyerAvatar
+                          className="lawyer-avatar"
+                          name={lawyer.full_name}
+                          photo={
+                            lawyer.profile_image ??
+                            lawyer.profile_photo
+                          }
+                          lawyerId={lawyer.lawyer_id}
+                        />
 
                         <div className="lawyer-rating">
-                          <span>✓</span>
+                          <Check size={13} aria-hidden="true" />
                           {lawyer.profile_status ||
-                            "Verified"}
+                            t("lawyer.card.verified")}
                         </div>
 
                       </div>
@@ -674,7 +665,7 @@ export default function LawyerPage({
                       </h3>
 
                       <p className="lawyer-specialization">
-                        {areas[0] || "General Practice"}
+                        {areas[0] || t("lawyer.card.generalPractice")}
                       </p>
 
                       <div className="lawyer-meta">
@@ -683,10 +674,10 @@ export default function LawyerPage({
                           <span>◷</span>
                           <strong>
                             {years != null
-                              ? `${years} yrs`
+                              ? t("lawyer.card.yrs", { n: years })
                               : "—"}
                           </strong>
-                          <small>experience</small>
+                          <small>{t("lawyer.card.experience")}</small>
                         </div>
 
                         <div>
@@ -696,7 +687,7 @@ export default function LawyerPage({
                               lawyer.district ||
                               "—"}
                           </strong>
-                          <small>location</small>
+                          <small>{t("lawyer.card.location")}</small>
                         </div>
 
                         <div>
@@ -705,7 +696,7 @@ export default function LawyerPage({
                             {lawyer.year_of_enrollment ||
                               "—"}
                           </strong>
-                          <small>enrolled</small>
+                          <small>{t("lawyer.card.enrolled")}</small>
                         </div>
 
                       </div>
@@ -714,7 +705,7 @@ export default function LawyerPage({
 
                       <div className="lawyer-languages">
 
-                        <span>Languages</span>
+                        <span>{t("lawyer.card.languages")}</span>
 
                         <div>
                           {languages.length > 0 ? (
@@ -729,7 +720,7 @@ export default function LawyerPage({
                               ))
                           ) : (
                             <span className="lawyer-language-muted">
-                              Not listed
+                              {t("lawyer.card.notListed")}
                             </span>
                           )}
                         </div>
@@ -750,7 +741,7 @@ export default function LawyerPage({
                               })
                             }
                           >
-                            💬 Chat
+                            <MessageSquare size={13} aria-hidden="true" /> {t("nav.chat")}
                           </button>
                         )}
 
@@ -763,7 +754,7 @@ export default function LawyerPage({
                             )
                           }
                         >
-                          View Profile
+                          {t("lawyer.card.viewProfile")}
                           <span>→</span>
                         </button>
 
@@ -786,11 +777,11 @@ export default function LawyerPage({
                       changePage(page - 1)
                     }
                   >
-                    ← Previous
+                    {t("lawyer.pagination.previous")}
                   </button>
 
                   <span>
-                    Page {page} of {totalPages}
+                    {t("lawyer.pagination.page", { page, totalPages })}
                   </span>
 
                   <button
@@ -800,7 +791,7 @@ export default function LawyerPage({
                       changePage(page + 1)
                     }
                   >
-                    Next →
+                    {t("lawyer.pagination.next")}
                   </button>
                 </nav>
               )}

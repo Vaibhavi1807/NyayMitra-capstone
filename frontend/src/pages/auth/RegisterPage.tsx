@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { Scale, User } from "lucide-react";
+
+import { saveLocalLawyerPhoto } from "../../lib/lawyerPhoto";
 import type { Session } from "../../auth/session";
 import {
   register,
@@ -13,6 +16,7 @@ import {
  * registration stay one visual system.
  */
 import "./LoginPage.css";
+import { useT } from "../../i18n/context";
 
 /* =========================================================
    REGISTER PAGE — choose an account type, then one form.
@@ -62,6 +66,17 @@ const DOCUMENT_MIME_TYPES = [
   "image/png",
 ];
 
+/* Profile photo bounds — client-side validation only; the
+   registration API rejects unknown fields, so the photo stays
+   on this device until the backend grows a photo endpoint. */
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const PHOTO_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
+const PHOTO_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+];
+
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -73,6 +88,8 @@ function RegisterPage({
   onAuthenticated,
   onBack,
 }: RegisterPageProps) {
+  const { t, tm } = useT();
+
   const [view, setView] = useState<View>("choice");
 
   /* Citizen form — unchanged fields. */
@@ -95,6 +112,12 @@ function RegisterPage({
   const [bio, setBio] = useState("");
   const [documentFile, setDocumentFile] =
     useState<File | null>(null);
+
+  /* Profile photo (optional): validated on pick and kept as a
+     data URL for the preview and the local save. */
+  const [photoDataUrl, setPhotoDataUrl] =
+    useState<string | null>(null);
+  const [photoError, setPhotoError] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -130,24 +153,26 @@ function RegisterPage({
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!name) {
-      setError("Enter your full name.");
+      setError(t("register.err.name"));
       return;
     }
 
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
-      setError("Enter a valid email address.");
+      setError(t("register.err.email"));
       return;
     }
 
     if (password.length < MIN_PASSWORD_LENGTH) {
       setError(
-        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        t("register.err.passwordLength", {
+          n: MIN_PASSWORD_LENGTH,
+        }),
       );
       return;
     }
 
     if (password !== confirmation) {
-      setError("Passwords do not match.");
+      setError(t("register.err.passwordMatch"));
       return;
     }
 
@@ -167,11 +192,62 @@ function RegisterPage({
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to create the account. Please try again.",
+          : t("register.err.genericUser"),
       );
     } finally {
       setLoading(false);
     }
+  };
+
+  /* =======================================================
+     PROFILE PHOTO — optional, validated on pick. An invalid
+     pick clears the previous valid one, so a broken file can
+     never ride along on submit.
+     ======================================================= */
+
+  const handlePhotoChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0] ?? null;
+
+    setPhotoError("");
+
+    if (!file) {
+      setPhotoDataUrl(null);
+      return;
+    }
+
+    if (
+      !PHOTO_EXTENSIONS.test(file.name) ||
+      (file.type && !PHOTO_MIME_TYPES.includes(file.type))
+    ) {
+      setPhotoDataUrl(null);
+      setPhotoError(t("register.err.photoType"));
+      return;
+    }
+
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPhotoDataUrl(null);
+      setPhotoError(t("register.err.photoSize"));
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setPhotoDataUrl(
+        typeof reader.result === "string"
+          ? reader.result
+          : null,
+      );
+    };
+
+    reader.onerror = () => {
+      setPhotoDataUrl(null);
+      setPhotoError(t("register.err.photoRead"));
+    };
+
+    reader.readAsDataURL(file);
   };
 
   /* =======================================================
@@ -200,40 +276,42 @@ function RegisterPage({
     const bioText = bio.trim();
 
     if (!name) {
-      setError("Enter your full name.");
+      setError(t("register.err.name"));
       return;
     }
 
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
-      setError("Enter a valid email address.");
+      setError(t("register.err.email"));
       return;
     }
 
     if (lawPassword.length < MIN_PASSWORD_LENGTH) {
       setError(
-        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        t("register.err.passwordLength", {
+          n: MIN_PASSWORD_LENGTH,
+        }),
       );
       return;
     }
 
     if (lawPassword !== lawConfirmation) {
-      setError("Passwords do not match.");
+      setError(t("register.err.passwordMatch"));
       return;
     }
 
     if (!license) {
-      setError("Enter your licence or registration number.");
+      setError(t("register.err.license"));
       return;
     }
 
     if (!areas.length) {
-      setError("List at least one practice area.");
+      setError(t("register.err.practiceMin"));
       return;
     }
 
     if (areas.length > MAX_PRACTICE_AREAS) {
       setError(
-        `List at most ${MAX_PRACTICE_AREAS} practice areas.`,
+        t("register.err.practiceMax", { n: MAX_PRACTICE_AREAS }),
       );
       return;
     }
@@ -244,14 +322,18 @@ function RegisterPage({
       )
     ) {
       setError(
-        `Each practice area must be ${MAX_PRACTICE_AREA_LENGTH} characters or fewer.`,
+        t("register.err.practiceLength", {
+          n: MAX_PRACTICE_AREA_LENGTH,
+        }),
       );
       return;
     }
 
     if (council.length > MAX_BAR_COUNCIL_LENGTH) {
       setError(
-        `Bar Council must be ${MAX_BAR_COUNCIL_LENGTH} characters or fewer.`,
+        t("register.err.barCouncil", {
+          n: MAX_BAR_COUNCIL_LENGTH,
+        }),
       );
       return;
     }
@@ -267,29 +349,26 @@ function RegisterPage({
         yearsValue > MAX_YEARS_EXPERIENCE
       ) {
         setError(
-          `Years of experience must be between 0 and ${MAX_YEARS_EXPERIENCE}.`,
+          t("register.err.years", { n: MAX_YEARS_EXPERIENCE }),
         );
         return;
       }
     }
 
     if (phoneText && !PHONE_PATTERN.test(phoneText)) {
-      setError("Enter a valid phone number.");
+      setError(t("register.err.phone"));
       return;
     }
 
     if (bioText.length > MAX_BIO_LENGTH) {
       setError(
-        `Bio must be ${MAX_BIO_LENGTH} characters or fewer.`,
+        t("register.err.bio", { n: MAX_BIO_LENGTH }),
       );
       return;
     }
 
     if (!documentFile) {
-      setError(
-        "Attach your licence or registration document " +
-          "(PDF, JPG or PNG).",
-      );
+      setError(t("register.err.documentMissing"));
       return;
     }
 
@@ -298,14 +377,12 @@ function RegisterPage({
       (documentFile.type &&
         !DOCUMENT_MIME_TYPES.includes(documentFile.type))
     ) {
-      setError("Upload a PDF, JPG or PNG file.");
+      setError(t("register.err.documentType"));
       return;
     }
 
     if (documentFile.size > MAX_DOCUMENT_BYTES) {
-      setError(
-        "File too large. Maximum allowed size is 10 MB.",
-      );
+      setError(t("register.err.documentSize"));
       return;
     }
 
@@ -334,12 +411,22 @@ function RegisterPage({
 
       await uploadLawyerDocument(session.token, documentFile);
 
+      /*
+       * Keep the lawyer's own photo on this device. The
+       * registration contract has no profile-photo field yet,
+       * so this is the honest local copy the avatar components
+       * read as their last-resort source — see lib/lawyerPhoto.ts.
+       */
+      if (photoDataUrl && session.lawyerId) {
+        saveLocalLawyerPhoto(session.lawyerId, photoDataUrl);
+      }
+
       setView("submitted");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to submit the registration. Please try again.",
+          : t("register.err.genericLawyer"),
       );
     } finally {
       setLoading(false);
@@ -360,32 +447,27 @@ function RegisterPage({
         <div className="login-brand">
 
           <div className="login-brand-icon">
-            ⚖
+            <Scale size={26} aria-hidden="true" />
           </div>
 
           <div>
             <strong>NyayMitra</strong>
-            <span>AI Court Assistant</span>
+            <span>{t("login.brand.tagline")}</span>
           </div>
 
         </div>
 
         <div className="login-eyebrow">
-          CREATE ACCOUNT
+          {t("register.eyebrow")}
         </div>
 
         <h1>
-          Join
+          {t("register.hero.title1")}
           <br />
-          <span>NyayMitra.</span>
+          <span>{t("register.hero.titleAccent")}</span>
         </h1>
 
-        <p>
-          One citizen account for case search, timelines, court
-          orders, translation and conversations with verified
-          lawyers — or register as a lawyer to take those
-          conversations.
-        </p>
+        <p>{t("register.hero.copy")}</p>
 
       </div>
 
@@ -413,18 +495,16 @@ function RegisterPage({
                 className="login-back"
                 onClick={onBack}
               >
-                ← Back to sign in
+                {t("register.backToSignIn")}
               </button>
 
               <span className="login-section-label">
-                ACCOUNT TYPE
+                {t("register.choice.label")}
               </span>
 
-              <h2>How will you use NyayMitra?</h2>
+              <h2>{t("register.choice.heading")}</h2>
 
-              <p>
-                Pick the account you want to create.
-              </p>
+              <p>{t("register.choice.sub")}</p>
 
             </div>
 
@@ -435,15 +515,12 @@ function RegisterPage({
                 className="login-door-card"
                 onClick={() => switchView("user")}
               >
-                <div className="login-door-icon">👤</div>
-                <span className="login-door-role">Citizen</span>
-                <h3>Create User Account</h3>
-                <p>
-                  Search and save cases, read court orders,
-                  translate, and chat with verified lawyers.
-                </p>
+                <div className="login-door-icon"><User size={24} aria-hidden="true" /></div>
+                <span className="login-door-role">{t("register.door.citizen.role")}</span>
+                <h3>{t("register.door.citizen.title")}</h3>
+                <p>{t("register.door.citizen.desc")}</p>
                 <div className="login-door-cta">
-                  Continue →
+                  {t("login.door.cta")}
                 </div>
               </button>
 
@@ -452,16 +529,12 @@ function RegisterPage({
                 className="login-door-card"
                 onClick={() => switchView("lawyer")}
               >
-                <div className="login-door-icon">⚖</div>
-                <span className="login-door-role">Advocate</span>
-                <h3>Create Lawyer Account</h3>
-                <p>
-                  Register with your licence and practice areas.
-                  Your registration is verified before you can
-                  receive chats from users.
-                </p>
+                <div className="login-door-icon"><Scale size={24} aria-hidden="true" /></div>
+                <span className="login-door-role">{t("register.door.advocate.role")}</span>
+                <h3>{t("register.door.advocate.title")}</h3>
+                <p>{t("register.door.advocate.desc")}</p>
                 <div className="login-door-cta">
-                  Continue →
+                  {t("login.door.cta")}
                 </div>
               </button>
 
@@ -472,7 +545,7 @@ function RegisterPage({
               className="login-staff-link"
               onClick={onBack}
             >
-              Already have an account? Sign in →
+              {t("register.signInLink")}
             </button>
 
           </div>
@@ -500,10 +573,10 @@ function RegisterPage({
             <div className="login-form-heading">
 
               <span className="login-section-label">
-                LAWYER
+                {t("register.submitted.label")}
               </span>
 
-              <h2>Registration submitted</h2>
+              <h2>{t("register.submitted.heading")}</h2>
 
             </div>
 
@@ -512,19 +585,9 @@ function RegisterPage({
               role="status"
             >
 
-              <strong>
-                Your lawyer registration is pending
-                admin verification.
-              </strong>
+              <strong>{t("register.submitted.status")}</strong>
 
-              <p>
-                An administrator will review your licence
-                document and practice details. Until your
-                account is approved, verified-lawyer features —
-                such as receiving chats from users — stay
-                locked. You can sign in with your email and
-                password at any time to check your status.
-              </p>
+              <p>{t("register.submitted.copy")}</p>
 
             </div>
 
@@ -533,7 +596,7 @@ function RegisterPage({
               className="login-submit"
               onClick={onBack}
             >
-              Go to sign in
+              {t("register.submitted.go")}
             </button>
 
           </div>
@@ -559,6 +622,8 @@ function RegisterPage({
           <form
             className="login-form"
             onSubmit={handleSubmit}
+            noValidate
+            aria-busy={loading}
           >
 
             <div className="login-form-heading">
@@ -568,46 +633,44 @@ function RegisterPage({
                 className="login-back"
                 onClick={() => switchView("choice")}
               >
-                ← Choose account type
+                {t("register.chooseType")}
               </button>
 
               <span className="login-section-label">
-                CITIZEN
+                {t("register.citizen.label")}
               </span>
 
-              <h2>Create your account</h2>
+              <h2>{t("register.citizen.heading")}</h2>
 
-              <p>
-                Your role is set for you — sign-in detects it
-                automatically.
-              </p>
+              <p>{t("register.citizen.sub")}</p>
 
             </div>
 
             <label className="login-field">
 
-              <span>Full name</span>
+              <span>{t("register.field.fullName")}</span>
 
               <input
                 type="text"
                 autoComplete="name"
-                placeholder="e.g. Asha Verma"
+                placeholder={t("register.field.namePlaceholder.user")}
                 value={fullName}
                 onChange={(event) =>
                   setFullName(event.target.value)
                 }
+                autoFocus
               />
 
             </label>
 
             <label className="login-field">
 
-              <span>Email</span>
+              <span>{t("register.field.email")}</span>
 
               <input
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t("register.field.emailPlaceholder")}
                 value={email}
                 onChange={(event) =>
                   setEmail(event.target.value)
@@ -618,14 +681,14 @@ function RegisterPage({
 
             <label className="login-field">
 
-              <span>Password</span>
+              <span>{t("login.field.password")}</span>
 
               <div className="login-password">
 
                 <input
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
-                  placeholder="At least 8 characters"
+                  placeholder={t("register.field.passwordPlaceholder")}
                   value={password}
                   onChange={(event) =>
                     setPassword(event.target.value)
@@ -634,11 +697,15 @@ function RegisterPage({
 
                 <button
                   type="button"
+                  aria-label={
+                    showPassword ? t("login.password.hide") : t("login.password.show")
+                  }
+                  aria-pressed={showPassword}
                   onClick={() =>
                     setShowPassword((value) => !value)
                   }
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? t("login.password.showShort") : t("login.password.hideShort")}
                 </button>
 
               </div>
@@ -647,12 +714,12 @@ function RegisterPage({
 
             <label className="login-field">
 
-              <span>Confirm password</span>
+              <span>{t("register.field.confirm")}</span>
 
               <input
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
-                placeholder="Repeat the password"
+                placeholder={t("register.field.confirmPlaceholder")}
                 value={confirmation}
                 onChange={(event) =>
                   setConfirmation(event.target.value)
@@ -663,7 +730,7 @@ function RegisterPage({
 
             {error && (
               <div className="login-error" role="alert">
-                {error}
+                {tm(error)}
               </div>
             )}
 
@@ -672,9 +739,12 @@ function RegisterPage({
               className="login-submit"
               disabled={loading}
             >
+              {loading && (
+                <span className="nm-spinner" aria-hidden="true" />
+              )}
               {loading
-                ? "Creating your account..."
-                : "Create account"}
+                ? t("register.submit.creating")
+                : t("register.submit.create")}
             </button>
 
             <button
@@ -682,7 +752,7 @@ function RegisterPage({
               className="login-staff-link"
               onClick={onBack}
             >
-              Already have an account? Sign in →
+              {t("register.signInLink")}
             </button>
 
           </form>
@@ -707,6 +777,8 @@ function RegisterPage({
         <form
           className="login-form"
           onSubmit={handleLawyerSubmit}
+          noValidate
+          aria-busy={loading}
         >
 
           <div className="login-form-heading">
@@ -716,47 +788,44 @@ function RegisterPage({
               className="login-back"
               onClick={() => switchView("choice")}
             >
-              ← Choose account type
+              {t("register.chooseType")}
             </button>
 
             <span className="login-section-label">
-              LAWYER
+              {t("register.lawyer.label")}
             </span>
 
-            <h2>Register as a lawyer</h2>
+            <h2>{t("register.lawyer.heading")}</h2>
 
-            <p>
-              Your registration starts as pending — an admin
-              verifies your licence before you can receive
-              chats from users.
-            </p>
+            <p>{t("register.lawyer.sub")}</p>
 
           </div>
 
           <label className="login-field">
 
-            <span>Full name</span>
+            <span>{t("register.field.fullName")}</span>
 
             <input
               type="text"
               autoComplete="name"
-              placeholder="e.g. Adv. Priya Sharma"
+              placeholder={t("register.field.namePlaceholder.lawyer")}
               value={lawName}
               onChange={(event) =>
                 setLawName(event.target.value)
               }
+              autoFocus
             />
 
           </label>
 
           <label className="login-field">
 
-            <span>Email</span>
+            <span>{t("register.field.email")}</span>
 
             <input
               type="email"
               autoComplete="email"
-              placeholder="advocate@example.com"
+              placeholder={t("register.field.lawEmailPlaceholder")}
               value={lawEmail}
               onChange={(event) =>
                 setLawEmail(event.target.value)
@@ -767,14 +836,14 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>Password</span>
+            <span>{t("login.field.password")}</span>
 
             <div className="login-password">
 
               <input
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
-                placeholder="At least 8 characters"
+                placeholder={t("register.field.passwordPlaceholder")}
                 value={lawPassword}
                 onChange={(event) =>
                   setLawPassword(event.target.value)
@@ -783,11 +852,15 @@ function RegisterPage({
 
               <button
                 type="button"
+                aria-label={
+                  showPassword ? t("login.password.hide") : t("login.password.show")
+                }
+                aria-pressed={showPassword}
                 onClick={() =>
                   setShowPassword((value) => !value)
                 }
               >
-                {showPassword ? "Hide" : "Show"}
+                {showPassword ? t("login.password.showShort") : t("login.password.hideShort")}
               </button>
 
             </div>
@@ -796,12 +869,12 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>Confirm password</span>
+            <span>{t("register.field.confirm")}</span>
 
             <input
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              placeholder="Repeat the password"
+              placeholder={t("register.field.confirmPlaceholder")}
               value={lawConfirmation}
               onChange={(event) =>
                 setLawConfirmation(event.target.value)
@@ -812,14 +885,12 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>
-              Licence / Bar Council registration ID
-            </span>
+            <span>{t("register.field.license")}</span>
 
             <input
               type="text"
               autoComplete="off"
-              placeholder="e.g. MAH/1234/2020"
+              placeholder={t("register.field.licensePlaceholder")}
               value={licenseId}
               onChange={(event) =>
                 setLicenseId(event.target.value)
@@ -830,37 +901,35 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>Practice areas</span>
+            <span>{t("register.field.practiceAreas")}</span>
 
             <input
               type="text"
               autoComplete="off"
-              placeholder="e.g. Criminal Law, Family Law"
+              placeholder={t("register.field.practicePlaceholder")}
               value={practiceAreas}
               onChange={(event) =>
                 setPracticeAreas(event.target.value)
               }
             />
 
-            <small>
-              Separate each area with a comma.
-            </small>
+            <small>{t("register.field.practiceHint")}</small>
 
           </label>
 
           <div className="register-optional-heading">
-            Other profile information
-            <span> optional </span>
+            {t("register.optional.heading")}
+            <span> {t("register.optional.badge")} </span>
           </div>
 
           <label className="login-field">
 
-            <span>Bar Council</span>
+            <span>{t("register.field.barCouncil")}</span>
 
             <input
               type="text"
               autoComplete="organization"
-              placeholder="e.g. Bar Council of Maharashtra"
+              placeholder={t("register.field.barCouncilPlaceholder")}
               value={barCouncil}
               onChange={(event) =>
                 setBarCouncil(event.target.value)
@@ -871,13 +940,13 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>Years of experience</span>
+            <span>{t("register.field.years")}</span>
 
             <input
               type="number"
               min={0}
               max={70}
-              placeholder="e.g. 7"
+              placeholder={t("register.field.yearsPlaceholder")}
               value={years}
               onChange={(event) =>
                 setYears(event.target.value)
@@ -888,7 +957,7 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>Phone</span>
+            <span>{t("register.field.phone")}</span>
 
             <input
               type="tel"
@@ -904,11 +973,11 @@ function RegisterPage({
 
           <label className="login-field">
 
-            <span>Short bio</span>
+            <span>{t("register.field.bio")}</span>
 
             <textarea
               rows={3}
-              placeholder="A line about your practice (optional)"
+              placeholder={t("register.field.bioPlaceholder")}
               value={bio}
               onChange={(event) =>
                 setBio(event.target.value)
@@ -919,9 +988,7 @@ function RegisterPage({
 
           <label className="login-field register-file-field">
 
-            <span>
-              Licence / registration document
-            </span>
+            <span>{t("register.field.document")}</span>
 
             <input
               type="file"
@@ -933,10 +1000,7 @@ function RegisterPage({
               }
             />
 
-            <small>
-              PDF, JPG or PNG — up to 10 MB. An admin checks
-              this document during verification.
-            </small>
+            <small>{t("register.field.documentHint")}</small>
 
             {documentFile && (
               <small className="register-file-name">
@@ -947,16 +1011,44 @@ function RegisterPage({
 
           </label>
 
+          <label className="login-field register-file-field">
+
+            <span>{t("register.field.photo")}</span>
+
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+              onChange={handlePhotoChange}
+            />
+
+            <small>{t("register.field.photoHint")}</small>
+
+            {photoError && (
+              <small className="register-photo-error">
+                {photoError}
+              </small>
+            )}
+
+            {photoDataUrl && (
+              <span className="register-photo-preview">
+                <img
+                  src={photoDataUrl}
+                  alt={t("register.photo.alt")}
+                />
+              </span>
+            )}
+
+          </label>
+
           {error && (
             <div className="login-error" role="alert">
-              {error}
+              {tm(error)}
             </div>
           )}
 
           {createdSession && !loading && (
             <div className="register-note" role="status">
-              Your account was created — submitting again
-              only retries the document upload.
+              {t("register.note.retry")}
             </div>
           )}
 
@@ -965,11 +1057,14 @@ function RegisterPage({
             className="login-submit"
             disabled={loading}
           >
+            {loading && (
+              <span className="nm-spinner" aria-hidden="true" />
+            )}
             {loading
-              ? "Submitting registration..."
+              ? t("register.submit.submitting")
               : createdSession
-                ? "Retry document upload"
-                : "Submit lawyer registration"}
+                ? t("register.submit.retry")
+                : t("register.submit.lawyer")}
           </button>
 
           <button
@@ -977,7 +1072,7 @@ function RegisterPage({
             className="login-staff-link"
             onClick={onBack}
           >
-            Already have an account? Sign in →
+            {t("register.signInLink")}
           </button>
 
         </form>

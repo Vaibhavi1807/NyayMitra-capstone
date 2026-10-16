@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  Mic,
+  Square,
+  Sparkles,
+  Volume2,
+  Volume1,
+} from "lucide-react";
 import type { CSSProperties } from "react";
 
 import { transcribeVoice, translateText } from "../../api/translationApi";
@@ -587,7 +594,7 @@ export default function VoiceNyayMitraPage({
 
         <div className="voice-hero-content">
           <div className="voice-eyebrow">
-            <span>🎙</span>
+            <Mic size={15} aria-hidden="true" />
             NYAYMITRA VOICE ASSISTANCE
           </div>
 
@@ -668,7 +675,13 @@ export default function VoiceNyayMitraPage({
               onClick={isListening ? stopListening : startListening}
               aria-label={isListening ? "Stop listening" : "Start voice input"}
             >
-              <span>{isListening ? "■" : "🎙"}</span>
+              <span>
+              {isListening ? (
+                <Square size={20} fill="currentColor" aria-hidden="true" />
+              ) : (
+                <Mic size={22} aria-hidden="true" />
+              )}
+            </span>
             </button>
 
             <strong>{isListening ? "Listening..." : "Tap to speak"}</strong>
@@ -735,7 +748,7 @@ export default function VoiceNyayMitraPage({
             disabled={!question.trim() || busy}
             onClick={handleAsk}
           >
-            <span>✦</span>
+            <Sparkles size={14} aria-hidden="true" />
             {busy ? "Understanding what happened..." : "Tell NyayMitra"}
             <strong>→</strong>
           </button>
@@ -878,7 +891,9 @@ function TurnCard({
       {/* WHAT THE MODEL UNDERSTOOD */}
       <div className="wh-turn wh-turn-nyaymitra">
         <div className="wh-answer-head">
-          <div className="voice-response-avatar">✦</div>
+          <div className="voice-response-avatar">
+            <Sparkles size={20} aria-hidden="true" />
+          </div>
 
           <h3>What we understood</h3>
 
@@ -895,7 +910,13 @@ function TurnCard({
             }
             onClick={speaking ? onStop : onRead}
           >
-            <span>{speaking ? "🔊" : "🔈"}</span>
+            <span>
+              {speaking ? (
+                <Volume2 size={18} aria-hidden="true" />
+              ) : (
+                <Volume1 size={18} aria-hidden="true" />
+              )}
+            </span>
             {speaking
               ? "Speaking…"
               : preparing
@@ -1067,7 +1088,7 @@ function GuidanceBlock({
           onClick={speaking ? onStop : onRead}
           style={{ marginTop: 8 }}
         >
-          <span>🔊</span>
+          <Volume2 size={16} aria-hidden="true" />
           {speaking ? "Speaking…" : preparing ? "Translating…" : "Read this out"}
         </button>
 

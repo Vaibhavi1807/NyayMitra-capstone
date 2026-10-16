@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Scale, FileText } from "lucide-react";
 
 import { getCasesForUser } from "../../api/caseApi";
 import {
@@ -22,6 +23,8 @@ import {
   type SimplifyTargetLang,
 } from "../../api/translationApi";
 import LegalOrderExplainer from "../../components/LegalOrderExplainer";
+
+import { useT, type TParams } from "../../i18n/context";
 
 /* =========================================================
    COURT ORDERS
@@ -63,11 +66,12 @@ type Uploaded = UploadExplainResult & { docId: string };
 
 /* The languages the service will explain an order in — an uploaded
    PDF and a pasted text alike. English keeps two layers; the other
-   two add the third. */
-const EXPLAIN_LANGUAGES: { code: string; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "hi", label: "हिंदी (Hindi)" },
-  { code: "mr", label: "मराठी (Marathi)" },
+   two add the third. The `nameKey` values are shared with the
+   translation page, so a language is named the same way everywhere. */
+const EXPLAIN_LANGUAGES: { code: string; nameKey: string }[] = [
+  { code: "en", nameKey: "trans.lang.en" },
+  { code: "hi", nameKey: "trans.lang.hi" },
+  { code: "mr", nameKey: "trans.lang.mr" },
 ];
 
 /* Step three of the explainer is asked for separately from the
@@ -76,26 +80,30 @@ const EXPLAIN_LANGUAGES: { code: string; label: string }[] = [
    values are IndicTrans2's own language codes. */
 const SIMPLIFY_LANGUAGES: {
   code: string;
-  label: string;
+  nameKey: string;
   api: SimplifyTargetLang;
 }[] = [
-  { code: "mr", label: "मराठी (Marathi)", api: "mar_Deva" },
-  { code: "hi", label: "हिंदी (Hindi)", api: "hin_Deva" },
-  { code: "en", label: "English", api: "eng_Latn" },
+  { code: "mr", nameKey: "trans.lang.mr", api: "mar_Deva" },
+  { code: "hi", nameKey: "trans.lang.hi", api: "hin_Deva" },
+  { code: "en", nameKey: "trans.lang.en", api: "eng_Latn" },
 ];
+
+type Translate = (key: string, params?: TParams) => string;
 
 /* The three steps, labelled for whatever language is in play. Step
    three exists only when a language other than English was picked,
    and it is always the *simple* layer that was translated. */
-function layerLabels(language: string) {
-  const target =
-    EXPLAIN_LANGUAGES.find((item) => item.code === language)?.label ??
-    language;
+function layerLabels(t: Translate, language: string) {
+  const match = EXPLAIN_LANGUAGES.find(
+    (item) => item.code === language,
+  );
 
   return {
-    legal: "1 · Original legal text",
-    simple: "2 · Simple English",
-    translated: `3 · ${target}, from the simple English`,
+    legal: t("orders.layer.legal"),
+    simple: t("orders.layer.simple"),
+    translated: t("orders.layer.translated", {
+      target: match ? t(match.nameKey) : language,
+    }),
   };
 }
 
@@ -110,7 +118,9 @@ function OrderLayers({
   layers: CourtOrderLayers;
   language: string;
 }) {
-  const labels = layerLabels(language);
+  const { t } = useT();
+
+  const labels = layerLabels(t, language);
 
   /* A passage with no plain equivalent — headings, dates, a
      signature — comes back unchanged, and that is worth stating
@@ -136,8 +146,7 @@ function OrderLayers({
 
         {needsNoRewording && (
           <em className="order-layer-note">
-            No plainer wording was found for this passage, so it is
-            shown exactly as written.
+            {t("orders.layers.noRewording")}
           </em>
         )}
       </div>
@@ -177,10 +186,12 @@ function SimplifyControls({
   label: string;
   onRun: () => void;
 }) {
+  const { t } = useT();
+
   return (
     <div className="order-simplify-controls">
       <label className="order-simplify-lang">
-        <span>Step 3 in</span>
+        <span>{t("orders.simplify.step3")}</span>
 
         <select
           value={value}
@@ -189,7 +200,7 @@ function SimplifyControls({
         >
           {SIMPLIFY_LANGUAGES.map((item) => (
             <option key={item.code} value={item.code}>
-              {item.label}
+              {t(item.nameKey)}
             </option>
           ))}
         </select>
@@ -201,7 +212,7 @@ function SimplifyControls({
         disabled={busy}
         onClick={onRun}
       >
-        {running ? "Working out the three layers…" : label}
+        {running ? t("orders.simplify.running") : label}
       </button>
     </div>
   );
@@ -252,6 +263,8 @@ export default function CourtOrdersPage({
   userId,
   onBack,
 }: CourtOrdersPageProps) {
+  const { t, tm } = useT();
+
   const cases = getCasesForUser(userId);
 
   /* Bumped after every write so the grouped lists below re-read the
@@ -361,8 +374,8 @@ export default function CourtOrdersPage({
         docId: document.id,
         message:
           err instanceof Error
-            ? err.message
-            : "The order could not be explained.",
+            ? tm(err.message)
+            : t("orders.err.explain"),
       });
       setNeedsTextDoc(document.id);
     } finally {
@@ -395,8 +408,8 @@ export default function CourtOrdersPage({
         docId: document.id,
         message:
           err instanceof Error
-            ? err.message
-            : "The order could not be explained.",
+            ? tm(err.message)
+            : t("orders.err.explain"),
       });
     } finally {
       setWorkingDoc(null);
@@ -419,7 +432,7 @@ export default function CourtOrdersPage({
     );
 
     if (!target) {
-      setSimplifyError("Unsupported language selected.");
+      setSimplifyError(t("orders.err.lang"));
       return;
     }
 
@@ -446,8 +459,8 @@ export default function CourtOrdersPage({
     } catch (err) {
       setSimplifyError(
         err instanceof Error && err.message
-          ? err.message
-          : "The text could not be simplified and translated.",
+          ? tm(err.message)
+          : t("orders.err.simplify"),
       );
     } finally {
       setSimplifyBusy(null);
@@ -486,7 +499,7 @@ export default function CourtOrdersPage({
       await runExplanation(document, file);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "The order was not filed.",
+        err instanceof Error ? tm(err.message) : t("orders.err.file"),
       );
     } finally {
       setUploading(false);
@@ -502,52 +515,47 @@ export default function CourtOrdersPage({
           className="page-back-button"
           onClick={onBack}
         >
-          ← Back to Dashboard
+          {t("orders.backToDashboard")}
         </button>
       </div>
 
       {/* HERO */}
       <section className="court-orders-hero">
-        <div className="hero-badge">⚖ NYAYMITRA COURT SERVICES</div>
+        <div className="hero-badge">
+          <Scale size={13} aria-hidden="true" />
+          {t("orders.hero.badge")}
+        </div>
 
         <h1>
-          Find and understand
+          {t("orders.hero.title1")}
           <br />
-          <span>your court orders</span>
+          <span>{t("orders.hero.titleAccent")}</span>
         </h1>
 
-        <p>
-          Upload an order against the case it belongs to, and NyayMitra will
-          read it back to you in plain language — grouped by the matter, the
-          way your advocate would file them.
-        </p>
+        <p>{t("orders.hero.copy")}</p>
       </section>
 
       {/* MAIN CONTENT */}
       <section className="order-content">
         {/* UPLOAD */}
         <form className="upload-card" onSubmit={handleUpload}>
-          <div className="upload-icon">📄</div>
+          <div className="upload-icon">
+            <FileText size={24} aria-hidden="true" />
+          </div>
 
           <div className="upload-text">
-            <h2>Explain a Court Order</h2>
+            <h2>{t("orders.upload.heading")}</h2>
 
-            <p>
-              Choose the case this order belongs to, then the file — a
-              PDF or an image. It is saved to that case and explained
-              in three steps: the order exactly as written, the same
-              words in simple English, and that plain English in
-              Hindi or Marathi — whichever language is picked below.
-            </p>
+            <p>{t("orders.upload.desc")}</p>
 
             <div className="upload-fields">
               <select
                 value={targetCnr}
                 onChange={(event) => setTargetCnr(event.target.value)}
-                aria-label="Case this order belongs to"
+                aria-label={t("orders.upload.caseAria")}
               >
                 {cases.length === 0 && (
-                  <option value="">No saved cases</option>
+                  <option value="">{t("orders.upload.noCases")}</option>
                 )}
 
                 {cases.map((caseData) => (
@@ -563,18 +571,18 @@ export default function CourtOrdersPage({
               <select
                 value={language}
                 onChange={(event) => setLanguage(event.target.value)}
-                aria-label="Language for the explanation"
+                aria-label={t("orders.upload.langAria")}
                 className="explain-language"
               >
                 {EXPLAIN_LANGUAGES.map((item) => (
                   <option key={item.code} value={item.code}>
-                    {item.label}
+                    {t(item.nameKey)}
                   </option>
                 ))}
               </select>
 
               <label className="upload-button">
-                {pendingFile ? pendingFile.name : "Choose file"}
+                {pendingFile ? pendingFile.name : t("orders.upload.chooseFile")}
 
                 <input
                   type="file"
@@ -591,7 +599,9 @@ export default function CourtOrdersPage({
                 className="upload-submit"
                 disabled={!pendingFile || !targetCnr || uploading}
               >
-                {uploading ? "Reading…" : "Upload and explain"}
+                {uploading
+                  ? t("orders.upload.reading")
+                  : t("orders.upload.submit")}
               </button>
             </div>
 
@@ -606,9 +616,9 @@ export default function CourtOrdersPage({
         {/* HEADING */}
         <div className="orders-heading">
           <div>
-            <span className="section-label">YOUR DOCUMENTS</span>
+            <span className="section-label">{t("orders.list.label")}</span>
 
-            <h2>Court orders by case</h2>
+            <h2>{t("orders.list.heading")}</h2>
           </div>
 
           <div className="order-count">
@@ -622,22 +632,18 @@ export default function CourtOrdersPage({
                 0,
               )
             }{" "}
-            Orders
+            {t("orders.list.unit")}
           </div>
         </div>
 
         {/* GROUPED BY CASE */}
         {cases.length === 0 ? (
           <div className="empty-orders">
-            <div>⚖</div>
+            <div><Scale size={26} aria-hidden="true" /></div>
 
-            <h3>No saved cases on this account</h3>
+            <h3>{t("orders.empty.heading")}</h3>
 
-            <p>
-              Court orders are issued against a case. Search a CNR in
-              My Cases, save the case, and its orders will be listed
-              here.
-            </p>
+            <p>{t("orders.empty.copy")}</p>
           </div>
         ) : (
           <div className="orders-by-case">
@@ -660,20 +666,24 @@ export default function CourtOrdersPage({
                       <h3>{caseData.case_type}</h3>
 
                       <p>
-                        {caseData.court_name} · Next hearing{" "}
-                        {formatDate(caseData.next_hearing_date)}
+                        {caseData.court_name} ·{" "}
+                        {t("orders.case.nextHearing", {
+                          date: formatDate(caseData.next_hearing_date),
+                        })}
                       </p>
                     </div>
 
                     <span className="orders-case-count">
                       {orders.length}{" "}
-                      {orders.length === 1 ? "order" : "orders"}
+                      {orders.length === 1
+                        ? t("orders.case.countOne")
+                        : t("orders.case.countMany")}
                     </span>
                   </header>
 
                   {orders.length === 0 ? (
                     <div className="orders-empty-row">
-                      No court orders uploaded for this case yet.
+                      {t("orders.case.empty")}
                     </div>
                   ) : (
                     <div className="orders-grid">
@@ -691,15 +701,19 @@ export default function CourtOrdersPage({
                             key={document.id}
                           >
                             <div className="order-card-top">
-                              <div className="document-icon">📄</div>
+                              <div className="document-icon">
+                                <FileText size={20} aria-hidden="true" />
+                              </div>
 
                               <div className="available-badge">
                                 {document.dataUrl
-                                  ? "Available"
-                                  : "Record only"}
+                                  ? t("orders.card.available")
+                                  : t("orders.card.recordOnly")}
                               </div>
                             </div>
 
+                            {/* The category is the stored value the list is
+                                filtered by, so it stays as filed. */}
                             <div className="order-type">
                               {document.category}
                             </div>
@@ -710,14 +724,14 @@ export default function CourtOrdersPage({
 
                             <div className="order-details">
                               <div>
-                                <span>Size</span>
+                                <span>{t("orders.card.size")}</span>
                                 <strong>
                                   {formatBytes(document.size)}
                                 </strong>
                               </div>
 
                               <div>
-                                <span>Uploaded</span>
+                                <span>{t("orders.card.uploaded")}</span>
                                 <strong>
                                   {formatDate(
                                     document.uploadedAt.slice(0, 10),
@@ -734,8 +748,8 @@ export default function CourtOrdersPage({
                             >
                               <span>
                                 {busy
-                                  ? "Reading the order…"
-                                  : "Explain this order"}
+                                  ? t("orders.card.reading")
+                                  : t("orders.card.explain")}
                               </span>
 
                               <span>→</span>
@@ -763,14 +777,14 @@ export default function CourtOrdersPage({
                                 }
                               }}
                             >
-                              Remove from this case
+                              {t("orders.card.remove")}
                             </button>
 
                             {/* ---- refusal, on this card ---- */}
 
                             {cardError?.docId === document.id && !busy && (
                               <p className="order-card-error" role="alert">
-                                {cardError.message}
+                                {tm(cardError.message)}
                               </p>
                             )}
 
@@ -779,12 +793,7 @@ export default function CourtOrdersPage({
                             {openPaste && !busy && (
                               <div className="explain-panel">
                                 <div className="explain-note">
-                                  The file was not read, so there is
-                                  nothing to summarise from it yet.
-                                  Paste the text of the order below and
-                                  it will be shown in three steps: as
-                                  written, in simple English, and in the
-                                  language picked above.
+                                  {t("orders.paste.note")}
                                 </div>
 
                                 <textarea
@@ -793,7 +802,7 @@ export default function CourtOrdersPage({
                                   onChange={(event) =>
                                     setPaste(event.target.value)
                                   }
-                                  placeholder="Paste the text of the court order…"
+                                  placeholder={t("orders.paste.placeholder")}
                                 />
 
                                 <button
@@ -804,7 +813,7 @@ export default function CourtOrdersPage({
                                     void submitPastedText(document)
                                   }
                                 >
-                                  Explain in simple words
+                                  {t("orders.paste.submit")}
                                 </button>
                               </div>
                             )}
@@ -831,47 +840,51 @@ export default function CourtOrdersPage({
 
                                 <div className="order-badges">
                                   <span className="order-badge">
-                                    📄 {uploaded.filename}
+                                    <FileText size={12} aria-hidden="true" />
+                                    {uploaded.filename}
                                   </span>
 
                                   <span className="order-badge">
                                     {uploaded.metadata.page_count}{" "}
                                     {uploaded.metadata.page_count === 1
-                                      ? "page"
-                                      : "pages"}
+                                      ? t("orders.badge.page")
+                                      : t("orders.badge.pages")}
                                   </span>
 
                                   {uploaded.metadata.ocr_used && (
                                     <span className="order-badge order-badge-accent">
-                                      Text read by OCR
+                                      {t("orders.badge.ocr")}
                                     </span>
                                   )}
 
                                   <span className="order-badge">
-                                    Security scan:{" "}
-                                    {uploaded.metadata.security_scan.status}
+                                    {t("orders.badge.scan", {
+                                      status:
+                                        uploaded.metadata.security_scan.status,
+                                    })}
                                   </span>
 
                                   {uploaded.translation?.applied && (
                                     <span className="order-badge order-badge-accent">
-                                      Explained in{" "}
-                                      {EXPLAIN_LANGUAGES.find(
-                                        (item) =>
-                                          item.code ===
-                                          uploaded.language,
-                                      )?.label ?? uploaded.language}
+                                      {t("orders.badge.explainedIn", {
+                                        label: (() => {
+                                          const match = EXPLAIN_LANGUAGES.find(
+                                            (item) =>
+                                              item.code === uploaded.language,
+                                          );
+                                          return match
+                                            ? t(match.nameKey)
+                                            : uploaded.language;
+                                        })(),
+                                      })}
                                     </span>
                                   )}
                                 </div>
 
                                 <div className="order-simplify-bar">
                                   <div className="order-simplify-intro">
-                                    <strong>Understand this order</strong>
-                                    <span>
-                                      Original wording → simple English →
-                                      that plain English in the language
-                                      picked below.
-                                    </span>
+                                    <strong>{t("orders.simplify.title")}</strong>
+                                    <span>{t("orders.simplify.intro")}</span>
                                   </div>
 
                                   <SimplifyControls
@@ -881,10 +894,10 @@ export default function CourtOrdersPage({
                                     running={simplifyBusy === "document"}
                                     label={
                                       simplifyBusy === "document"
-                                        ? "Working…"
+                                        ? t("orders.simplify.working")
                                         : docSimplify
-                                          ? "Run again"
-                                          : "Understand this order"
+                                          ? t("orders.simplify.again")
+                                          : t("orders.simplify.title")
                                     }
                                     onRun={() =>
                                       void runSimplify(
@@ -922,14 +935,14 @@ export default function CourtOrdersPage({
 
                                         {!section.available && (
                                           <span className="order-section-missing">
-                                            Not in this document
+                                            {t("orders.section.missing")}
                                           </span>
                                         )}
                                       </header>
 
                                       {!section.available ? (
                                         <p className="order-section-absent">
-                                          Not available in the document.
+                                          {t("orders.section.absent")}
                                         </p>
                                       ) : section.layers?.legal ? (
                                         <OrderLayers
@@ -1002,12 +1015,14 @@ export default function CourtOrdersPage({
                                             label={
                                               simplifyBusy ===
                                               section.section_id
-                                                ? "Working…"
+                                                ? t("orders.simplify.working")
                                                 : sectionSimplify[
                                                       section.section_id
                                                     ]
-                                                  ? "Run again"
-                                                  : "Simplify & Translate"
+                                                  ? t("orders.simplify.again")
+                                                  : t(
+                                                      "orders.simplify.sectionLabel",
+                                                    )
                                             }
                                             onRun={() =>
                                               void runSimplify(
@@ -1037,7 +1052,7 @@ export default function CourtOrdersPage({
 
                                 {uploaded.terms.length > 0 && (
                                   <div className="explain-terms">
-                                    <span>Words used, in plain terms</span>
+                                    <span>{t("orders.terms.label")}</span>
 
                                     <dl>
                                       {uploaded.terms.map((term) => (
@@ -1059,7 +1074,7 @@ export default function CourtOrdersPage({
                                   className="explain-clear"
                                   onClick={() => setUploaded(null)}
                                 >
-                                  Close explanation
+                                  {t("orders.close")}
                                 </button>
                               </div>
                             )}
@@ -1081,12 +1096,8 @@ export default function CourtOrdersPage({
 
                                 <div className="order-simplify-bar">
                                   <div className="order-simplify-intro">
-                                    <strong>Understand this order</strong>
-                                    <span>
-                                      Original wording → simple English →
-                                      that plain English in the language
-                                      picked below.
-                                    </span>
+                                    <strong>{t("orders.simplify.title")}</strong>
+                                    <span>{t("orders.simplify.intro")}</span>
                                   </div>
 
                                   <SimplifyControls
@@ -1096,10 +1107,10 @@ export default function CourtOrdersPage({
                                     running={simplifyBusy === "document"}
                                     label={
                                       simplifyBusy === "document"
-                                        ? "Working…"
+                                        ? t("orders.simplify.working")
                                         : docSimplify
-                                          ? "Run again"
-                                          : "Understand this order"
+                                          ? t("orders.simplify.again")
+                                          : t("orders.simplify.title")
                                     }
                                     onRun={() =>
                                       void runSimplify(
@@ -1137,7 +1148,7 @@ export default function CourtOrdersPage({
 
                                 {explained.key_dates.length > 0 && (
                                   <div className="explain-dates">
-                                    <span>Dates in this order</span>
+                                    <span>{t("orders.dates.label")}</span>
 
                                     <div>
                                       {explained.key_dates.map((date) => (
@@ -1149,7 +1160,7 @@ export default function CourtOrdersPage({
 
                                 {explained.terms.length > 0 && (
                                   <div className="explain-terms">
-                                    <span>Words used, in plain terms</span>
+                                    <span>{t("orders.terms.label")}</span>
 
                                     <dl>
                                       {explained.terms.map((term) => (
@@ -1171,7 +1182,7 @@ export default function CourtOrdersPage({
                                   className="explain-clear"
                                   onClick={() => setExplained(null)}
                                 >
-                                  Close explanation
+                                  {t("orders.close")}
                                 </button>
                               </div>
                             )}

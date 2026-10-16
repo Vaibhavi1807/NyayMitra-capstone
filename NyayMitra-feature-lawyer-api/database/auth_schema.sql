@@ -166,3 +166,47 @@ CREATE TABLE IF NOT EXISTS lawyer_documents (
     sha256             CHAR(64)     NOT NULL,
     uploaded_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ---------------------------------------------------------
+-- saved_cases — server-side My Cases (one citizen's shortlist).
+--
+-- WHY THIS EXISTS ALONGSIDE THE BROWSER STORE
+-- frontend/src/api/caseApi.ts keeps `nyaymitra.cases.added.v1` in
+-- localStorage so the screens render on the first pass with no
+-- request to wait for. That copy belongs to one browser and cannot
+-- survive a new machine or a cleared profile. This table is the
+-- same shortlist held by the server, so it can be read back after
+-- a refresh, a restart or a reinstall. The browser rows are NOT
+-- migrated here: until the frontend reads this endpoint, existing
+-- saved cases stay exactly where they are.
+--
+-- WHAT IS STORED
+-- Only the CNR and who saved it — never a copy of the case. The
+-- case record itself lives in the provider's dataset and is the
+-- single source of truth, so a corrected hearing date or a renamed
+-- party is picked up on the next read instead of being frozen into
+-- a stale duplicate. list endpoints join the record at read time.
+--
+-- OWNERSHIP
+-- user_id is written from the server-side session (see
+-- auth/security.py: get_current_user), never from the request
+-- body. There is no column through which one account could name
+-- another.
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS saved_cases (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL
+                REFERENCES users (id) ON DELETE CASCADE,
+    cnr_number  CHAR(16) NOT NULL,
+    saved_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Duplicate-save protection is structural, not just a code check:
+-- a second save of the same CNR by the same account can never
+-- insert. ON CONFLICT target of this unique pair is what the
+-- write path relies on.
+CREATE UNIQUE INDEX IF NOT EXISTS saved_cases_user_cnr_unique
+    ON saved_cases (user_id, cnr_number);
+
+CREATE INDEX IF NOT EXISTS saved_cases_user_idx
+    ON saved_cases (user_id);

@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  Scale,
+  Check,
+  Languages,
+  ArrowRight,
+} from "lucide-react";
 
 import {
   simplifyAndTranslate,
@@ -9,30 +15,33 @@ import {
 import LegalOrderExplainer from "../../components/LegalOrderExplainer";
 import ServiceStatus from "../../components/ServiceStatus";
 
+import { useT } from "../../i18n/context";
+
 type TranslationPageProps = {
   onBack: () => void;
 };
 
 type Language = {
   code: "en" | "hi" | "mr";
-  name: string;
+  /** Dictionary key for the language name shown in the dropdowns. */
+  nameKey: string;
   apiCode: "eng_Latn" | "hin_Deva" | "mar_Deva";
 };
 
 const languages: Language[] = [
   {
     code: "en",
-    name: "English",
+    nameKey: "trans.lang.en",
     apiCode: "eng_Latn",
   },
   {
     code: "hi",
-    name: "Hindi",
+    nameKey: "trans.lang.hi",
     apiCode: "hin_Deva",
   },
   {
     code: "mr",
-    name: "Marathi",
+    nameKey: "trans.lang.mr",
     apiCode: "mar_Deva",
   },
 ];
@@ -56,33 +65,38 @@ const languages: Language[] = [
 type Mode = "direct" | "simplify";
 
 const SIMPLIFY_TARGETS: Language[] = [
-  { code: "mr", name: "मराठी (Marathi)", apiCode: "mar_Deva" },
-  { code: "hi", name: "हिंदी (Hindi)", apiCode: "hin_Deva" },
-  { code: "en", name: "English", apiCode: "eng_Latn" },
+  { code: "mr", nameKey: "trans.lang.mr", apiCode: "mar_Deva" },
+  { code: "hi", nameKey: "trans.lang.hi", apiCode: "hin_Deva" },
+  { code: "en", nameKey: "trans.lang.en", apiCode: "eng_Latn" },
 ];
 
 /* The four development cases. Written out here rather than fetched,
    and labelled as such wherever they are shown: they exercise the
-   pipeline, they are not orders from any real case. */
-const DEMO_LINES: { label: string; note: string; text: string }[] = [
+   pipeline, they are not orders from any real case.
+
+   `label` and `note` are read by the visitor, so they are translated.
+   `text` deliberately is NOT: it is what lands in the source box and is
+   sent to the service, which expects legal English. Translating it would
+   feed Marathi into an English-input pipeline, so it stays as written. */
+const DEMO_LINES: { labelKey: string; noteKey: string; text: string }[] = [
   {
-    label: "Adjourned",
-    note: "hearing put off",
+    labelKey: "trans.demo.line1.label",
+    noteKey: "trans.demo.line1.note",
     text: "The matter is adjourned.",
   },
   {
-    label: "Reply directed",
-    note: "petitioner told to file",
+    labelKey: "trans.demo.line2.label",
+    noteKey: "trans.demo.line2.note",
     text: "The petitioner is directed to file the reply.",
   },
   {
-    label: "Disposed of",
-    note: "application finished",
+    labelKey: "trans.demo.line3.label",
+    noteKey: "trans.demo.line3.note",
     text: "The application stands disposed of.",
   },
   {
-    label: "Listed for hearing",
-    note: "date fixed",
+    labelKey: "trans.demo.line4.label",
+    noteKey: "trans.demo.line4.note",
     text: "The matter is listed for hearing on 15.10.2026.",
   },
 ];
@@ -90,6 +104,8 @@ const DEMO_LINES: { label: string; note: string; text: string }[] = [
 export default function TranslationPage({
   onBack,
 }: TranslationPageProps) {
+  const { t, tm } = useT();
+
   const [sourceLanguage, setSourceLanguage] =
     useState<"en" | "hi" | "mr">("en");
 
@@ -139,7 +155,7 @@ export default function TranslationPage({
     );
 
     if (!target) {
-      setError("Unsupported language selected.");
+      setError(t("orders.err.lang"));
       return;
     }
 
@@ -160,8 +176,8 @@ export default function TranslationPage({
 
       setError(
         caught instanceof Error && caught.message
-          ? caught.message
-          : "Unable to simplify and translate. Please make sure the NyayMitra translation service is running."
+          ? tm(caught.message)
+          : t("trans.err.simplify")
       );
     } finally {
       setLoading(false);
@@ -191,7 +207,7 @@ export default function TranslationPage({
     );
 
     if (!source || !target) {
-      setError("Unsupported language selected.");
+      setError(t("orders.err.lang"));
       setLoading(false);
       return;
     }
@@ -215,8 +231,8 @@ export default function TranslationPage({
 
       setError(
         error instanceof Error && error.message
-          ? error.message
-          : "Unable to translate. Please make sure the NyayMitra translation service is running."
+          ? tm(error.message)
+          : t("trans.err.translate")
       );
     } finally {
       setLoading(false);
@@ -275,21 +291,27 @@ export default function TranslationPage({
   };
 
   const sourceName =
-    languages.find(
-      (language) =>
-        language.code === sourceLanguage
-    )?.name || "English";
+    t(
+      languages.find(
+        (language) =>
+          language.code === sourceLanguage
+      )?.nameKey || "trans.lang.en"
+    );
 
   const targetName =
-    languages.find(
-      (language) =>
-        language.code === targetLanguage
-    )?.name || "Marathi";
+    t(
+      languages.find(
+        (language) =>
+          language.code === targetLanguage
+      )?.nameKey || "trans.lang.mr"
+    );
 
   const simplifyTargetName =
-    SIMPLIFY_TARGETS.find(
-      (language) => language.code === simplifyTarget
-    )?.name || "Marathi";
+    t(
+      SIMPLIFY_TARGETS.find(
+        (language) => language.code === simplifyTarget
+      )?.nameKey || "trans.lang.mr"
+    );
 
   return (
     <main className="translation-page">
@@ -301,7 +323,7 @@ export default function TranslationPage({
           className="page-back-button"
           onClick={onBack}
         >
-          ← Back to Dashboard
+          {t("trans.backToDashboard")}
         </button>
       </div>
 
@@ -312,26 +334,23 @@ export default function TranslationPage({
 
         <div className="translation-hero-content">
 
-          <div className="translation-eyebrow">
-            <span>文</span>
-            NYAYMITRA LANGUAGE ASSISTANCE
+          <div className="translation-hero-badge">
+            <Languages aria-hidden="true" size={16} />
+            {t("trans.hero.badge")}
           </div>
 
           <h1>
-            Understand the law
+            {t("trans.hero.title1")}
             <br />
-            <span>in your language</span>
+            <span>{t("trans.hero.titleAccent")}</span>
           </h1>
 
-          <p>
-            Translate difficult legal language into
-            Hindi or Marathi for clearer understanding.
-          </p>
+          <p>{t("trans.hero.copy")}</p>
 
-          <div className="translation-hero-pills">
-            <span>Hindi</span>
-            <span>Marathi</span>
-            <span>Legal Text</span>
+          <div className="translation-language-pills">
+            <span>{t("trans.pill.hindi")}</span>
+            <span>{t("trans.pill.marathi")}</span>
+            <span>{t("trans.pill.legal")}</span>
           </div>
 
         </div>
@@ -357,7 +376,7 @@ export default function TranslationPage({
             }
             onClick={() => switchMode("direct")}
           >
-            Direct Translation
+            {t("trans.mode.direct")}
           </button>
 
           <button
@@ -371,7 +390,7 @@ export default function TranslationPage({
             }
             onClick={() => switchMode("simplify")}
           >
-            Legal Simplification
+            {t("trans.mode.simplify")}
           </button>
         </div>
 
@@ -383,7 +402,7 @@ export default function TranslationPage({
                no source to choose — only where step three lands. */
             <div className="translation-language-side">
               <span className="translation-small-label">
-                STEP 3 IN
+                {t("trans.step3")}
               </span>
 
               <select
@@ -402,7 +421,7 @@ export default function TranslationPage({
                     key={language.code}
                     value={language.code}
                   >
-                    {language.name}
+                    {t(language.nameKey)}
                   </option>
                 ))}
               </select>
@@ -412,7 +431,7 @@ export default function TranslationPage({
               <div className="translation-language-side">
 
                 <span className="translation-small-label">
-                  SOURCE LANGUAGE
+                  {t("trans.sourceLabel")}
                 </span>
 
                 <select
@@ -443,7 +462,7 @@ export default function TranslationPage({
                       key={language.code}
                       value={language.code}
                     >
-                      {language.name}
+                      {t(language.nameKey)}
                     </option>
                   ))}
                 </select>
@@ -457,10 +476,10 @@ export default function TranslationPage({
                 disabled={!canSwap}
                 title={
                   canSwap
-                    ? "Swap languages"
-                    : "English can only be the source language — this service translates into Hindi or Marathi."
+                    ? t("trans.swap.title")
+                    : t("trans.swap.disabled")
                 }
-                aria-label="Swap languages"
+                aria-label={t("trans.swap.title")}
               >
                 ⇄
               </button>
@@ -468,7 +487,7 @@ export default function TranslationPage({
               <div className="translation-language-side">
 
                 <span className="translation-small-label">
-                  TRANSLATE TO
+                  {t("trans.targetLabel")}
                 </span>
 
                 <select
@@ -496,7 +515,7 @@ export default function TranslationPage({
                         key={language.code}
                         value={language.code}
                       >
-                        {language.name}
+                        {t(language.nameKey)}
                       </option>
                     ))}
                 </select>
@@ -517,7 +536,7 @@ export default function TranslationPage({
 
               <div>
                 <span className="translation-editor-label">
-                  YOUR LEGAL TEXT
+                  {t("trans.editor.sourceLabel")}
                 </span>
 
                 <strong>
@@ -533,7 +552,7 @@ export default function TranslationPage({
                     setText("")
                   }
                 >
-                  Clear
+                  {t("trans.editor.clear")}
                 </button>
               )}
 
@@ -544,17 +563,17 @@ export default function TranslationPage({
               onChange={(event) =>
                 setText(event.target.value)
               }
-              placeholder="Paste your court order, notice, judgment or legal text here..."
+              placeholder={t("trans.editor.placeholder")}
             />
 
             <div className="translation-editor-footer">
 
               <span>
-                {text.length} characters
+                {t("trans.editor.chars", { n: text.length })}
               </span>
 
               <span>
-                Legal document translation
+                {t("trans.editor.footer")}
               </span>
 
             </div>
@@ -569,8 +588,8 @@ export default function TranslationPage({
               <div>
                 <span className="translation-editor-label">
                   {mode === "simplify"
-                    ? "ORIGINAL · SIMPLE · TRANSLATED"
-                    : "TRANSLATED TEXT"}
+                    ? t("trans.output.labelSimplify")
+                    : t("trans.output.labelDirect")}
                 </span>
 
                 <strong>
@@ -586,9 +605,14 @@ export default function TranslationPage({
                   className="translation-text-action"
                   onClick={handleCopy}
                 >
-                  {copied
-                    ? "Copied ✓"
-                    : "Copy"}
+                  {copied ? (
+                    <>
+                      <Check size={13} aria-hidden="true" />
+                      {t("trans.output.copied")}
+                    </>
+                  ) : (
+                    t("trans.output.copy")
+                  )}
                 </button>
               )}
 
@@ -610,14 +634,11 @@ export default function TranslationPage({
 
                   <span>
                     {mode === "simplify"
-                      ? "Simplifying and translating..."
-                      : "Translating..."}
+                      ? t("trans.busy.simplifying")
+                      : t("trans.busy.translating")}
                   </span>
 
-                  <small>
-                    Please wait while NyayMitra
-                    processes the legal text.
-                  </small>
+                  <small>{t("trans.busy.pleaseWait")}</small>
                 </>
               ) : mode === "simplify" ? (
                 simplifyResult ? (
@@ -627,16 +648,15 @@ export default function TranslationPage({
                 ) : (
                   <>
                     <span className="translation-output-icon">
-                      文
+                      <Languages aria-hidden="true" />
                     </span>
 
                     <span>
-                      Your three layers will appear here
+                      {t("trans.output.emptySimplify")}
                     </span>
 
                     <small>
-                      Enter legal text on the left and
-                      click “Simplify &amp; Translate”.
+                      {t("trans.output.emptySimplifyHint")}
                     </small>
                   </>
                 )
@@ -645,16 +665,15 @@ export default function TranslationPage({
               ) : (
                 <>
                   <span className="translation-output-icon">
-                    文
+                    <Languages aria-hidden="true" />
                   </span>
 
                   <span>
-                    Your translation will appear here
+                    {t("trans.output.emptyDirect")}
                   </span>
 
                   <small>
-                    Enter legal text on the left
-                    and click “Translate Text”.
+                    {t("trans.output.emptyDirectHint")}
                   </small>
                 </>
               )}
@@ -664,14 +683,16 @@ export default function TranslationPage({
             <div className="translation-editor-footer">
 
               <span>
-                {(mode === "simplify"
-                  ? simplifyResult?.translated_text ?? ""
-                  : translatedText
-                ).length} characters
+                {t("trans.editor.chars", {
+                  n: (mode === "simplify"
+                    ? simplifyResult?.translated_text ?? ""
+                    : translatedText
+                  ).length,
+                })}
               </span>
 
               <span>
-                NyayMitra language assistance
+                {t("trans.output.footer")}
               </span>
 
             </div>
@@ -705,17 +726,17 @@ export default function TranslationPage({
               !text.trim() || loading
             }
           >
-            <span>文</span>
+            <Languages aria-hidden="true" size={18} />
 
             {loading
               ? mode === "simplify"
-                ? "Working..."
-                : "Translating..."
+                ? t("trans.busy.working")
+                : t("trans.busy.translating")
               : mode === "simplify"
-                ? "Simplify & Translate"
-                : "Translate Text"}
+                ? t("orders.simplify.sectionLabel")
+                : t("trans.action.translate")}
 
-            <strong>→</strong>
+            <ArrowRight aria-hidden="true" size={18} />
           </button>
 
           <button
@@ -723,7 +744,7 @@ export default function TranslationPage({
             className="translation-secondary-button"
             onClick={handleClear}
           >
-            Start Again
+            {t("trans.action.again")}
           </button>
 
         </div>
@@ -736,19 +757,14 @@ export default function TranslationPage({
 
               <div>
                 <span className="section-label">
-                  DEMO EXAMPLES · NOT REAL ORDERS
+                  {t("trans.demo.label")}
                 </span>
 
-                <h2>
-                  Four lines written for development
-                </h2>
+                <h2>{t("trans.demo.heading")}</h2>
               </div>
 
               <p className="translation-demo-note">
-                These are sample sentences invented to test
-                the simplification pipeline. They are not
-                excerpts from any real case, and no real
-                party, date or order is represented by them.
+                {t("trans.demo.note")}
               </p>
 
             </div>
@@ -757,15 +773,17 @@ export default function TranslationPage({
               {DEMO_LINES.map((line) => (
                 <button
                   type="button"
-                  key={line.label}
+                  key={line.labelKey}
                   onClick={() => {
                     setText(line.text);
                     setSimplifyResult(null);
                     setError("");
                   }}
                 >
-                  <strong>{line.label}</strong>
-                  <small>{line.note}</small>
+                  <strong>{t(line.labelKey)}</strong>
+                  <small>{t(line.noteKey)}</small>
+                  {/* The sample itself stays in English: it is what gets
+                      pasted into the source box and sent to the service. */}
                   <code>{line.text}</code>
                 </button>
               ))}
@@ -781,12 +799,10 @@ export default function TranslationPage({
 
             <div>
               <span className="section-label">
-                QUICK START
+                {t("trans.quick.label")}
               </span>
 
-              <h2>
-                What can you translate?
-              </h2>
+              <h2>{t("trans.quick.heading")}</h2>
             </div>
 
           </div>
@@ -801,17 +817,12 @@ export default function TranslationPage({
                 )
               }
             >
-              <span>⚖</span>
+              <Scale size={16} aria-hidden="true" />
 
               <div>
-                <strong>
-                  Court Orders
-                </strong>
+                <strong>{t("trans.example.orders.title")}</strong>
 
-                <small>
-                  Understand directions issued by
-                  the court
-                </small>
+                <small>{t("trans.example.orders.desc")}</small>
               </div>
 
               <b>→</b>
@@ -828,14 +839,9 @@ export default function TranslationPage({
               <span>▤</span>
 
               <div>
-                <strong>
-                  Legal Notices
-                </strong>
+                <strong>{t("trans.example.notices.title")}</strong>
 
-                <small>
-                  Translate formal legal
-                  communication
-                </small>
+                <small>{t("trans.example.notices.desc")}</small>
               </div>
 
               <b>→</b>
@@ -852,14 +858,9 @@ export default function TranslationPage({
               <span>◷</span>
 
               <div>
-                <strong>
-                  Case Updates
-                </strong>
+                <strong>{t("trans.example.updates.title")}</strong>
 
-                <small>
-                  Understand important case
-                  information
-                </small>
+                <small>{t("trans.example.updates.desc")}</small>
               </div>
 
               <b>→</b>
@@ -875,12 +876,8 @@ export default function TranslationPage({
           <span>ⓘ</span>
 
           <p>
-            <strong>Important:</strong>{" "}
-            Translation is intended to improve
-            understanding of legal information.
-            The translated text should not be treated
-            as a replacement for the original legal
-            document.
+            <strong>{t("trans.note.important")}</strong>{" "}
+            {t("trans.note.copy")}
           </p>
 
         </div>

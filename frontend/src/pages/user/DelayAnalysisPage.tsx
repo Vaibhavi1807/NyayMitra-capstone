@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Settings } from "lucide-react";
 
 import OngoingCases from "../../components/OngoingCases";
 import { getCasesForUser, getOngoingCasesForUser } from "../../api/caseApi";
@@ -474,7 +475,7 @@ export default function DelayAnalysisPage({
 
             {/* MODEL STATUS */}
             <div className="delay-model-note">
-              <span aria-hidden="true">⚙</span>
+              <span aria-hidden="true"><Settings size={16} /></span>
 
               <div>
                 <strong>How this estimate is produced</strong>

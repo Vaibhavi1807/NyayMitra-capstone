@@ -15,8 +15,8 @@
   gap: 12px;
 
   padding: 16px;
-  background: #fbfbff;
-  border: 1px solid #e4e6f4;
+  background: var(--nm-surface-2);
+  border: 1px solid var(--nm-border);
   border-radius: 16px;
 }
 
@@ -29,7 +29,7 @@
 }
 
 .legal-explainer-title {
-  color: #2a3145;
+  color: var(--nm-text);
   font-size: 12.5px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -39,9 +39,9 @@
 .legal-explainer-target {
   padding: 4px 9px;
 
-  color: #4338ca;
-  background: #eef0ff;
-  border: 1px solid #d9dcff;
+  color: var(--nm-primary-deep);
+  background: var(--nm-primary-soft);
+  border: 1px solid var(--nm-border);
   border-radius: 999px;
 
   font-size: 11px;
@@ -54,9 +54,9 @@
   margin: 0;
   padding: 11px 13px 11px 30px;
 
-  color: #8a5300;
-  background: #fff8e8;
-  border: 1px solid #f6e2b6;
+  color: var(--nm-warn);
+  background: var(--nm-warn-bg);
+  border: 1px solid var(--nm-warn-border);
   border-radius: 12px;
 
   font-size: 12.5px;
@@ -73,7 +73,7 @@
   display: block;
   margin-bottom: 7px;
 
-  color: #6b7183;
+  color: var(--nm-text-mute);
   font-size: 10.5px;
   font-weight: 750;
   letter-spacing: 0.05em;
@@ -93,9 +93,9 @@
 .legal-explainer-terms li {
   padding: 4px 9px;
 
-  color: #1c7a4b;
-  background: #e8f6ee;
-  border: 1px solid #c9e9d6;
+  color: var(--nm-success);
+  background: var(--nm-success-bg);
+  border: 1px solid var(--nm-success-border);
   border-radius: 999px;
 
   font-size: 11.5px;
@@ -113,9 +113,9 @@
 .legal-explainer-actions button {
   padding: 9px 15px;
 
-  color: #4338ca;
-  background: #fff;
-  border: 1px solid #d9dcff;
+  color: var(--nm-primary-deep);
+  background: var(--nm-surface);
+  border: 1px solid var(--nm-border);
   border-radius: 10px;
 
   font-size: 12.5px;
@@ -124,7 +124,7 @@
 }
 
 .legal-explainer-actions button:hover:not(:disabled) {
-  background: #eef0ff;
+  background: var(--nm-primary-soft);
 }
 
 .legal-explainer-actions button:disabled {
@@ -133,19 +133,19 @@
 }
 
 .legal-explainer-actions .legal-explainer-primary {
-  color: #fff;
-  background: #4338ca;
-  border-color: #4338ca;
+  color: var(--nm-on-primary);
+  background: var(--nm-primary-deep);
+  border-color: var(--nm-primary-deep);
 }
 
 .legal-explainer-actions .legal-explainer-primary:hover:not(:disabled) {
-  background: #3730a3;
+  background: var(--nm-primary-deep);
 }
 
 .legal-explainer-error {
   margin: 0;
 
-  color: #b42318;
+  color: var(--nm-danger);
   font-size: 12.5px;
   line-height: 1.6;
 }
@@ -158,32 +158,32 @@
   gap: 6px;
 
   padding: 13px 15px;
-  background: #fff;
-  border: 1px solid #e6e8f1;
-  border-left: 3px solid #4338ca;
+  background: var(--nm-surface);
+  border: 1px solid var(--nm-border);
+  border-left: 3px solid var(--nm-primary-deep);
   border-radius: 12px;
 }
 
 .legal-explainer-next strong {
-  color: #2a3145;
+  color: var(--nm-text);
   font-size: 13px;
 }
 
 .legal-explainer-next p {
   margin: 0;
 
-  color: #2a3145;
+  color: var(--nm-text);
   font-size: 13px;
   line-height: 1.7;
 }
 
 .legal-explainer-next em {
-  color: #6b7183;
+  color: var(--nm-text-mute);
   font-size: 11.5px;
 }
 
 .legal-explainer-next small {
-  color: #9aa0b3;
+  color: var(--nm-text-mute);
   font-size: 11px;
   line-height: 1.55;
 }

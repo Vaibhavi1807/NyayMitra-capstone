@@ -1,7 +1,14 @@
 import { useState } from "react";
+import {
+  User,
+  Scale,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { ROLES, type Role } from "../../auth/roles";
 import type { Session } from "../../auth/session";
 import { login, DEMO_ACCOUNTS, IS_MOCK_AUTH } from "../../api/authApi";
+import { useT } from "../../i18n/context";
 import "./LoginPage.css";
 
 /* =========================================================
@@ -37,37 +44,31 @@ type LoginPageProps = {
 
 const DOORS: Array<{
   door: Door;
-  icon: string;
-  title: string;
-  role: string;
-  description: string;
+  icon: LucideIcon;
+  titleKey: string;
+  roleKey: string;
+  descriptionKey: string;
 }> = [
   {
     door: "USER",
-    icon: "🧑‍💼",
-    title: "I am a Citizen",
-    role: "User",
-    description:
-      "Search cases, track timelines, read court orders, " +
-      "find lawyers and translate legal documents.",
+    icon: User,
+    titleKey: "login.door.user.title",
+    roleKey: "login.door.user.role",
+    descriptionKey: "login.door.user.desc",
   },
   {
     door: "LAWYER",
-    icon: "⚖️",
-    title: "I am a Lawyer",
-    role: "Lawyer",
-    description:
-      "Manage your professional profile, cases, hearings " +
-      "and client communication.",
+    icon: Scale,
+    titleKey: "login.door.lawyer.title",
+    roleKey: "login.door.lawyer.role",
+    descriptionKey: "login.door.lawyer.desc",
   },
   {
     door: "ADMIN",
-    icon: "🛡️",
-    title: "I am an Administrator",
-    role: "Admin",
-    description:
-      "Manage users, lawyers, staff and platform access. " +
-      "Staff members sign in through this door.",
+    icon: ShieldCheck,
+    titleKey: "login.door.admin.title",
+    roleKey: "login.door.admin.role",
+    descriptionKey: "login.door.admin.desc",
   },
 ];
 
@@ -75,6 +76,8 @@ function LoginPage({
   onAuthenticated,
   onRegister,
 }: LoginPageProps) {
+  const { t, tm } = useT();
+
   const [door, setDoor] = useState<Door | null>(null);
 
   /* Inside the Admin door, staff have their own sign-in. */
@@ -128,13 +131,33 @@ function LoginPage({
       return;
     }
 
+    /* Client-side checks first: an empty field never costs a
+       round trip, and the message appears under the person's
+       hands instead of as a server error. The backend still
+       validates everything regardless. */
+    const trimmedIdentifier = identifier.trim();
+
+    if (!trimmedIdentifier) {
+      setError(
+        effectiveRole === "STAFF"
+          ? t("login.error.staffEmail")
+          : t("login.error.identifier"),
+      );
+      return;
+    }
+
+    if (!password) {
+      setError(t("login.error.password"));
+      return;
+    }
+
     setError("");
     setLoading(true);
 
     try {
       const session = await login({
         role: effectiveRole,
-        identifier,
+        identifier: trimmedIdentifier,
         password,
       });
 
@@ -143,7 +166,7 @@ function LoginPage({
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to sign in. Please try again.",
+          : t("login.error.generic"),
       );
     } finally {
       setLoading(false);
@@ -177,32 +200,27 @@ function LoginPage({
             <div className="login-brand">
 
               <div className="login-brand-icon">
-                ⚖
+                <Scale size={26} aria-hidden="true" />
               </div>
 
               <div>
                 <strong>NyayMitra</strong>
-                <span>AI Court Assistant</span>
+                <span>{t("login.brand.tagline")}</span>
               </div>
 
             </div>
 
             <div className="login-eyebrow">
-              ONE PLATFORM • FOUR ROLES
+              {t("login.eyebrow")}
             </div>
 
             <h1>
-              Welcome to
+              {t("login.hero.title1")}
               <br />
-              <span>NyayMitra.</span>
+              <span>{t("login.hero.titleAccent")}</span>
             </h1>
 
-            <p>
-              A single login system identifies whether you
-              are a user, lawyer, administrator or staff
-              member — and opens the dashboard built for
-              your role.
-            </p>
+            <p>{t("login.hero.copy")}</p>
 
           </div>
 
@@ -213,14 +231,12 @@ function LoginPage({
           <div className="login-door-heading">
 
             <span className="login-section-label">
-              SIGN IN
+              {t("login.doors.label")}
             </span>
 
-            <h2>Login as what role?</h2>
+            <h2>{t("login.doors.heading")}</h2>
 
-            <p>
-              Choose the door that matches your role.
-            </p>
+            <p>{t("login.doors.sub")}</p>
 
           </div>
 
@@ -235,19 +251,19 @@ function LoginPage({
               >
 
                 <div className="login-door-icon">
-                  {option.icon}
+                  <option.icon size={26} aria-hidden="true" />
                 </div>
 
                 <span className="login-door-role">
-                  {option.role}
+                  {t(option.roleKey)}
                 </span>
 
-                <h3>{option.title}</h3>
+                <h3>{t(option.titleKey)}</h3>
 
-                <p>{option.description}</p>
+                <p>{t(option.descriptionKey)}</p>
 
                 <div className="login-door-cta">
-                  Continue →
+                  {t("login.door.cta")}
                 </div>
 
               </button>
@@ -261,7 +277,7 @@ function LoginPage({
               className="login-staff-link"
               onClick={onRegister}
             >
-              New citizen? Create an account →
+              {t("login.registerLink")}
             </button>
           )}
 
@@ -272,8 +288,8 @@ function LoginPage({
               onClick={() => setShowDemo((value) => !value)}
             >
               {showDemo
-                ? "Hide demo credentials"
-                : "Show demo credentials"}
+                ? t("login.demo.hide")
+                : t("login.demo.show")}
             </button>
           )}
 
@@ -281,7 +297,7 @@ function LoginPage({
             <div className="login-demo-panel">
 
               <span className="login-section-label">
-                DEMO ACCOUNTS — MOCK AUTH
+                {t("login.demo.label")}
               </span>
 
               <div className="login-demo-list">
@@ -326,7 +342,7 @@ function LoginPage({
                         );
                       }}
                     >
-                      Use
+                      {t("login.demo.use")}
                     </button>
 
                   </div>
@@ -363,42 +379,44 @@ function LoginPage({
           <div className="login-brand">
 
             <div className="login-brand-icon">
-              ⚖
+              <Scale size={26} aria-hidden="true" />
             </div>
 
             <div>
               <strong>NyayMitra</strong>
-              <span>AI Court Assistant</span>
+              <span>{t("login.brand.tagline")}</span>
             </div>
 
           </div>
 
           <div className="login-eyebrow">
             {staffMode
-              ? "STAFF SIGN-IN"
-              : `${doorInfo?.role.toUpperCase()} SIGN-IN`}
+              ? t("login.eyebrow.staff")
+              : t("login.eyebrow.door", {
+                  role: t(doorInfo!.roleKey),
+                })}
           </div>
 
           <h1>
             {staffMode ? (
               <>
-                Staff access
+                {t("login.staff.title1")}
                 <br />
-                <span>via Admin.</span>
+                <span>{t("login.staff.titleAccent")}</span>
               </>
             ) : (
               <>
-                Sign in to
+                {t("login.form.title1")}
                 <br />
-                <span>your dashboard.</span>
+                <span>{t("login.form.titleAccent")}</span>
               </>
             )}
           </h1>
 
           <p>
             {staffMode
-              ? "Staff accounts are issued and managed by the administrator. Sign in with the credentials you were given."
-              : doorInfo?.description}
+              ? t("login.staff.desc")
+              : t(doorInfo!.descriptionKey)}
           </p>
 
         </div>
@@ -410,6 +428,8 @@ function LoginPage({
         <form
           className="login-form"
           onSubmit={handleSubmit}
+          noValidate
+          aria-busy={loading}
         >
 
           <div className="login-form-heading">
@@ -419,19 +439,21 @@ function LoginPage({
               className="login-back"
               onClick={backToDoors}
             >
-              ← Change role
+              {t("login.back")}
             </button>
 
             <span className="login-section-label">
               {staffMode
-                ? "STAFF"
-                : doorInfo?.role.toUpperCase()}
+                ? t("login.label.staff")
+                : t(doorInfo!.roleKey).toUpperCase()}
             </span>
 
             <h2>
               {staffMode
-                ? "Staff sign-in"
-                : `Sign in as ${doorInfo?.role}`}
+                ? t("login.heading.staff")
+                : t("login.heading.as", {
+                    role: t(doorInfo!.roleKey),
+                  })}
             </h2>
 
             {!staffMode && door === "ADMIN" && (
@@ -444,7 +466,7 @@ function LoginPage({
                   setPassword("");
                 }}
               >
-                Are you staff? Sign in here →
+                {t("login.staffLink")}
               </button>
             )}
 
@@ -458,7 +480,7 @@ function LoginPage({
                   setPassword("");
                 }}
               >
-                ← Administrator sign-in
+                {t("login.adminBack")}
               </button>
             )}
 
@@ -468,38 +490,41 @@ function LoginPage({
 
             <span>
               {effectiveRole === "STAFF"
-                ? "Staff email"
-                : "Email or User ID"}
+                ? t("login.field.staffEmail")
+                : t("login.field.identifier")}
             </span>
 
             <input
               type="text"
+              name="identifier"
               autoComplete="username"
               placeholder={
                 effectiveRole === "STAFF"
-                  ? "you@nyaymitra.in"
+                  ? t("login.field.placeholder.staff")
                   : IS_MOCK_AUTH
-                    ? "you@example.com or USER_0001"
-                    : "you@example.com"
+                    ? t("login.field.placeholder.mock")
+                    : t("login.field.placeholder")
               }
               value={identifier}
               onChange={(event) =>
                 setIdentifier(event.target.value)
               }
+              autoFocus
             />
 
           </label>
 
           <label className="login-field">
 
-            <span>Password</span>
+            <span>{t("login.field.password")}</span>
 
             <div className="login-password">
 
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
                 autoComplete="current-password"
-                placeholder="Enter your password"
+                placeholder={t("login.field.passwordPlaceholder")}
                 value={password}
                 onChange={(event) =>
                   setPassword(event.target.value)
@@ -508,11 +533,19 @@ function LoginPage({
 
               <button
                 type="button"
+                aria-label={
+                  showPassword
+                    ? t("login.password.hide")
+                    : t("login.password.show")
+                }
+                aria-pressed={showPassword}
                 onClick={() =>
                   setShowPassword((value) => !value)
                 }
               >
-                {showPassword ? "Hide" : "Show"}
+                {showPassword
+                  ? t("login.password.hideShort")
+                  : t("login.password.showShort")}
               </button>
 
             </div>
@@ -521,7 +554,7 @@ function LoginPage({
 
           {error && (
             <div className="login-error" role="alert">
-              {error}
+              {tm(error)}
             </div>
           )}
 
@@ -530,18 +563,21 @@ function LoginPage({
             className="login-submit"
             disabled={loading}
           >
+            {loading && (
+              <span className="nm-spinner" aria-hidden="true" />
+            )}
             {loading
-              ? "Verifying role..."
+              ? t("login.submit.loading")
               : staffMode
-                ? "Sign in as Staff"
-                : `Sign in as ${doorInfo?.role}`}
+                ? t("login.submit.staff")
+                : t("login.submit.as", {
+                    role: t(doorInfo!.roleKey),
+                  })}
           </button>
 
           <p className="login-note">
-            {IS_MOCK_AUTH &&
-              "Authentication is running in mock mode. "}
-            Your role is detected on sign-in and the matching
-            dashboard opens automatically.
+            {IS_MOCK_AUTH && t("login.note.mock")}
+            {t("login.note.tail")}
           </p>
 
         </form>

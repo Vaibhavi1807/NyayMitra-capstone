@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Scale, MessageSquare } from "lucide-react";
 
 import { getCasesForLawyer } from "../../api/caseApi";
 import { listDocuments } from "../../api/documentApi";
@@ -103,7 +104,7 @@ function LawyerCasesPage({
 
         <section className="lawyer-cases-hero">
           <div className="eyebrow">
-            <span>⚖</span>
+            <Scale size={15} aria-hidden="true" />
             NYAYMITRA ADVOCATE PORTAL
           </div>
 
@@ -117,7 +118,7 @@ function LawyerCasesPage({
         </section>
 
         <div className="lawyer-cases-empty">
-          <span aria-hidden="true">⚖</span>
+          <span aria-hidden="true"><Scale size={22} /></span>
           <p>
             Once a case is assigned to you it will appear here with
             its stage, hearing schedule and parties.
@@ -139,7 +140,7 @@ function LawyerCasesPage({
 
       <section className="lawyer-cases-hero">
         <div className="eyebrow">
-          <span>⚖</span>
+          <Scale size={15} aria-hidden="true" />
           NYAYMITRA ADVOCATE PORTAL
         </div>
 
@@ -454,7 +455,8 @@ function CaseDetailCard({
             })
           }
         >
-          💬 Message client
+          <MessageSquare size={14} aria-hidden="true" />
+          Message client
         </button>
       </footer>
     </article>

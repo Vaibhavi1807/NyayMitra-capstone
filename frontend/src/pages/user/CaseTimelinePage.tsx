@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  Scale,
+  FileText,
+  MessageSquare,
+  Calendar,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 
 import OngoingCases from "../../components/OngoingCases";
 import { getCasesForUser } from "../../api/caseApi";
@@ -29,7 +37,7 @@ type TimelineEvent = {
   title: string;
   description: string;
   status: "completed" | "current" | "upcoming";
-  icon: string;
+  icon: LucideIcon;
 };
 
 function formatDate(iso: string): string {
@@ -87,7 +95,7 @@ function buildTimeline(caseData: Case): TimelineEvent[] {
           ? `Before ${entry.judge_title}.`
           : "Recorded in the case history.",
       status: isFuture(entry.hearing_date) ? "upcoming" : "completed",
-      icon: "⚖",
+      icon: Scale,
     };
 
     if (event.status === "upcoming") upcoming.push(event);
@@ -100,7 +108,7 @@ function buildTimeline(caseData: Case): TimelineEvent[] {
       title: "Case filed",
       description: `Registered before ${caseData.court_name}.`,
       status: "completed",
-      icon: "📄",
+      icon: FileText,
     },
     ...past,
     {
@@ -108,7 +116,7 @@ function buildTimeline(caseData: Case): TimelineEvent[] {
       title: caseData.current_case_stage,
       description: "The stage this matter sits at today.",
       status: "current",
-      icon: "🗣",
+      icon: MessageSquare,
     },
     ...upcoming,
   ];
@@ -127,7 +135,7 @@ function buildTimeline(caseData: Case): TimelineEvent[] {
           }.`
         : "No date is on record yet — the court will list the matter in its own time.",
       status: "upcoming",
-      icon: "📅",
+      icon: Calendar,
     });
   }
 
@@ -137,7 +145,7 @@ function buildTimeline(caseData: Case): TimelineEvent[] {
     description:
       "The final decision will be recorded after the remaining proceedings.",
     status: "upcoming",
-    icon: "⚖",
+    icon: Scale,
   });
 
   return events;
@@ -297,7 +305,9 @@ export default function CaseTimelinePage({
                         <div className="timeline-line" />
                       )}
 
-                      <div className="timeline-icon">{event.icon}</div>
+                      <div className="timeline-icon">
+                        <event.icon size={18} aria-hidden="true" />
+                      </div>
 
                       <div className="timeline-event-content">
                         <div className="timeline-event-top">
@@ -322,7 +332,7 @@ export default function CaseTimelinePage({
               {/* INFORMATION */}
 
               <div className="case-timeline-info">
-                <span>✦</span>
+                <Sparkles size={14} aria-hidden="true" />
 
                 <div>
                   <strong>What does this mean?</strong>

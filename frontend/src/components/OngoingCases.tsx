@@ -1,4 +1,6 @@
 import type { Case } from "../types/case";
+import { Scale } from "lucide-react";
+import { useT, type I18nValue } from "../i18n/context";
 
 import "./OngoingCases.css";
 
@@ -18,8 +20,8 @@ import "./OngoingCases.css";
    case over another is what is happening in it.
    ========================================================= */
 
-function formatHearing(iso: string): string {
-  if (!iso) return "Date not set";
+function formatHearing(iso: string, t: I18nValue["t"]): string {
+  if (!iso) return t("ongoing.dateNotSet");
 
   const parsed = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return iso;
@@ -33,8 +35,9 @@ function formatHearing(iso: string): string {
     year: "numeric",
   });
 
-  if (parsed.getTime() === today.getTime()) return `Today, ${label}`;
-  if (parsed < today) return `Held ${label}`;
+  if (parsed.getTime() === today.getTime())
+    return t("ongoing.today", { date: label });
+  if (parsed < today) return t("ongoing.held", { date: label });
 
   return label;
 }
@@ -63,10 +66,12 @@ export default function OngoingCases({
   emptyTitle,
   emptyBody,
 }: OngoingCasesProps) {
+  const { t } = useT();
+
   if (cases.length === 0) {
     return (
       <div className="ongoing-empty">
-        <span aria-hidden="true">⚖</span>
+        <span aria-hidden="true"><Scale size={20} /></span>
         <h3>{emptyTitle}</h3>
         <p>{emptyBody}</p>
       </div>
@@ -89,7 +94,7 @@ export default function OngoingCases({
               <h3>{caseData.case_type}</h3>
 
               <p className="ongoing-parties">
-                {caseData.petitioner_name} v.{" "}
+                {caseData.petitioner_name} {t("ongoing.versus")}{" "}
                 {caseData.respondents_list.join(", ")}
               </p>
 
@@ -99,11 +104,14 @@ export default function OngoingCases({
                 </span>
 
                 <span className="ongoing-chip">
-                  ⚖ {caseData.court_name}
+                  <Scale size={12} aria-hidden="true" />
+                  {caseData.court_name}
                 </span>
 
                 <span className="ongoing-chip">
-                  ◷ Next hearing {formatHearing(caseData.next_hearing_date)}
+                  ◷ {t("ongoing.nextHearing", {
+                    date: formatHearing(caseData.next_hearing_date, t),
+                  })}
                 </span>
               </div>
             </div>
@@ -114,7 +122,7 @@ export default function OngoingCases({
               disabled={busy}
               onClick={() => onAction(caseData)}
             >
-              {busy ? "Working…" : actionLabel}
+              {busy ? t("ongoing.working") : actionLabel}
             </button>
           </article>
         );
