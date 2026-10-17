@@ -108,7 +108,7 @@ function DashboardPage({ onNavigate }: DashboardPageProps) {
         {!heroPhotoFailed && (
           <img
             className="dashboard-hero-photo"
-            src="courthouse.jpg"
+            src="/nyaymitra-court.png"
             alt=""
             aria-hidden="true"
             onError={() => setHeroPhotoFailed(true)}

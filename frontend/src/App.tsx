@@ -288,24 +288,35 @@ function App() {
      SIGNED IN → ROLE ROUTING
      ======================================================= */
 
-  const goToPage = (page: Page) => {
-    /*
-     * Arriving at the inbox by plain navigation means no
-     * particular thread was asked for, so drop any target
-     * left over from an earlier "Chat" button. Otherwise
-     * the stale one would reopen on the next visit.
-     */
-    if (page === "chat") {
-      setChatTarget(null);
-    }
 
-    setActivePage(page);
+const goToPage = (page: Page) => {
+  // Prevent navigation to pages not allowed for this role.
+  if (!pageOwnedByRole(session.role, page)) {
+    setChatTarget(null);
+    setSelectedLawyerId(null);
+    setActivePage(homePageForRole(session.role));
 
     window.scrollTo({
       top: 0,
       behavior: "smooth",
     });
-  };
+
+    return;
+  }
+
+  // Clear any previous chat target when opening the inbox normally.
+  if (page === "chat") {
+    setChatTarget(null);
+  }
+
+  setActivePage(page);
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+};
+
 
   const goBackToDashboard = () => {
     setActivePage(homePageForRole(session.role));
@@ -542,36 +553,29 @@ function App() {
       {(session.role === "USER" ||
         session.role === "LAWYER") && (
         <div className="app-session-bar">
-
-          <LanguageToggle />
-
-          <ThemeToggle />
-
-          <span
-            className="app-session-avatar"
-            aria-hidden="true"
-          >
+          <span className="app-session-avatar" aria-hidden="true">
             {initialsFromName(session.fullName)}
           </span>
 
-          <span className="app-session-role">
-            {session.role === "LAWYER"
-              ? t("app.role.lawyer")
-              : t("app.role.user")}
-          </span>
+          <div className="app-session-details">
+            <LanguageToggle />
+            <ThemeToggle />
 
-          <span className="app-session-name">
-            {session.fullName}
-          </span>
+            <span className="app-session-role">
+              {session.role === "LAWYER"
+                ? t("app.role.lawyer")
+                : t("app.role.user")}
+            </span>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-          >
-            <LogOut size={13} aria-hidden="true" />
-            {t("app.signOut")}
-          </button>
+            <span className="app-session-name">
+              {session.fullName}
+            </span>
 
+            <button type="button" onClick={handleSignOut}>
+              <LogOut size={13} aria-hidden="true" />
+              {t("app.signOut")}
+            </button>
+          </div>
         </div>
       )}
 

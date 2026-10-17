@@ -381,10 +381,28 @@ export async function login(
    * (input.role) is deliberately NOT sent: the server decides the
    * role from the database, never from the client.
    */
-  return postForSession("/api/auth/login", {
-    email: input.identifier,
-    password: input.password,
-  });
+
+const session = await postForSession("/api/auth/login", {
+  email: input.identifier,
+  password: input.password,
+});
+
+if (session.role !== input.role) {
+  const roleNames: Record<Role, string> = {
+    USER: "Citizen",
+    LAWYER: "Lawyer",
+    ADMIN: "Admin",
+    STAFF: "Staff",
+  };
+
+  throw new Error(
+    `This account is registered as ${roleNames[session.role]}. ` +
+      `Please sign in through the ${roleNames[session.role]} login option.`,
+  );
+}
+
+return session;
+
 }
 
 /* =========================================================

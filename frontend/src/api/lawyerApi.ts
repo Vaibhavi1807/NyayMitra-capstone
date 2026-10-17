@@ -1,3 +1,8 @@
+import {
+  apiRequest as authenticatedApiRequest,
+  LAWYER_API_BASE_URL,
+} from "./config";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -554,6 +559,47 @@ export function setLawyerVerification(
 /** How many advocates an admin or staff member has ruled on. */
 export function countDecidedVerifications(): number {
   return Object.keys(readVerifications()).length;
+}
+
+
+interface OwnLawyerProfileResponse {
+  lawyer_id: string;
+  full_name: string;
+  email: string;
+  license_id: string;
+  practice_areas: string[];
+  verification_status: "PENDING" | "APPROVED" | "REJECTED";
+  bar_council?: string | null;
+  years_of_experience?: number | null;
+  professional_phone_number?: string | null;
+  professional_bio?: string | null;
+  created_at?: string | null;
+}
+
+export async function getOwnLawyerProfile(): Promise<Lawyer> {
+  const profile =
+    await authenticatedApiRequest<OwnLawyerProfileResponse>(
+      LAWYER_API_BASE_URL,
+      "/api/auth/lawyer/profile",
+    );
+
+  const record: Lawyer = {
+    lawyer_id: profile.lawyer_id,
+    full_name: profile.full_name,
+    enrollment_number: profile.license_id,
+    registration_number: profile.license_id,
+    bar_id_or_bar_code: profile.license_id,
+    bar_council: profile.bar_council,
+    practice_areas: profile.practice_areas,
+    years_of_experience: profile.years_of_experience,
+    professional_email: profile.email,
+    professional_phone_number: profile.professional_phone_number,
+    professional_bio: profile.professional_bio,
+    profile_status: profile.verification_status,
+    created_at: profile.created_at,
+  };
+
+  return applyProfileEdits(profile.lawyer_id, record);
 }
 
 /* =========================================================

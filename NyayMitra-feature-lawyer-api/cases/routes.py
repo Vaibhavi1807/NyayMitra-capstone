@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 
 from .cnr import validate_cnr
 from .provider import (
@@ -24,6 +25,7 @@ from .provider import (
     ProviderUnavailableError,
     get_provider,
 )
+from .report_pdf import build_case_summary_pdf
 
 router = APIRouter(prefix="/api/cases", tags=["Cases"])
 
@@ -134,3 +136,54 @@ def cases_meta():
         raise _unavailable(exc) from exc
 
     return {"success": True, "data_source": description}
+
+
+@router.get("/cnr/{cnr}/report", response_class=Response)
+def download_case_summary(cnr: str):
+    """Download a PDF summary of the case record available to this provider."""
+    try:
+        cleaned = validate_cnr(cnr)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        provider = get_provider()
+        record = provider.get_case(cleaned)
+    except CaseNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No case with CNR {cleaned} is present in the data this "
+                "service can read. Check the number, or use the official "
+                "eCourts site for a live lookup."
+            ),
+        ) from None
+    except ProviderUnavailableError as exc:
+        raise _unavailable(exc) from exc
+    except CaseDataError as exc:
+        logger.warning("case report lookup failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="The case record could not be read for the report.",
+        ) from exc
+
+    try:
+        pdf_bytes = build_case_summary_pdf(record, _describe(provider))
+    except Exception as exc:
+        logger.exception("case PDF generation failed")
+        raise HTTPException(
+            status_code=500,
+            detail="The case summary PDF could not be generated.",
+        ) from exc
+
+    logger.info("case PDF generated cnr=%s", cleaned)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="NyayMitra-Case-Summary-{cleaned}.pdf"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )

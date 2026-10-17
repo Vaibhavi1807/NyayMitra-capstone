@@ -24,17 +24,17 @@
 
 .login-hero {
   position: relative;
-
   overflow: hidden;
-
   padding: 78px 20px 96px;
-
   text-align: center;
-
   color: white;
 
   background:
-    var(--nm-hero-grad);
+    linear-gradient(
+      rgba(30, 35, 75, 0.42),
+      rgba(30, 35, 75, 0.42)
+    ),
+    url("/nyaymitra-court.png") center 42% / cover no-repeat;
 }
 
 .login-hero-glow {

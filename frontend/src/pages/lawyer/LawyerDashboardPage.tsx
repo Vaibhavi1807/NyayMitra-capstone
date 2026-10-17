@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { IS_MOCK_AUTH } from "../../api/authApi";
 import {
   Scale,
   MessageSquare,
@@ -12,6 +13,7 @@ import type { Page } from "../../App";
 import type { VerificationStatus } from "../../auth/session";
 import {
   getLawyerById,
+  getOwnLawyerProfile,
   type Lawyer,
 } from "../../api/lawyerApi";
 import "./LawyerDashboardPage.css";
@@ -59,9 +61,9 @@ function LawyerDashboardPage({
       try {
         setLoading(true);
         setError("");
-
-        const data =
-          await getLawyerById(effectiveLawyerId);
+        const data = IS_MOCK_AUTH
+  ? await getLawyerById(effectiveLawyerId)
+  : await getOwnLawyerProfile();
 
         if (!cancelled) {
           setLawyer(data);

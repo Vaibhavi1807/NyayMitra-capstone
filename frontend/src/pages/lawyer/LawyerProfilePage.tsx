@@ -1,9 +1,12 @@
+
 import { useEffect, useState } from "react";
 import { Scale, Pencil, MapPin, SquarePen } from "lucide-react";
-
+import { IS_MOCK_AUTH } from "../../api/authApi";
 import LawyerAvatar from "../../components/LawyerAvatar";
+
 import {
   getLawyerById,
+  getOwnLawyerProfile,
   editableSnapshot,
   toProfileDraft,
   fromProfileDraft,
@@ -13,8 +16,10 @@ import {
   type ProfileDraft,
   type Lawyer,
 } from "../../api/lawyerApi";
+
 import { useT } from "../../i18n/context";
 import "./LawyerProfilePage.css";
+
 
 interface LawyerProfilePageProps {
   lawyerId: string;
@@ -69,7 +74,9 @@ function LawyerProfilePage({
         setLoading(true);
         setError("");
 
-        const data = await getLawyerById(lawyerId);
+       const data = IS_MOCK_AUTH
+  ? await getLawyerById(lawyerId)
+  : await getOwnLawyerProfile();
 
         if (!cancelled) {
           setLawyer(data);
